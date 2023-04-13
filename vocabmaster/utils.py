@@ -117,7 +117,7 @@ def backup_content(backup_dir, content):
 def backup_file(backup_dir, filepath):
     """
     Creates a timestamped backup file for the provided filepath in the backup_dir directory.
-    A maximum of 5 backup files will be saved, after which the oldest backup file will be overwritten.
+    A maximum of 10 backup files will be saved, after which the oldest backup file will be overwritten.
 
     Args:
         backup_dir (pathlib.Path): The backup directory path.
@@ -132,9 +132,9 @@ def backup_file(backup_dir, filepath):
     backup_voc_list = backup_dir / f"{filepath.stem}_{iso_timestamp}.bak"
     shutil.copy(filepath, backup_voc_list)
 
-    # If there are more than 5 backup files in the directory, delete the oldest backup file
+    # If there are more than 10 backup files in the directory, delete the oldest backup file
     backup_files = sorted(list(backup_dir.glob(f"{filepath.stem}_*.bak")), key=lambda p: p.stat().st_mtime)
-    if len(backup_files) > 5:
+    if len(backup_files) > 10:
         oldest_backup_file = backup_files[0]
         oldest_backup_file.unlink()
 
