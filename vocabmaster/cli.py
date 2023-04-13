@@ -72,7 +72,6 @@ def translate(pair):
     language_to_learn, mother_tongue = config_handler.get_language_pair_from_option(
         pair
     )
-    print(f"language_to_learn: {language_to_learn}, mother_tongue: {mother_tongue}")
 
     translations_filepath, anki_filepath = setup_files(
         setup_dir(), language_to_learn, mother_tongue
