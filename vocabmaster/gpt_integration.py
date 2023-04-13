@@ -15,7 +15,19 @@ def format_prompt(language_to_learn, mother_tongue, words_to_translate):
         },
         {
             "role": "user",
-            "content": f"Translate the following {language_to_learn} words into {mother_tongue} and provide a CSV file with each row consisting of the {language_to_learn} word, its {mother_tongue} translations (if there are multiple translations possible, list them in the same column), and an example sentence in {language_to_learn}. Always give ONLY ONE example! The example HAS TO BE in {language_to_learn}! Separate each column with commas. For the translation column, ALWAYS give at least two possible translations! When you start a new row, you HAVE TO add a newline character. Below is the list of words to translate.\nThe format should look like this:\nword,'translation1, translation2','example'\n.---\n{words_to_translate}",
+            "content": f"""
+            Translate the following {language_to_learn} words into {mother_tongue} and provide a CSV file with each row consisting of the {language_to_learn} word,
+            its {mother_tongue} translations (if there are multiple translations possible, list them in the same column),
+            and an example sentence in {language_to_learn}.
+
+            Always give ONLY ONE example! The example HAS TO BE in {language_to_learn}!
+            Separate each column with commas. For the translation column, ALWAYS give at least two possible translations!
+            
+            When you start a new row, you HAVE TO add a newline character. Below is the list of words to translate.
+            The format should look like this:
+            word,'translation1, translation2','example'.
+            ---
+            {words_to_translate}""",
         },
     ]
     return prompt
