@@ -182,7 +182,8 @@ def add_translations_and_examples_to_file(translations_filepath, pair):
             writer.writerow(current_entry)
 
     # Create a backup of the translations file
-    utils.backup_file(translations_filepath)
+    backup_dir = utils.get_backup_dir(language_to_learn, mother_tongue)
+    utils.backup_file(backup_dir, translations_filepath)
 
 
 def generate_anki_output_file(translations_filepath, anki_output_file):

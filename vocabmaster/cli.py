@@ -4,6 +4,11 @@ from vocabmaster import config_handler
 from .utils import *
 
 
+RED = "\x1b[38;5;9m"
+BOLD = "\x1b[1m"
+RESET = "\x1b[0m"
+
+
 @click.group()
 def main():
     """
@@ -84,7 +89,8 @@ def translate(pair):
         csv_handler.add_translations_and_examples_to_file(translations_filepath, pair)
         click.echo()
     except Exception as error:
-        click.echo(f"Status: {error}")
+        click.echo()
+        click.echo(f"{RED}Status:{RESET} {error}")
     else:
         click.echo(
             "The translations and examples have been added to the vocabulary list 💡✅"
@@ -98,8 +104,6 @@ def translate(pair):
         click.echo()
         click.echo("You can now import the deck into Anki 📚")
 
-        BOLD = "\x1b[1m"
-        RESET = "\x1b[0m"
         click.echo(f"{BOLD}The deck is located at:{RESET}")
         click.echo(f"{anki_filepath}")
         click.echo()
@@ -144,8 +148,6 @@ def setup():
         click.echo(f"Backup directory: {backup_lang}")
         click.echo()
     else:
-        RED = "\x1b[38;5;9m"
-        RESET = "\x1b[0m"
         click.echo(f"{RED}Setup canceled{RESET}")
 
     if config_handler.get_default_language_pair() is None:
