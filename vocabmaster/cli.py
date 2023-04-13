@@ -33,23 +33,28 @@ def add(pair, word):
 
     WORD: The word or phrase to be added to the vocabulary list.
     """
-    language_to_learn, mother_tongue = config_handler.get_language_pair_from_option(
+    try:
+        language_to_learn, mother_tongue = config_handler.get_language_pair_from_option(
         pair
-    )
-    translations_filepath, anki_filepath = setup_files(
-        setup_dir(), language_to_learn, mother_tongue
-    )
-
-    if not word:
-        click.echo("Please provide a word to add.")
+        )
+    except Exception as error:
+        click.echo(f"{RED}Error:{RESET} {error}")
         return
-
-    word = " ".join(word)
-    if csv_handler.word_exists(word, translations_filepath):
-        click.echo("The word is already in the list 📒")
     else:
-        csv_handler.append_word(word, translations_filepath)
-        click.echo("The word has been appended to the list 📝✅")
+        translations_filepath, anki_filepath = setup_files(
+            setup_dir(), language_to_learn, mother_tongue
+        )
+
+        if not word:
+            click.echo("Please provide a word to add.")
+            return
+
+        word = " ".join(word)
+        if csv_handler.word_exists(word, translations_filepath):
+            click.echo("The word is already in the list 📒")
+        else:
+            csv_handler.append_word(word, translations_filepath)
+            click.echo("The word has been appended to the list 📝✅")
 
 
 @main.command()
