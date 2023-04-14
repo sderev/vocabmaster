@@ -64,7 +64,7 @@ def get_words_to_translate(translations_filepath):
 
     if not words_to_translate:
         raise Exception(
-            "All words in the vocabulary list already have translations and examples."
+            "All the words in the vocabulary list already have translations and examples"
         )
     else:
         return words_to_translate
@@ -123,7 +123,7 @@ def convert_text_to_dict(generated_text):
         dict: A dictionary with words as keys and a dictionary of translations and examples as values.
     """
     # Clean input text and split it into lines
-    cleaned_text = generated_text.replace("\n\n", "\n")
+    cleaned_text = generated_text.replace("\n\n", "")
     lines = cleaned_text.strip().split("\n")
 
     # Create a dictionary of words with translations and examples
@@ -169,8 +169,9 @@ def add_translations_and_examples_to_file(translations_filepath, pair):
 
     # Write the updated translations and examples to the output file
     with open(translations_filepath, "w", encoding="UTF-8") as output_file:
-        header = ["word", "translation", "example"]
-        writer = DictWriter(output_file, fieldnames=header)
+        fieldnames = ["word", "translation", "example"]
+        writer = DictWriter(output_file, fieldnames=fieldnames)
+        writer.writeheader()
 
         # Iterate through the current entries and update them with the new translations and examples
         for word, current_entry in current_entries.items():
@@ -189,7 +190,7 @@ def add_translations_and_examples_to_file(translations_filepath, pair):
 def generate_anki_output_file(translations_filepath, anki_output_file):
     """
     Converts a translations file to a CSV file formatted for Anki import.
-    
+
     This function reads a translations file with words, their translations, and examples, and creates a new CSV file
     formatted as an Anki deck. The resulting file can be imported into Anki to create flashcards with the word on the
     front and the translation and example on the back.
@@ -229,18 +230,18 @@ def generate_anki_output_file(translations_filepath, anki_output_file):
                 anki_dict_writer.writerow(card)
 
 
-def add_header_to_csv_file(translations_filepath, header):
+def add_fieldnames_to_csv_file(translations_filepath, fieldnames):
     """
-    Adds a header to a CSV file if it's missing.
+    Adds fieldnames to a CSV file if it's missing.
 
     Args:
         translations_filepath (str): The path to the CSV file.
-        header (list): A list of strings containing the column names.
+        fieldnames (list): A list of strings containing the column names.
     """
     with open(translations_filepath, "r+", encoding="UTF-8") as file:
-        # Check if the header is already present in the first row of the content
+        # Check if the fieldnames is already present in the first row of the content
         for line in file:
-            if line.startswith(",".join(header)):
+            if line.startswith(",".join(fieldnames)):
                 return
 
         file.seek(0, 0)  # Move the file pointer to the beginning of the file
@@ -248,6 +249,22 @@ def add_header_to_csv_file(translations_filepath, header):
         file.seek(0, 0)
 
         writer = csv.writer(file)
-        writer.writerow(header)  # Write the header to the first row
-        file.write(content)      # Write the original content after the header
+        writer.writerow(fieldnames)  # Write the fieldnames to the first row
+        file.write(content)  # Write the original content after the fieldnames
 
+
+def vocabulary_list_is_empty(translations_filepath):
+    """
+    Checks if the vocabulary list is empty.
+
+    Args:
+        translations_filepath (str): The path to the CSV file containing the translations and examples.
+
+    Returns:
+        bool: True if the vocabulary list is empty, False otherwise.
+    """
+    with open(translations_filepath, encoding="UTF-8") as file:
+        csv_reader = csv.reader(file)
+        next(csv_reader)  # Skip the fieldnames
+        if len(list(csv_reader)) == 0:
+            return True

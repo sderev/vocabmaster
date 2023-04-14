@@ -4,7 +4,7 @@ from vocabmaster import cli
 
 
 def main():
-    cli.main()
+    cli.vocabmaster()
 
 
 if __name__ == "__main__":
