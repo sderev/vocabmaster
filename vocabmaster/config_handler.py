@@ -103,7 +103,7 @@ def get_language_pair(language_pair):
     from the configuration file will be used.
 
     Args:
-        pair (str): A string containing the language pair separated by a colon, e.g. "english:french",
+        language_pair (str): A string containing the language pair separated by a colon, e.g. "english:french",
             where 'english' is the language to learn and 'french' is the mother tongue. If empty, the default
             language pair from the configuration file will be used.
 
@@ -114,14 +114,13 @@ def get_language_pair(language_pair):
         try:
             language_to_learn, mother_tongue = language_pair.split(":")
         except ValueError:
-            raise ValueError("Invalid language language pair.")
+            raise ValueError("Invalid language pair.")
     else:
         default_pair = get_default_language_pair()
         if default_pair is None:
             raise ValueError(
                 "No default language pair found. Please set a default language pair using 'vocabmaster config default'.\nSee `vocabmaster --help` for more information."
             )
-            return
         language_to_learn = default_pair["language_to_learn"]
         mother_tongue = default_pair["mother_tongue"]
 
@@ -149,5 +148,5 @@ def openai_api_key_exists():
     Returns:
         bool: True if the OpenAI API key is set, False otherwise.
     """
-    return bool(os.getenv("OPENAI_API_KEY"))
+    return bool(os.environ.get("OPENAI_API_KEY"))
 
