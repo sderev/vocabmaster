@@ -116,7 +116,7 @@ def translate(pair, count):
     if not config_handler.openai_api_key_exists():
         click.echo(f"{RED}You need to set up an OpenAI API key.{RESET}")
         click.echo(
-            f"You can generate API keys in the OpenAI web interface. See https://onboard.openai.com for details."
+            f"You can generate API keys in the OpenAI web interface. See https://platform.openai.com/account/api-keys for details."
         )
         click.echo(
             f"Then, you can set it up your way, or by using '{BOLD}vocabmaster config key{RESET}'."
