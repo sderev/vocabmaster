@@ -20,9 +20,15 @@ def setup_dir():
             app_data_dir = Path.home() / ".local" / "share" / app_name
         case _:
             print("We couldn't identify your OS.")
-            app_data_dir = Path(
-                input("Please, tell us where you want your files to be installed")
-            )
+            while True:
+                try:
+                    app_data_dir = Path(input("Please, tell us where you want your files to be installed"))
+                    app_data_dir.mkdir(exist_ok=True, parents=True)
+                except Exception as e:
+                    print(e)
+                else:
+                    break
+
     app_data_dir.mkdir(exist_ok=True, parents=True)
     return app_data_dir
 
@@ -133,7 +139,9 @@ def backup_file(backup_dir, filepath):
     shutil.copy(filepath, backup_voc_list)
 
     # If there are more than 10 backup files in the directory, delete the oldest backup file
-    backup_files = sorted(list(backup_dir.glob(f"{filepath.stem}_*.bak")), key=lambda p: p.stat().st_mtime)
+    backup_files = sorted(
+        list(backup_dir.glob(f"{filepath.stem}_*.bak")), key=lambda p: p.stat().st_mtime
+    )
     if len(backup_files) > 10:
         oldest_backup_file = backup_files[0]
         oldest_backup_file.unlink()
@@ -189,3 +197,9 @@ def error_handling_wrapper(func, *args, **kwargs):
 
 app_name = "vocabmaster"
 app_data_dir = setup_dir()
+BLUE = "\x1b[94m"
+BOLD = "\x1b[1m"
+GREEN = "\x1b[92m"
+ORANGE = "\x1b[93m"
+RED = "\x1b[91m"
+RESET = "\x1b[0m"

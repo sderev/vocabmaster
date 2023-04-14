@@ -1,7 +1,7 @@
 from pathlib import Path
+import os
 import json
 from vocabmaster import utils
-from vocabmaster import config_handler
 
 
 def get_config_filepath():
@@ -61,6 +61,26 @@ def set_default_language_pair(language_to_learn, mother_tongue):
     write_config(config)
 
 
+def set_language_pair(language_to_learn, mother_tongue):
+    """
+    Sets the language pairs in the configuration file.
+
+    Args:
+        language_to_learn (str): The language the user wants to learn.
+        mother_tongue (str): The user's mother tongue.
+    """
+    config = read_config()
+    if config is None:
+        config = {}
+        config["language_pairs"] = []
+    new_pair = {
+        "language_to_learn": language_to_learn,
+        "mother_tongue": mother_tongue,
+    }
+    config["language_pairs"].append(new_pair)
+    write_config(config)
+
+
 def get_default_language_pair():
     """
     Gets the default language pair from the configuration file.
@@ -74,7 +94,7 @@ def get_default_language_pair():
     return config["default"]
 
 
-def get_language_pair_from_option(pair):
+def get_language_pair(language_pair):
     """
     Gets the language pair based on the input option string or the default language pair.
 
@@ -90,15 +110,44 @@ def get_language_pair_from_option(pair):
     Returns:
         tuple: A tuple containing the language to learn and the mother tongue as strings.
     """
-    if pair:
-        language_to_learn, mother_tongue = pair.split(":")
+    if language_pair:
+        try:
+            language_to_learn, mother_tongue = language_pair.split(":")
+        except ValueError:
+            raise ValueError("Invalid language language pair.")
     else:
-        default_pair = config_handler.get_default_language_pair()
+        default_pair = get_default_language_pair()
         if default_pair is None:
-            raise Exception(
-                "No default language pair found. Please specify a language pair using the `--pair` option. The language pair must be formatted like the following: 'language_to_learn:mother_tongue'. For example: 'english:french'.\nSee `vocabmaster --help` for more information."
+            raise ValueError(
+                "No default language pair found. Please set a default language pair using 'vocabmaster config default'.\nSee `vocabmaster --help` for more information."
             )
+            return
         language_to_learn = default_pair["language_to_learn"]
         mother_tongue = default_pair["mother_tongue"]
 
     return language_to_learn, mother_tongue
+
+
+def get_all_language_pairs():
+    """
+    Gets all language pairs from the configuration file.
+
+    Returns:
+        list: A list of language pairs as dictionaries.
+              The keys are 'language_to_learn' and 'mother_tongue'.
+    """
+    config = read_config()
+    if config is None or "language_pairs" not in config:
+        return None
+    return config["language_pairs"]
+
+
+def openai_api_key_exists():
+    """
+    Checks if an OpenAI API key is set on the system.
+
+    Returns:
+        bool: True if the OpenAI API key is set, False otherwise.
+    """
+    return bool(os.getenv("OPENAI_API_KEY"))
+

@@ -1,42 +1,53 @@
 import click
+import os
 from vocabmaster import csv_handler
 from vocabmaster import config_handler
+from vocabmaster import gpt_integration
 from .utils import *
 
 
-RED = "\x1b[38;5;9m"
-BOLD = "\x1b[1m"
-RESET = "\x1b[0m"
-
-
 @click.group()
-def main():
+def vocabmaster():
     """
-    VocabMaster is a command-line tool for learning vocabulary.
+    VocabMaster is a command-line tool to help you learn vocabulary.
+
+    It uses ChatGPT to generate translations and examples for your words, and creates an Anki deck for you to import.
+
+    Start by setting up a new language pair:
+    'vocabmaster setup'
+
+    Add words to your vocabulary list:
+    'vocabmaster add to have'
+
+    Generate an Anki deck from your vocabulary list:
+    'vocabmaster translate'
+
+    You can find help for each command by running:
+    'vocabmaster <command> --help'
+
+    For more information, please visit https://github.com/sderev/vocabmaster.
     """
     pass
 
 
+@vocabmaster.command()
 @click.option(
-    "-p",
     "--pair",
     type=str,
-    help="Specify the language pair to use in the format 'language_to_learn:mother_tongue'. For example: 'english:french'.",
-    #required=False,
+    help="This overrides the default language pair. Specify in the format 'language_to_learn:mother_tongue'. For example: 'english:french'.",
+    # required=False,
 )
-@main.command()
 @click.argument("word", type=str, nargs=-1)
 def add(pair, word):
     """
     Add a word to the vocabulary list, if not already present.
-    Examples: 'run', 'to run', 'a cat'
 
     WORD: The word or phrase to be added to the vocabulary list.
+
+    Examples: 'good', 'to be', 'a cat'
     """
     try:
-        language_to_learn, mother_tongue = config_handler.get_language_pair_from_option(
-        pair
-        )
+        language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
     except Exception as error:
         click.echo(f"{RED}Error:{RESET} {error}")
         return
@@ -46,7 +57,11 @@ def add(pair, word):
         )
 
         if not word:
+            click.echo()
             click.echo("Please provide a word to add.")
+            click.echo(
+                f"Run '{BOLD}vocabmaster add --help{RESET}' for more information."
+            )
             return
 
         word = " ".join(word)
@@ -57,69 +72,132 @@ def add(pair, word):
             click.echo("The word has been appended to the list 📝✅")
 
 
-@main.command()
+@vocabmaster.command()
 @click.option(
     "--pair",
     type=str,
-    help="Specify the language pair to use in the format 'language_to_learn:mother_tongue'. For example: 'english:french'.",
+    help="This overrides the default language pair. Specify in the format 'language_to_learn:mother_tongue'. For example: 'english:french'.",
     required=False,
 )
-def translate(pair):
+@click.option("--count", is_flag=True, help="Show the number of words remaining to be translated in the vocabulary list.", required=False)
+def translate(pair, count):
     """
-    Generate an Anki deck from your vocabulary list.
+    Translate, Add examples, and Generate an Anki deck.
 
     This command reads your vocabulary list, fetches translations and examples, and creates an Anki-ready file for import.
+
     The generated Anki deck will be saved in the same folder as your vocabulary list.
-
-    Example usage:
-    vocabmaster translate
     """
-    language_to_learn, mother_tongue = config_handler.get_language_pair_from_option(
-        pair
-    )
-
+    language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
     translations_filepath, anki_filepath = setup_files(
         setup_dir(), language_to_learn, mother_tongue
     )
 
-    # Add the header to the CSV file if it's missing
-    csv_handler.add_header_to_csv_file(
+    # Show untranslated word count if `--count` is used, then exit.
+    if count:
+        number_words = len(csv_handler.get_words_to_translate(translations_filepath))
+        click.echo(f"Number of words to translate: {BLUE}{number_words}{RESET}")
+        return
+
+    # Add the fieldnames to the CSV file if it's missing
+    csv_handler.add_fieldnames_to_csv_file(
         translations_filepath, ["word", "translation", "example"]
     )
+
+    # Check if the vocabulary list is empty
+    if csv_handler.vocabulary_list_is_empty(translations_filepath):
+        click.echo(
+            f"{RED}Your vocabulary list is empty.{RESET} Please add some words first."
+        )
+        click.echo(f"Run '{BOLD}vocabmaster add --help{RESET}' for more information.")
+        return
+
+    # Check for OpenAI API key
+    if not config_handler.openai_api_key_exists():
+        click.echo(f"{RED}You need to set up an OpenAI API key.{RESET}")
+        click.echo(
+            f"You can generate API keys in the OpenAI web interface. See https://onboard.openai.com for details."
+        )
+        click.echo(
+            f"Then, you can set it up your way, or by using '{BOLD}vocabmaster config key{RESET}'."
+        )
+        return
+
+    # Add translations and examples to the CSV file
+    click.echo("Adding translations and examples to the file... 🔎📝")
+    click.echo(f"{BLUE}This may take a while...{RESET}")
+    click.echo()
+
     try:
-        click.echo("Adding translations and examples to the file... 🔎📝")
-        click.echo("This may take a while...")
-        click.echo()
         csv_handler.add_translations_and_examples_to_file(translations_filepath, pair)
         click.echo()
     except Exception as error:
-        click.echo()
-        click.echo(f"{RED}Status:{RESET} {error}")
+        if (
+            str(error)
+            == "All the words in the vocabulary list already have translations and examples"
+        ):
+            click.echo(f"{BLUE}Actually...{RESET}")
+            click.echo(f"{GREEN}No action needed:{RESET} {error} 🤓")
+            click.echo(
+                f"If you only want to generate the Anki deck, you can run '{BOLD}vocabmaster anki{RESET}'."
+            )
+        else:
+            click.echo(f"{RED}Status:{RESET} {error}")
+        return
     else:
         click.echo(
-            "The translations and examples have been added to the vocabulary list 💡✅"
+            f"{BLUE}The translations and examples have been added to the vocabulary list{RESET} 💡✅"
         )
-    finally:
-        click.echo()
-        click.echo("Generating the Anki deck... 📜")
-        click.echo()
-        csv_handler.generate_anki_output_file(translations_filepath, anki_filepath)
-        click.echo("The Anki deck has been generated 🤓✅")
-        click.echo()
-        click.echo("You can now import the deck into Anki 📚")
 
-        click.echo(f"{BOLD}The deck is located at:{RESET}")
-        click.echo(f"{anki_filepath}")
-        click.echo()
-        # click.echo("You can also import the deck directly into Anki by running:")
-        # click.echo("vocabmaster import")
-        # click.echo()
+    # Generate the Anki deck
+    generate_anki_deck(translations_filepath, anki_filepath)
 
 
-@main.command()
+def generate_anki_deck(translations_filepath, anki_filepath):
+    """
+    Generates an Anki deck file from a translations file and saves it to the specified path.
+
+    This function takes the input translations file and processes it using the csv_handler's
+    generate_anki_output_file function. It then provides feedback to the user about the
+    process completion and the location of the generated Anki deck.
+
+    Args:
+        translations_filepath (pathlib.Path): Path to the input translations file (CSV format).
+        anki_filepath (pathlib.Path): Path to save the generated Anki deck file.
+
+    Returns:
+        None
+    """
+    click.echo()
+    click.echo("Generating the Anki deck... 📜")
+    click.echo()
+    csv_handler.generate_anki_output_file(translations_filepath, anki_filepath)
+    click.echo("The Anki deck has been generated 🤓✅")
+    click.echo()
+    click.echo(f"{GREEN}You can now import the deck into Anki{RESET} 📚")
+
+    click.echo(f"{BOLD}The deck is located at:{RESET}")
+    click.echo(f"{anki_filepath}")
+    click.echo()
+
+
+@vocabmaster.command()
+def anki():
+    """
+    Generate an Anki deck from your vocabulary list.
+
+    The Anki deck will be saved in the same folder as your vocabulary list.
+    """
+    translations_filepath, anki_filepath = setup_files(
+        setup_dir(), language_to_learn, mother_tongue
+    )
+    generate_anki_deck(translations_filepath, anki_filepath)
+
+
+@vocabmaster.command()
 def setup():
     """
-    Set up a new language pair for VocabMaster.
+    Set up a new language pair.
 
     This command creates the necessary folders and files for the specified mother tongue and language to learn.
     You can set up as many language pairs as you want.
@@ -129,44 +207,259 @@ def setup():
     """
     language_to_learn = click.prompt("Please enter the language you want to learn")
     mother_tongue = click.prompt("Please enter your mother tongue")
+
+    click.echo()
     click.echo(
-        f"Setting up VocabMaster for learning {language_to_learn.capitalize()}, and {mother_tongue.capitalize()} is your mother tongue."
+        f"Setting up VocabMaster for learning {BOLD}{language_to_learn.capitalize()}{RESET}, and {BOLD}{mother_tongue.capitalize()}{RESET} is your mother tongue."
     )
 
     if click.confirm("Do you want to proceed?"):
+        # Create the necessary folders and files
         app_data_dir = setup_dir()
         language_to_learn = language_to_learn.casefold()
         mother_tongue = mother_tongue.casefold()
+
         translations_filepath, anki_filepath = setup_files(
             app_data_dir, language_to_learn, mother_tongue
         )
-        backup_lang = setup_backup_dir(app_data_dir, language_to_learn, mother_tongue)
 
-        click.echo()
-        click.echo(
-            f"VocabMaster setup for {language_to_learn} to {mother_tongue} complete 🤓✅"
-        )
+        backup_lang = setup_backup_dir(app_data_dir, language_to_learn, mother_tongue)
+        config_handler.set_language_pair(language_to_learn, mother_tongue)
+
         click.echo()
         click.echo(f"Translations file: {translations_filepath}")
         click.echo(f"Anki deck file: {anki_filepath}")
         click.echo(f"Backup directory: {backup_lang}")
         click.echo()
+        click.echo(
+            f"VocabMaster setup for {language_to_learn} to {mother_tongue} complete 🤓✅"
+        )
+        click.echo()
     else:
         click.echo(f"{RED}Setup canceled{RESET}")
 
+    # Set the default language pair
     if config_handler.get_default_language_pair() is None:
         config_handler.set_default_language_pair(language_to_learn, mother_tongue)
         click.echo(
             f"This language pair ({language_to_learn}:{mother_tongue}) has been set as the default ✅"
         )
+
+    # Ask the user if they want to set the language pair as the new default
     else:
+        print_default_language_pair()
+
         if click.confirm("Do you want to set this language pair as the default?"):
-            if click.confirm("Are you sure? This will overwrite the current default 🚨"):
-                config_handler.set_default_language_pair(language_to_learn, mother_tongue)
+            if click.confirm(
+                f"{RED}Are you sure?{RESET} This will overwrite the current default 🚨"
+            ):
+                config_handler.set_default_language_pair(
+                    language_to_learn, mother_tongue
+                )
+            click.echo()
             click.echo("This language pair has been set as the default ✅")
+            click.echo(f"{BLUE}The new default language pair is:{RESET}")
+
+            # Get the new default language pair by reinitalizing the variables to avoid confusion
+            default_language_to_learn = config_handler.get_default_language_pair()[
+                "language_to_learn"
+            ]
+            default_mother_tongue = config_handler.get_default_language_pair()[
+                "mother_tongue"
+            ]
+            click.echo(
+                f"{BOLD}Language to learn:{RESET} {default_language_to_learn.capitalize()}"
+            )
+            click.echo(
+                f"{BOLD}Mother tongue:{RESET} {default_mother_tongue.capitalize()}"
+            )
+            click.echo()
+
         else:
             click.echo("This language pair has not been set as the default ❌")
             click.echo()
-            click.echo("The default language pair is:")
-            click.echo(config_handler.get_default_language_pair())
+            click.echo("The current default language pair is:")
+            default_language_to_learn = config_handler.get_default_language_pair()[
+                "language_to_learn"
+            ]
+            default_mother_tongue = config_handler.get_default_language_pair()["mother_tongue"]
+            click.echo(f"{BOLD}{default_language_to_learn}:{default_mother_tongue}{RESET}")
 
+
+@vocabmaster.command()
+def default():
+    """
+    Show the current default language pair.
+    """
+    print_default_language_pair()
+
+
+@vocabmaster.group()
+def config():
+    """
+    Manage the configuration of VocabMaster.
+
+    This command allows you to set the default language pair, the directory where the translations and Anki decks are stored, and the OpenAI API key.
+
+    Example usage:
+    'vocabmaster config default'
+
+    Example usage:
+    'vocabmaster config dir'
+
+    Example usage:
+    'vocabmaster config key'
+    """
+    pass
+
+
+@config.command("dir")
+def config_dir():
+    """
+    Set the directory where the translations and Anki decks are stored.
+    """
+    pass
+
+
+@config.command("key")
+def config_key():
+    """
+    Set the OpenAI API key.
+    """
+    if config_handler.openai_api_key_exists():
+        click.echo(f"{GREEN}OpenAI API key found!{RESET}")
+        click.echo(
+            f"You can use '{BOLD}vocabmaster translate{RESET}' to generate translations."
+        )
+        click.echo(
+            f"If you only want to generate your Anki deck, you can use '{BOLD}vocabmaster anki{RESET}'."
+        )
+    if not config_handler.openai_api_key_exists():
+        pass
+
+
+@config.command("default")
+def config_default_language_pair():
+    """
+    Set the default language pair.
+
+    This language pair will be used by default when you run the 'vocabmaster' command without specifying a language pair with '--pair'.
+    """
+    print_all_language_pairs()
+    choice = click.prompt(
+        "Type the language pair or its number to set it as the new default",
+        type=str,
+    )
+
+    # Check if the user entered a correct number
+    if choice.isdigit():
+        idx = int(choice) - 1
+        if 0 <= idx < len(config_handler.get_all_language_pairs()):
+            # Set the language pair as the default
+            language_to_learn = config_handler.get_all_language_pairs()[idx][
+                "language_to_learn"
+            ]
+            mother_tongue = config_handler.get_all_language_pairs()[idx][
+                "mother_tongue"
+            ]
+            config_handler.set_default_language_pair(language_to_learn, mother_tongue)
+            click.echo(
+                f"{BOLD}{language_to_learn}:{mother_tongue}{RESET}{GREEN} has been set as the default language pair{RESET} ✅"
+            )
+        else:
+            # The user entered a number that is out of range
+            click.echo(f"{RED}Invalid choice{RESET}")
+    else:
+        # Check if the language pair exists
+        try:
+            if config_handler.get_language_pair(choice) is not None:
+                # Set the language pair as the default
+                language_to_learn, mother_tongue = config_handler.get_language_pair(
+                    choice
+                )
+        # The user entered an invalid language pair
+        except ValueError as error:
+            click.echo(f"{RED}{error}{RESET}")
+            click.echo(f"The format is {BOLD}language_to_learn:mother_tongue{RESET}")
+            return
+        else:
+            config_handler.set_default_language_pair(language_to_learn, mother_tongue)
+            click.echo(
+                f"{BOLD}{language_to_learn}:{mother_tongue}{RESET}{GREEN} has been set as the default language pair{RESET} ✅"
+            )
+        click.echo(f"{RED}Invalid choice{RESET}")
+
+
+@vocabmaster.command()
+def list():
+    """
+    List all the language pairs that have been set up.
+    """
+    print_all_language_pairs()
+    click.echo(f"{BLUE}You can change the default at any time by running:{RESET}")
+    click.echo(f"{BOLD}vocabmaster config default{RESET}")
+    click.echo()
+
+
+@vocabmaster.command()
+def tokens():
+    """
+    Estimate the cost of the next translation.
+
+    This command estimates the cost of the next translation, based on the number of tokens in the prompt.
+
+    Note that this is only the estimation of the cost of the next prompt, not the total cost of the translation.
+    The total cost (prompt + translation) cannot exceed $0.008192 per request, though.
+    """
+    language_to_learn = config_handler.get_default_language_pair()["language_to_learn"]
+    mother_tongue = config_handler.get_default_language_pair()["mother_tongue"]
+    translations_filepath, anki_file = setup_files(setup_dir(), language_to_learn, mother_tongue)
+    csv_handler.vocabulary_list_is_empty(translations_filepath)
+
+    try:
+        words_to_translate = csv_handler.get_words_to_translate(translations_filepath)
+    except Exception as error:
+        click.echo(f"{BLUE}Status:{RESET} {error}")
+        click.echo("Therefore, the cost of the next prompt cannot be estimated.")
+        return
+    else:
+        prompt = gpt_integration.format_prompt(
+            language_to_learn, mother_tongue, words_to_translate
+        )
+        estimated_cost = gpt_integration.estimate_prompt_cost(prompt)["gpt-3.5-turbo"]
+        click.echo(
+            f"The estimated cost of the next prompt is {BLUE}${estimated_cost}{RESET}. Yes, that's it."
+        )
+
+
+def print_default_language_pair():
+    """
+    Print the current default language pair.
+    """
+    click.echo()
+    click.echo(f"{BLUE}The current default language pair is:{RESET}")
+    default_language_to_learn = config_handler.get_default_language_pair()[
+        "language_to_learn"
+    ]
+    default_mother_tongue = config_handler.get_default_language_pair()["mother_tongue"]
+    click.echo(f"{BOLD}{default_language_to_learn}:{default_mother_tongue}{RESET}")
+
+    click.echo()
+    click.echo(
+        f"{BLUE}You can change the default language pair at any time by running:{RESET}"
+    )
+    click.echo(f"{BOLD}vocabmaster config default{RESET}")
+
+
+def print_all_language_pairs():
+    """
+    Print all the language pairs that have been set up.
+    """
+    click.echo()
+    click.echo(f"{BLUE}The following language pairs have been set up:{RESET}")
+    language_pairs = config_handler.get_all_language_pairs()
+    for idx, language_pair in enumerate(language_pairs, start=1):
+        click.echo(
+            f"{idx}. {language_pair['language_to_learn']}:{language_pair['mother_tongue']}"
+        )
+    click.echo()
