@@ -24,9 +24,7 @@ def setup_dir():
             while True:
                 try:
                     app_data_dir = Path(
-                        input(
-                            "Please, tell us where you want your files to be installed"
-                        )
+                        input("Please, tell us where you want your files to be installed")
                     )
                     app_data_dir.mkdir(exist_ok=True, parents=True)
                 except Exception as e:
