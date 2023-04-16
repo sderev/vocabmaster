@@ -122,7 +122,7 @@ def translate(pair, count):
             number_words = len(csv_handler.get_words_to_translate(translations_filepath))
             click.echo(f"Number of words to translate: {BLUE}{number_words}{RESET}")
         except Exception as error:
-            click.echo(f"{RED}Status:{RESET} {error}")
+            click.echo(f"{GREEN}Status:{RESET} {error}")
         return
 
     # Check for OpenAI API key
