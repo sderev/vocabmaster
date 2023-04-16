@@ -55,8 +55,8 @@ def get_words_to_translate(translations_filepath):
 
     with open(translations_filepath, encoding="UTF-8") as translations_file:
         dict_reader = DictReader(translations_file)
-
         fieldnames = ["word", "translation", "example"]
+
         for row in dict_reader:
             # If a row is missing a translation or example, add the word to the list of words to translate
             if not row["translation"] or not row["example"]:
