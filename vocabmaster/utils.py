@@ -184,15 +184,14 @@ def get_language_pair_from_option(pair):
     return language_to_learn, mother_tongue
 
 
-def error_handling_wrapper(func, *args, **kwargs):
-    try:
-        return func(*args, **kwargs)
-    except FileNotFoundError:
-        print(f"File not found: {args[1]}")
-    except IOError:
-        print(f"An error occurred while trying to read the file: {args[1]}")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+def openai_api_key_exists():
+    """
+    Checks if an OpenAI API key is set on the system.
+
+    Returns:
+        bool: True if the OpenAI API key is set, False otherwise.
+    """
+    return bool(os.environ.get("OPENAI_API_KEY"))
 
 
 app_name = "vocabmaster"
