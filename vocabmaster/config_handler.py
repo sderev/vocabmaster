@@ -1,6 +1,7 @@
 from pathlib import Path
 import os
 import json
+
 from vocabmaster import utils
 
 
@@ -51,9 +52,7 @@ def set_default_language_pair(language_to_learn, mother_tongue):
         language_to_learn (str): The language the user wants to learn.
         mother_tongue (str): The user's mother tongue.
     """
-    config = read_config()
-    if config is None:
-        config = {}
+    config = read_config() or {}
     config["default"] = {
         "language_to_learn": language_to_learn,
         "mother_tongue": mother_tongue,
@@ -69,7 +68,7 @@ def set_language_pair(language_to_learn, mother_tongue):
         language_to_learn (str): The language the user wants to learn.
         mother_tongue (str): The user's mother tongue.
     """
-    config = read_config()
+    config = read_config() or {"language_pairs": []}
     if config is None:
         config = {}
         config["language_pairs"] = []
@@ -139,14 +138,4 @@ def get_all_language_pairs():
     if config is None or "language_pairs" not in config:
         return None
     return config["language_pairs"]
-
-
-def openai_api_key_exists():
-    """
-    Checks if an OpenAI API key is set on the system.
-
-    Returns:
-        bool: True if the OpenAI API key is set, False otherwise.
-    """
-    return bool(os.environ.get("OPENAI_API_KEY"))
 

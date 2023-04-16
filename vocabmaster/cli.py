@@ -119,7 +119,7 @@ def translate(pair, count):
         return
 
     # Check for OpenAI API key
-    if not config_handler.openai_api_key_exists():
+    if not openai_api_key_exists():
         click.echo(f"{RED}You need to set up an OpenAI API key.{RESET}")
         click.echo(
             """You can generate API keys in the OpenAI web interface.
