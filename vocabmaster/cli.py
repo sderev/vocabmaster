@@ -1,4 +1,5 @@
 import os
+import platform
 import click
 from vocabmaster import csv_handler
 from vocabmaster import config_handler
@@ -39,7 +40,7 @@ def vocabmaster():
         "This overrides the default language pair. Specify in the format"
         " 'language_to_learn:mother_tongue'. For example: 'english:french'."
     ),
-    # required=False,
+    required=False,
 )
 @click.argument("word", type=str, nargs=-1)
 def add(pair, word):
@@ -127,15 +128,7 @@ def translate(pair, count):
 
     # Check for OpenAI API key
     if not openai_api_key_exists():
-        click.echo(f"{RED}You need to set up an OpenAI API key.{RESET}")
-        click.echo(
-            "You can generate API keys in the OpenAI web interface. See"
-            " https://platform.openai.com/account/api-keys for details."
-        )
-        click.echo(
-            f"Then, you can set it up your way, or by using '{BOLD}vocabmaster config"
-            f" key{RESET}'."
-        )
+        openai_api_key_explain()
         return
 
     # Add translations and examples to the CSV file
@@ -330,18 +323,17 @@ def config():
     Manage the configuration of VocabMaster.
 
     This command allows you to set the default language pair,
-    the directory where the translations and Anki decks are stored,
     and the OpenAI API key.
 
     Example usage:
     'vocabmaster config default'
 
     Example usage:
-    'vocabmaster config dir'
-
-    Example usage:
     'vocabmaster config key'
     """
+    # the directory where the translations and Anki decks are stored,
+    #Example usage:
+    #'vocabmaster config dir'
     pass
 
 
@@ -405,12 +397,13 @@ def config_default_language_pair():
         )
 
 
-@config.command("dir")
-def config_dir():
-    """
-    Set the directory where the list and the Anki deck are stored.
-    """
-    pass
+#@config.command("dir")
+#def config_dir():
+#    """
+#    Set the directory where the list and the Anki deck are stored.
+#    """
+#    custom_app_data_dir = click.prompt("Enter the path for the new directory", type=str)
+#    setup_dir(custom_app_data_dir)
 
 
 @config.command("key")
@@ -418,17 +411,37 @@ def config_key():
     """
     Set the OpenAI API key.
     """
-    if config_handler.openai_api_key_exists():
+    if openai_api_key_exists():
         click.echo(f"{GREEN}OpenAI API key found!{RESET}")
+        click.echo()
         click.echo(
             f"You can use '{BOLD}vocabmaster translate{RESET}' to generate translations."
         )
+        click.echo()
         click.echo(
             "If you only want to generate your Anki deck, you can use"
             f" '{BOLD}vocabmaster anki{RESET}'."
         )
-    if not config_handler.openai_api_key_exists():
-        pass
+    if not openai_api_key_exists():
+        openai_api_key_explain()
+
+
+def openai_api_key_explain():
+    """
+    Explain how to set up the OpenAI API key.
+    """
+    click.echo(f"{RED}You need to set up an OpenAI API key.{RESET}")
+    click.echo()
+    click.echo(
+        "You can generate API keys in the OpenAI web interface. See"
+        " https://platform.openai.com/account/api-keys for details."
+    )
+    click.echo()
+    if platform.system() == "Windows":
+        click.echo(f"Then, you can set it up by running `setx OPENAI_API_KEY your_key`")
+    else:
+        click.echo(f"Then, you can set it up by running `export OPENAI_API_KEY=YOUR_KEY`")
+    return
 
 
 @vocabmaster.command()
@@ -490,7 +503,9 @@ def print_default_language_pair():
         "language_to_learn"
     ]
     default_mother_tongue = config_handler.get_default_language_pair()["mother_tongue"]
-    click.echo(f"{BOLD}{default_language_to_learn}:{default_mother_tongue}{RESET}")
+    click.echo(
+        f"{BOLD}{ORANGE}{default_language_to_learn}:{default_mother_tongue}{RESET}"
+    )
 
 
 def print_all_language_pairs():
