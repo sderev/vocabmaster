@@ -1,4 +1,5 @@
 import os
+import subprocess
 import platform
 import shutil
 from datetime import datetime
@@ -31,7 +32,6 @@ def setup_dir():
                     print(e)
                 else:
                     break
-
     app_data_dir.mkdir(exist_ok=True, parents=True)
     return app_data_dir
 
