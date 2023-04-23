@@ -126,7 +126,9 @@ def translate(pair, count):
     # Show untranslated words count if `--count` is used, then exit.
     if count:
         try:
-            number_words = len(csv_handler.get_words_to_translate(translations_filepath))
+            number_words = len(
+                csv_handler.get_words_to_translate(translations_filepath)
+            )
             click.echo(f"Number of words to translate: {BLUE}{number_words}{RESET}")
         except Exception as error:
             click.echo(f"{GREEN}Status:{RESET} {error}")
@@ -204,10 +206,13 @@ def anki():
 
     The Anki deck will be saved in the same folder as your vocabulary list.
     """
-    language_to_learn, mother_tongue = config_handler.get_default_language_pair()
+    language_to_learn = config_handler.get_default_language_pair()["language_to_learn"]
+    mother_tongue = config_handler.get_default_language_pair()["mother_tongue"]
+
     translations_filepath, anki_filepath = setup_files(
         setup_dir(), language_to_learn, mother_tongue
     )
+
     generate_anki_deck(translations_filepath, anki_filepath)
 
 
@@ -274,7 +279,9 @@ def setup():
             if click.confirm(
                 f"{RED}Are you sure?{RESET} This will overwrite the current default 🚨"
             ):
-                config_handler.set_default_language_pair(language_to_learn, mother_tongue)
+                config_handler.set_default_language_pair(
+                    language_to_learn, mother_tongue
+                )
             click.echo()
             click.echo("This language pair has been set as the default ✅")
             click.echo(f"{BLUE}The new default language pair is:{RESET}")
@@ -338,7 +345,7 @@ def config():
     'vocabmaster config key'
     """
     # the directory where the translations and Anki decks are stored,
-    #Example usage:
+    # Example usage:
     #'vocabmaster config dir'
     pass
 
@@ -368,7 +375,9 @@ def config_default_language_pair():
             language_to_learn = config_handler.get_all_language_pairs()[idx][
                 "language_to_learn"
             ]
-            mother_tongue = config_handler.get_all_language_pairs()[idx]["mother_tongue"]
+            mother_tongue = config_handler.get_all_language_pairs()[idx][
+                "mother_tongue"
+            ]
             config_handler.set_default_language_pair(language_to_learn, mother_tongue)
             click.echo(
                 f"{BOLD}{language_to_learn}:{mother_tongue}{RESET} {GREEN} has been set"
@@ -403,8 +412,8 @@ def config_default_language_pair():
         )
 
 
-#@config.command("dir")
-#def config_dir():
+# @config.command("dir")
+# def config_dir():
 #    """
 #    Set the directory where the list and the Anki deck are stored.
 #    """
@@ -421,7 +430,8 @@ def config_key():
         click.echo(f"{GREEN}OpenAI API key found!{RESET}")
         click.echo()
         click.echo(
-            f"You can use '{BOLD}vocabmaster translate{RESET}' to generate translations."
+            f"You can use '{BOLD}vocabmaster translate{RESET}' to generate"
+            " translations."
         )
         click.echo()
         click.echo(
@@ -446,7 +456,9 @@ def openai_api_key_explain():
     if platform.system() == "Windows":
         click.echo(f"Then, you can set it up by running `setx OPENAI_API_KEY your_key`")
     else:
-        click.echo(f"Then, you can set it up by running `export OPENAI_API_KEY=YOUR_KEY`")
+        click.echo(
+            f"Then, you can set it up by running `export OPENAI_API_KEY=YOUR_KEY`"
+        )
     return
 
 
@@ -525,6 +537,7 @@ def print_all_language_pairs():
         )
     click.echo()
 
+
 vocabmaster.add_command(config)
 vocabmaster.add_command(anki)
 vocabmaster.add_command(translate)
@@ -533,4 +546,3 @@ vocabmaster.add_command(anki)
 vocabmaster.add_command(default)
 vocabmaster.add_command(show)
 vocabmaster.add_command(tokens)
-
