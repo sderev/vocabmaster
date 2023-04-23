@@ -56,6 +56,7 @@ def add(pair, word):
     except Exception as error:
         click.echo(f"{RED}Error:{RESET} {error}")
         return
+
     translations_filepath, anki_filepath = setup_files(
         setup_dir(), language_to_learn, mother_tongue
     )
@@ -99,7 +100,12 @@ def translate(pair, count):
 
     The generated Anki deck will be saved in the same folder as your vocabulary list.
     """
-    language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
+    try:
+        language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
+    except Exception as error:
+        click.echo(f"{RED}Error:{RESET} {error}")
+        return
+
     translations_filepath, anki_filepath = setup_files(
         setup_dir(), language_to_learn, mother_tongue
     )
@@ -452,7 +458,6 @@ def show():
     print_all_language_pairs()
     click.echo(f"{BLUE}You can change the default at any time by running:{RESET}")
     click.echo(f"{BOLD}vocabmaster config default{RESET}")
-    click.echo()
 
 
 @vocabmaster.command()
