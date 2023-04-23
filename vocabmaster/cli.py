@@ -517,7 +517,6 @@ def print_all_language_pairs():
     """
     Print all the language pairs that have been set up.
     """
-    click.echo()
     click.echo(f"{BLUE}The following language pairs have been set up:{RESET}")
     language_pairs = config_handler.get_all_language_pairs()
     for idx, language_pair in enumerate(language_pairs, start=1):
