@@ -502,7 +502,6 @@ def print_default_language_pair():
     """
     Print the current default language pair.
     """
-    click.echo()
     click.echo(f"{BLUE}The current default language pair is:{RESET}")
     default_language_to_learn = config_handler.get_default_language_pair()[
         "language_to_learn"
