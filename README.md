@@ -52,6 +52,8 @@ pipx install vocabmaster
 
 ### Shell Completion
 
+You should have autocompletion after the installation. If that's not the case, you can follow the instructions below.
+
 To enable shell completion for bash or zsh, source the completion file (see the `completion` folder) related to your shell by adding the following line to your `.bashrc` or `.zshrc` file:
 
 #### For bash:
