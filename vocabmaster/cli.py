@@ -196,7 +196,6 @@ def generate_anki_deck(translations_filepath, anki_filepath):
 
     click.echo(f"{BOLD}The deck is located at:{RESET}")
     click.echo(f"{anki_filepath}")
-    click.echo()
 
 
 @vocabmaster.command()
