@@ -52,15 +52,15 @@ pipx install vocabmaster
 
 ### Shell Completion
 
-To enable shell completion for bash or zsh, source the completion file related to your shell by adding the following line to your `.bashrc` or `.zshrc` file:
+To enable shell completion for bash or zsh, source the completion file (see the `completion` folder) related to your shell by adding the following line to your `.bashrc` or `.zshrc` file:
 
-For bash:
+#### For bash:
 
 ```
 source /path/to/vocabmaster/completion/vocabmaster.bash
 ```
 
-For zsh:
+#### For zsh:
 
 ```
 source /path/to/vocabmaster/completion/vocabmaster.zsh
