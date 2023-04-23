@@ -526,3 +526,4 @@ def print_all_language_pairs():
             f" {language_pair['language_to_learn']}:{language_pair['mother_tongue']}"
         )
     click.echo()
+
