@@ -25,12 +25,12 @@ def format_prompt(language_to_learn, mother_tongue, words_to_translate):
 
             Always give ONLY ONE example! The example HAS TO BE in {language_to_learn}!
             Separate each column with commas.
-            For the translation column, ALWAYS give at least two possible translations!
+            For the translation column, ALWAYS give at least two or three possible translations!
             
             When you start a new row, you HAVE TO add a newline character.
             Below is the list of words to translate.
             The format should look like this:
-            word,'translation1, translation2','example'.
+            word,'translation1, translation2, translation3','example'.
             ---
             {words_to_translate}""",
         },
