@@ -74,29 +74,27 @@ Before using VocabMaster, you need to set up the OpenAI API key, which is requir
 
 Below is an example of common commands and their usage:
 
-1. Set up a new language pair:
+### Set up a new language pair:
 
 ```
 vocabmaster setup
 ```
 
-2. Add words to your vocabulary list:
+### Add words to your vocabulary list:
 
 ```
 vocabmaster add to have
 ```
 
-3. Generate an Anki deck from your vocabulary list:
+### Generate an Anki deck from your vocabulary list:
 
 ```
 vocabmaster translate
 ```
 
-For detailed help on each command, run:
+### For detailed help on each command, run:
 
 ```
 vocabmaster <command> --help
 ```
-
-For more information, please visit the [VocabMaster GitHub repository](https://github.com/sderev/vocabmaster).
 
