@@ -37,6 +37,8 @@ pip install vocabmaster
   python3 -m pipx ensurepath
   ```
 
+Alternatively, you can use your package manager (`brew`, `apt`, etc.).
+
 * On Windows:
 
   ```
