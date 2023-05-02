@@ -1,7 +1,7 @@
 import os
+import json
 import openai
 import tiktoken
-import json
 import time
 from vocabmaster import csv_handler
 

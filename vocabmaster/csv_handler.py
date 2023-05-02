@@ -1,6 +1,5 @@
 import csv
 from csv import DictReader, DictWriter
-import platform
 from pathlib import Path
 from vocabmaster import gpt_integration
 from vocabmaster import utils
