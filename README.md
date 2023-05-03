@@ -74,6 +74,10 @@ Remember to replace `/path/to/vocabmaster` with the actual path where VocabMaste
 
 Before using VocabMaster, you need to set up the OpenAI API key, which is required for the translations and usage examples. Follow the instructions provided within the CLI tool to configure the API key.
 
+```
+vocabmaster config key
+```
+
 Below is an example of common commands and their usage:
 
 ### Set up a new language pair:
