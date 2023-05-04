@@ -76,7 +76,7 @@ def chatgpt_request(
         response = collected_chunks
 
         # Save the time delay and text received
-        response_time = time.monotonic_ns() - start_time
+        response_time = (time.monotonic_ns() - start_time) / 1e9
         generated_text = "".join([m.get("content", "") for m in collected_messages])
 
     else:
