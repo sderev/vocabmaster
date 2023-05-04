@@ -538,12 +538,3 @@ def print_all_language_pairs():
         )
     click.echo()
 
-
-vocabmaster.add_command(config)
-vocabmaster.add_command(anki)
-vocabmaster.add_command(translate)
-vocabmaster.add_command(add)
-vocabmaster.add_command(anki)
-vocabmaster.add_command(default)
-vocabmaster.add_command(show)
-vocabmaster.add_command(tokens)
