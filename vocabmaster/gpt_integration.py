@@ -47,7 +47,7 @@ def chatgpt_request(
     stop=None,
     stream=False,
 ):
-    start_time = time.time()
+    start_time = time.monotonic_ns()
     openai.api_key = os.getenv("OPENAI_API_KEY")
 
     # Make the API request
@@ -76,7 +76,7 @@ def chatgpt_request(
         response = collected_chunks
 
         # Save the time delay and text received
-        response_time = time.time() - start_time
+        response_time = time.monotonic_ns() - start_time
         generated_text = "".join([m.get("content", "") for m in collected_messages])
 
     else:
@@ -84,7 +84,7 @@ def chatgpt_request(
         generated_text = response["choices"][0]["message"]["content"]
 
         # Save the time delay
-        response_time = time.time() - start_time
+        response_time = (time.monotonic_ns() - start_time) / 1e9
 
     return (
         generated_text,
