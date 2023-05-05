@@ -210,7 +210,7 @@ def generate_anki_output_file(translations_filepath, anki_output_file):
         next(translations_dict_reader)
 
         anki_dict_writer = DictWriter(
-            anki_file, fieldnames=["front", "back"], quoting=csv.QUOTE_MINIMAL
+            anki_file, fieldnames=["front", "back"], quoting=csv.QUOTE_MINIMAL, delimiter=";"
         )
 
         for translations in translations_dict_reader:
@@ -219,7 +219,7 @@ def generate_anki_output_file(translations_filepath, anki_output_file):
             else:
                 translations["translation"] = translations["translation"].strip('"')
 
-                # Create a card with the word on the front and the translation and example on the back
+                # Create a card with the word on the front, and the translations and example on the back
                 card = {
                     "front": translations["word"],
                     "back": f"{translations['translation']}<br><br><details><summary>example</summary><i>&quot;{translations['example']}&quot;</i></details>",
