@@ -242,6 +242,8 @@ def add_fieldnames_to_csv_file(translations_filepath, fieldnames):
         for line in file:
             if line.startswith(",".join(fieldnames)):
                 return
+            else:
+                break
 
         file.seek(0, 0)  # Move the file pointer to the beginning of the file
         content = file.read()
