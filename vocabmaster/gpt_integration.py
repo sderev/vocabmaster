@@ -43,7 +43,7 @@ def chatgpt_request(
     model="gpt-3.5-turbo-0301",
     max_tokens=3600,
     n=1,
-    temperature=0.5,
+    temperature=0.7,
     stop=None,
     stream=False,
 ):
