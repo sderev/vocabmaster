@@ -68,7 +68,7 @@ source /path/to/vocabmaster/completion/_complete_vocabmaster.bash
 source /path/to/vocabmaster/completion/_complete_vocabmaster.zsh
 ```
 
-Remember to replace `/path/to/vocabmaster` with the actual path where VocabMaster is installed.
+Remember to replace `/path/to/vocabmaster` with the actual path where the completion file is located.
 
 ## Usage
 
