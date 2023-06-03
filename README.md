@@ -105,3 +105,10 @@ vocabmaster translate
 vocabmaster <command> --help
 ```
 
+## Licence
+
+VocabMaster is released under the [MIT Licence](LICENSE).
+
+___
+
+<https://github.com/sderev/vocabmaster>
