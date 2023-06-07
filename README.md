@@ -24,7 +24,7 @@ You can install VocabMaster using pip. The package includes all the required dep
 pip install vocabmaster
 ```
 
-### Install via `pipx` (recommended)
+### Install via [pipx](https://pypi.org/project/pipx/) (recommended)
 
 `pipx` is an alternative package manager for Python applications. It allows you to install and run Python applications in isolated environments, preventing conflicts between dependencies and ensuring that each application uses its own set of packages. I recommend using `pipx` to install VocabMaster.
 
