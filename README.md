@@ -4,6 +4,23 @@ Master new languages with this user-friendly CLI tool, designed to help you reco
 
 ![vocabmaster_translate_japanese](https://github.com/sderev/vocabmaster/assets/24412384/d2196f6a-3094-40dd-9b2f-3caffd8ba3dd)
 
+<!-- TOC -->
+## Table of Contents
+
+1. [Features](#features)
+1. [Installation](#installation)
+    1. [Prerequisites](#prerequisites)
+    1. [Install via pip](#install-via-pip)
+    1. [Install via [pipx](https://pypi.org/project/pipx/) (recommended)](#install-via-pipxhttpspypiorgprojectpipx-recommended)
+    1. [Shell Completion](#shell-completion)
+1. [Usage](#usage)
+    1. [Set up a new language pair:](#set-up-a-new-language-pair)
+    1. [Add words to your vocabulary list:](#add-words-to-your-vocabulary-list)
+    1. [Generate an Anki deck from your vocabulary list:](#generate-an-anki-deck-from-your-vocabulary-list)
+    1. [For detailed help on each command, run:](#for-detailed-help-on-each-command-run)
+1. [Licence](#licence)
+<!-- /TOC -->
+
 ## Features
 
 * Record vocabulary words with ease
