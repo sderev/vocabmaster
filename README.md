@@ -2,6 +2,8 @@
 
 Master new languages with this user-friendly CLI tool, designed to help you record vocabulary, access translations and examples, and seamlessly import them into Anki for an optimized language learning experience.
 
+![vocabmaster_translate_japanese](https://github.com/sderev/vocabmaster/assets/24412384/d2196f6a-3094-40dd-9b2f-3caffd8ba3dd)
+
 ## Features
 
 * Record vocabulary words with ease
@@ -87,17 +89,23 @@ Below is an example of common commands and their usage:
 vocabmaster setup
 ```
 
+![vocabmaster_setup](https://github.com/sderev/vocabmaster/assets/24412384/88742afa-fdc4-4808-b106-493b3c0afa8d)
+
 ### Add words to your vocabulary list:
 
 ```
-vocabmaster add to have
+vocabmaster add la casa
 ```
+
+![vocabmaster_add](https://github.com/sderev/vocabmaster/assets/24412384/fb566562-f96c-418e-b2bb-cdb603d08aef)
 
 ### Generate an Anki deck from your vocabulary list:
 
 ```
 vocabmaster translate
 ```
+
+![vocabmaster_translate](https://github.com/sderev/vocabmaster/assets/24412384/63e5423a-6f1b-4452-aefd-dd15444cb8df)
 
 ### For detailed help on each command, run:
 
