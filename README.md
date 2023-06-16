@@ -71,6 +71,38 @@ Alternatively, you can use your package manager (`brew`, `apt`, etc.).
 pipx install vocabmaster
 ```
 
+### OpenAI API key
+
+Vocabmaster requires an OpenAI API key to function. You can obtain a key by signing up for an account at [OpenAI's website](https://platform.openai.com/account/api-keys).
+
+Once you have your API key, set it as an environment variable:
+
+* On macOS and Linux:
+
+  ```bash
+  export OPENAI_API_KEY="your-api-key-here"
+  ```
+
+  To avoid having to type it everyday, you can create a file with the key:
+
+  ```bash
+  echo "your-api-key" > ~/.openai-api-key.txt
+  ```
+
+  **Note:** Remember to replace `"your-api-key"` with your actual API key.
+
+  And then, you can add this to your shell configuration file (`.bashrc`, `.zshrc`, etc.):
+
+    ```bash
+    export OPENAI_API_KEY="$(cat ~/.openai-api-key.txt)"
+    ```
+
+* On Windows:
+
+  ```
+  setx OPENAI_API_KEY your_key
+  ```
+
 ### Shell Completion
 
 To enable shell completion for bash or zsh, source the completion file (see the `completion` folder) related to your shell by adding the following line to your `.bashrc` or `.zshrc` file:
@@ -92,6 +124,7 @@ Remember to replace `/path/to/vocabmaster` with the actual path where the comple
 ## Usage
 
 Before using VocabMaster, you need to set up the OpenAI API key, which is required for the translations and usage examples. 
+
 Follow the instructions provided within the CLI tool to configure the API key:
 
 ```
