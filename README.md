@@ -11,13 +11,13 @@ Master new languages with this user-friendly CLI tool, designed to help you reco
 1. [Installation](#installation)
     1. [Prerequisites](#prerequisites)
     1. [Install via pip](#install-via-pip)
-    1. [Install via [pipx](https://pypi.org/project/pipx/) (recommended)](#install-via-pipxhttpspypiorgprojectpipx-recommended)
+    1. [Install via pipx (recommended)](#install-via-pipx-recommended)
     1. [Shell Completion](#shell-completion)
 1. [Usage](#usage)
-    1. [Set up a new language pair:](#set-up-a-new-language-pair)
-    1. [Add words to your vocabulary list:](#add-words-to-your-vocabulary-list)
-    1. [Generate an Anki deck from your vocabulary list:](#generate-an-anki-deck-from-your-vocabulary-list)
-    1. [For detailed help on each command, run:](#for-detailed-help-on-each-command-run)
+    1. [Set up a new language pair](#set-up-a-new-language-pair)
+    1. [Add words to your vocabulary list](#add-words-to-your-vocabulary-list)
+    1. [Generate an Anki deck from your vocabulary list](#generate-an-anki-deck-from-your-vocabulary-list)
+    1. [For detailed help on each command, run](#for-detailed-help-on-each-command-run)
 1. [Licence](#licence)
 <!-- /TOC -->
 
@@ -43,9 +43,9 @@ You can install VocabMaster using pip. The package includes all the required dep
 pip install vocabmaster
 ```
 
-### Install via [pipx](https://pypi.org/project/pipx/) (recommended)
+### Install via pipx (recommended)
 
-`pipx` is an alternative package manager for Python applications. It allows you to install and run Python applications in isolated environments, preventing conflicts between dependencies and ensuring that each application uses its own set of packages. I recommend using `pipx` to install VocabMaster.
+[`pipx`](https://pypi.org/project/pipx/) is an alternative package manager for Python applications. It allows you to install and run Python applications in isolated environments, preventing conflicts between dependencies and ensuring that each application uses its own set of packages. I recommend using `pipx` to install VocabMaster.
 
 **First, install `pipx` if you haven't already:**
 
@@ -75,13 +75,13 @@ pipx install vocabmaster
 
 To enable shell completion for bash or zsh, source the completion file (see the `completion` folder) related to your shell by adding the following line to your `.bashrc` or `.zshrc` file:
 
-#### For bash:
+#### For bash
 
 ```
 source /path/to/vocabmaster/completion/_complete_vocabmaster.bash
 ```
 
-#### For zsh:
+#### For zsh
 
 ```
 source /path/to/vocabmaster/completion/_complete_vocabmaster.zsh
@@ -100,7 +100,7 @@ vocabmaster config key
 
 Below is an example of common commands and their usage:
 
-### Set up a new language pair:
+### Set up a new language pair
 
 ```
 vocabmaster setup
@@ -108,7 +108,7 @@ vocabmaster setup
 
 ![vocabmaster_setup](https://github.com/sderev/vocabmaster/assets/24412384/88742afa-fdc4-4808-b106-493b3c0afa8d)
 
-### Add words to your vocabulary list:
+### Add words to your vocabulary list
 
 ```
 vocabmaster add la casa
@@ -116,7 +116,7 @@ vocabmaster add la casa
 
 ![vocabmaster_add](https://github.com/sderev/vocabmaster/assets/24412384/fb566562-f96c-418e-b2bb-cdb603d08aef)
 
-### Generate an Anki deck from your vocabulary list:
+### Generate an Anki deck from your vocabulary list
 
 ```
 vocabmaster translate
@@ -124,7 +124,7 @@ vocabmaster translate
 
 ![vocabmaster_translate](https://github.com/sderev/vocabmaster/assets/24412384/63e5423a-6f1b-4452-aefd-dd15444cb8df)
 
-### For detailed help on each command, run:
+### For detailed help on each command, run
 
 ```
 vocabmaster <command> --help
