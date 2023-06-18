@@ -37,10 +37,10 @@ Master new languages with this user-friendly CLI tool, designed to help you reco
 
 ### Install via pip
 
-You can install VocabMaster using pip. The package includes all the required dependencies. Simply run the following command:
+You can install VocabMaster using pip. Simply run the following command:
 
 ```
-pip install vocabmaster
+python3 -m pip install vocabmaster
 ```
 
 ### Install via pipx (recommended)
@@ -53,7 +53,7 @@ pip install vocabmaster
 
   ```
   python3 -m pip install --user pipx
-  python3 -m pipx ensurepath
+  pipx ensurepath
   ```
 
 Alternatively, you can use your package manager (`brew`, `apt`, etc.).
