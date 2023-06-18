@@ -165,7 +165,7 @@ vocabmaster <command> --help
 
 ## Licence
 
-VocabMaster is released under the [MIT Licence](LICENSE).
+VocabMaster is released under the [Apache Licence version 2](LICENSE).
 
 ___
 
