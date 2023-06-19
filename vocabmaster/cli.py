@@ -1,6 +1,9 @@
+import click
+import openai
 import os
 import platform
-import click
+import sys
+
 from vocabmaster import csv_handler
 from vocabmaster import config_handler
 from vocabmaster import gpt_integration
@@ -148,6 +151,10 @@ def translate(pair, count):
     try:
         csv_handler.add_translations_and_examples_to_file(translations_filepath, pair)
         click.echo()
+    except openai.error.RateLimitError as error:
+        click.echo(click.style("Error: ", fg="red") + f"{error}")
+        handle_rate_limit_error()
+        sys.exit(1)
     except Exception as error:
         if (
             str(error)
@@ -162,7 +169,7 @@ def translate(pair, count):
             )
         else:
             click.echo(f"{RED}Status:{RESET} {error}")
-        return
+        sys.exit(1)
     click.echo(
         f"{BLUE}The translations and examples have been added to the vocabulary"
         f" list{RESET} 💡✅"
@@ -538,3 +545,50 @@ def print_all_language_pairs():
         )
     click.echo()
 
+
+def handle_rate_limit_error():
+    """
+    Provides guidance on how to handle a rate limit error.
+    """
+    click.echo()
+    click.echo(
+        click.style(
+            (
+                "You might not have set a usage rate limit in your"
+                " OpenAI account settings. "
+            ),
+            fg="blue",
+        )
+    )
+    click.echo(
+        "If that's the case, you can set it"
+        " here:\nhttps://platform.openai.com/account/billing/limits"
+    )
+
+    click.echo()
+    click.echo(
+        click.style(
+            "If you have set a usage rate limit, please try the following steps:",
+            fg="blue",
+        )
+    )
+    click.echo("- Wait a few seconds before trying again.")
+    click.echo()
+    click.echo(
+        "- Reduce your request rate or batch tokens. You can read the"
+        " OpenAI rate limits"
+        " here:\nhttps://platform.openai.com/account/rate-limits"
+    )
+    click.echo()
+    click.echo(
+        "- If you are using the free plan, you can upgrade to the paid"
+        " plan"
+        " here:\nhttps://platform.openai.com/account/billing/overview"
+    )
+    click.echo()
+    click.echo(
+        "- If you are using the paid plan, you can increase your usage"
+        " rate limit"
+        " here:\nhttps://platform.openai.com/account/billing/limits"
+    )
+    click.echo()

@@ -1,6 +1,8 @@
 import csv
+import click
 from csv import DictReader, DictWriter
 from pathlib import Path
+
 from vocabmaster import gpt_integration
 from vocabmaster import utils
 
@@ -63,7 +65,8 @@ def get_words_to_translate(translations_filepath):
 
     if not words_to_translate:
         raise Exception(
-            "All the words in the vocabulary list already have translations and examples"
+            "All the words in the vocabulary list already have translations and"
+            " examples"
         )
     else:
         return words_to_translate
@@ -97,7 +100,7 @@ def generate_translations_and_examples(
 
     # Send a request to the GPT model and extract the generated text
     gpt_response = gpt_integration.chatgpt_request(
-        prompt=prompt, stream=True, temperature=0.4
+        prompt=prompt, stream=True, temperature=0.6
     )
     generated_text = gpt_response[0]
 
@@ -210,7 +213,10 @@ def generate_anki_output_file(translations_filepath, anki_output_file):
         next(translations_dict_reader)
 
         anki_dict_writer = DictWriter(
-            anki_file, fieldnames=["front", "back"], quoting=csv.QUOTE_MINIMAL, delimiter=";"
+            anki_file,
+            fieldnames=["front", "back"],
+            quoting=csv.QUOTE_MINIMAL,
+            delimiter=";",
         )
 
         for translations in translations_dict_reader:
@@ -269,3 +275,4 @@ def vocabulary_list_is_empty(translations_filepath):
         next(csv_reader)  # Skip the fieldnames
         if len(list(csv_reader)) == 0:
             return True
+
