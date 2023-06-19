@@ -11,6 +11,7 @@ from .utils import *
 
 
 @click.group()
+@click.version_option()
 def vocabmaster():
     """
     VocabMaster is a command-line tool to help you learn vocabulary.
