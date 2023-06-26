@@ -163,6 +163,23 @@ vocabmaster translate
 vocabmaster <command> --help
 ```
 
+## Importing into Anki
+
+To import the vocabulary deck into Anki, follow the steps below:
+
+1. Launch Anki.
+1. Click on the `Import File` button. This will open a file picker dialog.
+1. In the file picker, locate and select the `anki_deck_language1-language2.csv` file.
+1. When prompted for the field separator, use "semicolon" (this should be set as the default in Anki).
+1. Ensure that the *Allow HTML in fields* option is selected. This allows the app to correctly interpret any HTML formatting in your card fields.
+1. In the import options, choose *Basic (and reversed card)* for the `Note type` field.
+1. Select the name of your vocabulary deck in which you want the cards to be added.
+1. For the `Existing notes` field, choose *Update*. This will prevent the creation of duplicate cards if the same note already exists in your deck.
+
+These instructions will ensure your imported cards appear correctly in your Anki deck.
+
+Remember that the naming scheme `anki_deck_language1-language2.csv` is an example, replace `language1` and `language2` with the appropriate languages you're learning and the deck corresponds to.
+
 ## Licence
 
 VocabMaster is released under the [Apache Licence version 2](LICENSE).
