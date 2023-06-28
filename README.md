@@ -105,7 +105,7 @@ Once you have your API key, set it as an environment variable:
 
 ### Shell Completion
 
-To enable shell completion for bash or zsh, source the completion file (see the `completion` folder) related to your shell by adding the following line to your `.bashrc` or `.zshrc` file:
+To enable shell completion for bash or zsh, source the completion file (see the [`completion`](https://github.com/sderev/vocabmaster/tree/main/completion) folder) related to your shell by adding the following line to your `.bashrc` or `.zshrc` file:
 
 #### For bash
 
