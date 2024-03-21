@@ -164,7 +164,7 @@ def translate(pair, count):
             )
         else:
             click.echo(f"{RED}Status:{RESET} {error}")
-        sys.exit(1)
+        sys.exit(0)
     click.echo(
         f"{BLUE}The translations and examples have been added to the vocabulary"
         f" list{RESET} 💡✅"
