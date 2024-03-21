@@ -1,10 +1,7 @@
 import csv
-import click
 from csv import DictReader, DictWriter
-from pathlib import Path
 
-from vocabmaster import gpt_integration
-from vocabmaster import utils
+from vocabmaster import gpt_integration, utils
 
 
 def word_exists(word, translations_filepath):
@@ -65,16 +62,13 @@ def get_words_to_translate(translations_filepath):
 
     if not words_to_translate:
         raise Exception(
-            "All the words in the vocabulary list already have translations and"
-            " examples"
+            "All the words in the vocabulary list already have translations and" " examples"
         )
     else:
         return words_to_translate
 
 
-def generate_translations_and_examples(
-    language_to_learn, mother_tongue, translations_filepath
-):
+def generate_translations_and_examples(language_to_learn, mother_tongue, translations_filepath):
     """
     Generates translations and examples for a list of words using the GPT model.
 
@@ -94,14 +88,10 @@ def generate_translations_and_examples(
     """
     # Get the list of words that need translations and generate the GPT model prompt
     words_to_translate = get_words_to_translate(translations_filepath)
-    prompt = gpt_integration.format_prompt(
-        language_to_learn, mother_tongue, words_to_translate
-    )
+    prompt = gpt_integration.format_prompt(language_to_learn, mother_tongue, words_to_translate)
 
     # Send a request to the GPT model and extract the generated text
-    gpt_response = gpt_integration.chatgpt_request(
-        prompt=prompt, stream=True, temperature=0.6
-    )
+    gpt_response = gpt_integration.chatgpt_request(prompt=prompt, stream=True, temperature=0.6)
     generated_text = gpt_response[0]
 
     # Create a backup of the GPT response
@@ -159,9 +149,7 @@ def add_translations_and_examples_to_file(translations_filepath, pair):
     language_to_learn, mother_tongue = utils.get_language_pair_from_option(pair)
 
     new_entries = convert_text_to_dict(
-        generate_translations_and_examples(
-            language_to_learn, mother_tongue, translations_filepath
-        )
+        generate_translations_and_examples(language_to_learn, mother_tongue, translations_filepath)
     )
 
     # Read the current entries from the input file and store them in a dictionary
@@ -275,4 +263,3 @@ def vocabulary_list_is_empty(translations_filepath):
         next(csv_reader)  # Skip the fieldnames
         if len(list(csv_reader)) == 0:
             return True
-

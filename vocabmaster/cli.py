@@ -1,12 +1,11 @@
-import click
-import openai
-import os
 import platform
 import sys
 
-from vocabmaster import csv_handler
-from vocabmaster import config_handler
-from vocabmaster import gpt_integration
+import click
+import openai
+
+from vocabmaster import config_handler, csv_handler, gpt_integration
+
 from .utils import *
 
 
@@ -121,18 +120,14 @@ def translate(pair, count):
 
     # Check if the vocabulary list is empty
     if csv_handler.vocabulary_list_is_empty(translations_filepath):
-        click.echo(
-            f"{RED}Your vocabulary list is empty.{RESET} Please add some words first."
-        )
+        click.echo(f"{RED}Your vocabulary list is empty.{RESET} Please add some words first.")
         click.echo(f"Run '{BOLD}vocabmaster add --help{RESET}' for more information.")
         return
 
     # Show untranslated words count if `--count` is used, then exit.
     if count:
         try:
-            number_words = len(
-                csv_handler.get_words_to_translate(translations_filepath)
-            )
+            number_words = len(csv_handler.get_words_to_translate(translations_filepath))
         except Exception as error:
             click.echo(f"{GREEN}Status:{RESET} {error}")
         else:
@@ -158,8 +153,7 @@ def translate(pair, count):
         sys.exit(1)
     except Exception as error:
         if (
-            str(error)
-            == "All the words in the vocabulary list already have translations and"
+            str(error) == "All the words in the vocabulary list already have translations and"
             " examples"
         ):
             click.echo(f"{BLUE}Actually...{RESET}")
@@ -264,9 +258,7 @@ def setup():
         click.echo(f"Anki deck file: {anki_filepath}")
         click.echo(f"Backup directory: {backup_lang}")
         click.echo()
-        click.echo(
-            f"VocabMaster setup for {language_to_learn} to {mother_tongue} complete 🤓✅"
-        )
+        click.echo(f"VocabMaster setup for {language_to_learn} to {mother_tongue} complete 🤓✅")
         click.echo()
     else:
         click.echo(f"{RED}Setup canceled{RESET}")
@@ -287,9 +279,7 @@ def setup():
             if click.confirm(
                 f"{RED}Are you sure?{RESET} This will overwrite the current default 🚨"
             ):
-                config_handler.set_default_language_pair(
-                    language_to_learn, mother_tongue
-                )
+                config_handler.set_default_language_pair(language_to_learn, mother_tongue)
             click.echo()
             click.echo("This language pair has been set as the default ✅")
             click.echo(f"{BLUE}The new default language pair is:{RESET}")
@@ -298,16 +288,11 @@ def setup():
             default_language_to_learn = config_handler.get_default_language_pair()[
                 "language_to_learn"
             ]
-            default_mother_tongue = config_handler.get_default_language_pair()[
-                "mother_tongue"
-            ]
+            default_mother_tongue = config_handler.get_default_language_pair()["mother_tongue"]
             click.echo(
-                f"{BOLD}Language to"
-                f" learn:{RESET} {default_language_to_learn.capitalize()}"
+                f"{BOLD}Language to" f" learn:{RESET} {default_language_to_learn.capitalize()}"
             )
-            click.echo(
-                f"{BOLD}Mother tongue:{RESET} {default_mother_tongue.capitalize()}"
-            )
+            click.echo(f"{BOLD}Mother tongue:{RESET} {default_mother_tongue.capitalize()}")
             click.echo()
 
         else:
@@ -317,12 +302,8 @@ def setup():
             default_language_to_learn = config_handler.get_default_language_pair()[
                 "language_to_learn"
             ]
-            default_mother_tongue = config_handler.get_default_language_pair()[
-                "mother_tongue"
-            ]
-            click.echo(
-                f"{BOLD}{default_language_to_learn}:{default_mother_tongue}{RESET}"
-            )
+            default_mother_tongue = config_handler.get_default_language_pair()["mother_tongue"]
+            click.echo(f"{BOLD}{default_language_to_learn}:{default_mother_tongue}{RESET}")
 
 
 @vocabmaster.command()
@@ -332,9 +313,7 @@ def default():
     """
     print_default_language_pair()
     click.echo()
-    click.echo(
-        f"{BLUE}You can change the default language pair at any time by running:{RESET}"
-    )
+    click.echo(f"{BLUE}You can change the default language pair at any time by running:{RESET}")
     click.echo(f"{BOLD}vocabmaster config default{RESET}")
 
 
@@ -380,12 +359,8 @@ def config_default_language_pair():
         idx = int(choice) - 1
         if 0 <= idx < len(config_handler.get_all_language_pairs()):
             # Set the language pair as the default
-            language_to_learn = config_handler.get_all_language_pairs()[idx][
-                "language_to_learn"
-            ]
-            mother_tongue = config_handler.get_all_language_pairs()[idx][
-                "mother_tongue"
-            ]
+            language_to_learn = config_handler.get_all_language_pairs()[idx]["language_to_learn"]
+            mother_tongue = config_handler.get_all_language_pairs()[idx]["mother_tongue"]
             config_handler.set_default_language_pair(language_to_learn, mother_tongue)
             click.echo(
                 f"{BOLD}{language_to_learn}:{mother_tongue}{RESET} {GREEN} has been set"
@@ -403,9 +378,7 @@ def config_default_language_pair():
         try:
             if config_handler.get_language_pair(choice) is not None:
                 # Set the language pair as the default
-                language_to_learn, mother_tongue = config_handler.get_language_pair(
-                    choice
-                )
+                language_to_learn, mother_tongue = config_handler.get_language_pair(choice)
         # The user entered an invalid language pair
         except ValueError as error:
             click.echo(f"{RED}{error}{RESET}")
@@ -437,10 +410,7 @@ def config_key():
     if openai_api_key_exists():
         click.echo(f"{GREEN}OpenAI API key found!{RESET}")
         click.echo()
-        click.echo(
-            f"You can use '{BOLD}vocabmaster translate{RESET}' to generate"
-            " translations."
-        )
+        click.echo(f"You can use '{BOLD}vocabmaster translate{RESET}' to generate" " translations.")
         click.echo()
         click.echo(
             "If you only want to generate your Anki deck, you can use"
@@ -462,11 +432,9 @@ def openai_api_key_explain():
     )
     click.echo()
     if platform.system() == "Windows":
-        click.echo(f"Then, you can set it up by running `setx OPENAI_API_KEY your_key`")
+        click.echo("Then, you can set it up by running `setx OPENAI_API_KEY your_key`")
     else:
-        click.echo(
-            f"Then, you can set it up by running `export OPENAI_API_KEY=YOUR_KEY`"
-        )
+        click.echo("Then, you can set it up by running `export OPENAI_API_KEY=YOUR_KEY`")
     return
 
 
@@ -494,9 +462,7 @@ def tokens():
     """
     language_to_learn = config_handler.get_default_language_pair()["language_to_learn"]
     mother_tongue = config_handler.get_default_language_pair()["mother_tongue"]
-    translations_filepath, anki_file = setup_files(
-        setup_dir(), language_to_learn, mother_tongue
-    )
+    translations_filepath, anki_file = setup_files(setup_dir(), language_to_learn, mother_tongue)
 
     if csv_handler.vocabulary_list_is_empty(translations_filepath):
         click.echo(f"{RED}The list is empty!{RESET}")
@@ -509,13 +475,9 @@ def tokens():
         click.echo(f"{BLUE}Status:{RESET} {error}")
         click.echo("Therefore, the cost of the next prompt cannot be estimated.")
     else:
-        prompt = gpt_integration.format_prompt(
-            language_to_learn, mother_tongue, words_to_translate
-        )
+        prompt = gpt_integration.format_prompt(language_to_learn, mother_tongue, words_to_translate)
         estimated_cost = gpt_integration.estimate_prompt_cost(prompt)["gpt-3.5-turbo"]
-        click.echo(
-            f"The estimated cost of the next prompt is {BLUE}${estimated_cost}{RESET}."
-        )
+        click.echo(f"The estimated cost of the next prompt is {BLUE}${estimated_cost}{RESET}.")
 
 
 def print_default_language_pair():
@@ -523,13 +485,9 @@ def print_default_language_pair():
     Print the current default language pair.
     """
     click.echo(f"{BLUE}The current default language pair is:{RESET}")
-    default_language_to_learn = config_handler.get_default_language_pair()[
-        "language_to_learn"
-    ]
+    default_language_to_learn = config_handler.get_default_language_pair()["language_to_learn"]
     default_mother_tongue = config_handler.get_default_language_pair()["mother_tongue"]
-    click.echo(
-        f"{BOLD}{ORANGE}{default_language_to_learn}:{default_mother_tongue}{RESET}"
-    )
+    click.echo(f"{BOLD}{ORANGE}{default_language_to_learn}:{default_mother_tongue}{RESET}")
     click.echo()
 
 
@@ -541,8 +499,7 @@ def print_all_language_pairs():
     language_pairs = config_handler.get_all_language_pairs()
     for idx, language_pair in enumerate(language_pairs, start=1):
         click.echo(
-            f"{idx}."
-            f" {language_pair['language_to_learn']}:{language_pair['mother_tongue']}"
+            f"{idx}." f" {language_pair['language_to_learn']}:{language_pair['mother_tongue']}"
         )
     click.echo()
 
@@ -554,10 +511,7 @@ def handle_rate_limit_error():
     click.echo()
     click.echo(
         click.style(
-            (
-                "You might not have set a usage rate limit in your"
-                " OpenAI account settings. "
-            ),
+            ("You might not have set a usage rate limit in your" " OpenAI account settings. "),
             fg="blue",
         )
     )
