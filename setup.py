@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-VERSION = "0.1.12"
+VERSION = "0.1.13"
 
 
 with open("README.md", encoding="UTF-8") as file:
@@ -21,5 +21,6 @@ setup(
     },
     long_description=readme,
     long_description_content_type="text/markdown",
-    author="sderev",
+    author="Sébastien De Revière",
+    url="https://github.com/sderev/vocabmaster",
 )
