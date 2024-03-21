@@ -1,5 +1,3 @@
-from pathlib import Path
-import os
 import json
 
 from vocabmaster import utils

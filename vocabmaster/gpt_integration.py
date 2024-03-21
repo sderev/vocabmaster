@@ -1,9 +1,8 @@
 import os
-import json
+import time
+
 import openai
 import tiktoken
-import time
-from vocabmaster import csv_handler
 
 
 def format_prompt(language_to_learn, mother_tongue, words_to_translate):
@@ -114,15 +113,10 @@ def num_tokens_from_messages(messages, model="gpt-3.5-turbo-0613"):
         )
         return num_tokens_from_messages(messages, model="gpt-3.5-turbo-0613")
     elif model == "gpt-4":
-        print(
-            "Warning: gpt-4 may change over time. Returning num tokens assuming"
-            " gpt-4-0613."
-        )
+        print("Warning: gpt-4 may change over time. Returning num tokens assuming" " gpt-4-0613.")
         return num_tokens_from_messages(messages, model="gpt-4-0613")
     elif model == "gpt-3.5-turbo-0613":
-        tokens_per_message = (
-            4  # every message follows <|start|>{role/name}\n{content}<|end|>\n
-        )
+        tokens_per_message = 4  # every message follows <|start|>{role/name}\n{content}<|end|>\n
         tokens_per_name = -1  # if there's a name, the role is omitted
     elif model == "gpt-4-0613":
         tokens_per_message = 3

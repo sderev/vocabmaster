@@ -3,6 +3,7 @@ import platform
 import shutil
 from datetime import datetime
 from pathlib import Path
+
 from vocabmaster import config_handler
 
 
