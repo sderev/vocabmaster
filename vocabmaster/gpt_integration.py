@@ -39,8 +39,8 @@ def format_prompt(language_to_learn, mother_tongue, words_to_translate):
 
 def chatgpt_request(
     prompt,
-    model="gpt-3.5-turbo-0613",
-    max_tokens=3600,
+    model="gpt-4o",
+    # max_tokens=3600,
     n=1,
     temperature=0.7,
     stop=None,
@@ -53,7 +53,7 @@ def chatgpt_request(
     response = openai.ChatCompletion.create(
         messages=prompt,
         model=model,
-        max_tokens=max_tokens,
+        # max_tokens=max_tokens,
         n=n,
         temperature=temperature,
         stop=stop,
