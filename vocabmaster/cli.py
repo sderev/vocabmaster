@@ -3,7 +3,6 @@ import sys
 
 import click
 import openai
-
 from vocabmaster import config_handler, csv_handler, gpt_integration
 
 from .utils import *
@@ -58,7 +57,7 @@ def add(pair, word):
         language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
     except Exception as error:
         click.echo(f"{RED}Error:{RESET} {error}")
-        return
+        sys.exit(1)
 
     translations_filepath, anki_filepath = setup_files(
         setup_dir(), language_to_learn, mother_tongue
@@ -68,7 +67,7 @@ def add(pair, word):
         click.echo()
         click.echo("Please provide a word to add.")
         click.echo(f"Run '{BOLD}vocabmaster add --help{RESET}' for more information.")
-        return
+        sys.exit(0)
 
     word = " ".join(word)
     if csv_handler.word_exists(word, translations_filepath):
@@ -107,7 +106,7 @@ def translate(pair, count):
         language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
     except Exception as error:
         click.echo(f"{RED}Error:{RESET} {error}")
-        return
+        sys.exit(1)
 
     translations_filepath, anki_filepath = setup_files(
         setup_dir(), language_to_learn, mother_tongue
@@ -122,7 +121,7 @@ def translate(pair, count):
     if csv_handler.vocabulary_list_is_empty(translations_filepath):
         click.echo(f"{RED}Your vocabulary list is empty.{RESET} Please add some words first.")
         click.echo(f"Run '{BOLD}vocabmaster add --help{RESET}' for more information.")
-        return
+        sys.exit(0)
 
     # Show untranslated words count if `--count` is used, then exit.
     if count:
@@ -132,12 +131,12 @@ def translate(pair, count):
             click.echo(f"{GREEN}Status:{RESET} {error}")
         else:
             click.echo(f"Number of words to translate: {BLUE}{number_words}{RESET}")
-        return
+        sys.exit(0)
 
     # Check for OpenAI API key
     if not openai_api_key_exists():
         openai_api_key_explain()
-        return
+        sys.exit(0)
 
     # Add translations and examples to the CSV file
     click.echo("Adding translations and examples to the file... 🔎📝")
@@ -383,7 +382,7 @@ def config_default_language_pair():
         except ValueError as error:
             click.echo(f"{RED}{error}{RESET}")
             click.echo(f"The format is {BOLD}language_to_learn:mother_tongue{RESET}")
-            return
+            sys.exit(1)
 
         # Set the language pair as the default
         config_handler.set_default_language_pair(language_to_learn, mother_tongue)
@@ -467,7 +466,7 @@ def tokens():
     if csv_handler.vocabulary_list_is_empty(translations_filepath):
         click.echo(f"{RED}The list is empty!{RESET}")
         click.echo("Please add words to the list before running this command.")
-        return
+        sys.exit(0)
 
     try:
         words_to_translate = csv_handler.get_words_to_translate(translations_filepath)
