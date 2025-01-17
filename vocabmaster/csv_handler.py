@@ -115,7 +115,7 @@ def convert_text_to_dict(generated_text):
         dict: A dictionary with words as keys and a dictionary of translations and examples as values.
     """
     # Clean input text and split it into lines
-    cleaned_text = generated_text.replace("\n\n", "\n")
+    cleaned_text = generated_text.replace("\n\n", "\n").replace("```csv", "").replace("```", "")
     lines = cleaned_text.strip().split("\n")
 
     # Create a dictionary of words with translations and examples
