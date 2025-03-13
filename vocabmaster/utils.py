@@ -4,6 +4,8 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
+import click
+
 from vocabmaster import config_handler
 
 

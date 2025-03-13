@@ -3,6 +3,7 @@ import sys
 
 import click
 import openai
+
 from vocabmaster import config_handler, csv_handler, gpt_integration
 
 from .utils import *
@@ -165,8 +166,7 @@ def translate(pair, count):
             click.echo(f"{RED}Status:{RESET} {error}")
         sys.exit(0)
     click.echo(
-        f"{BLUE}The translations and examples have been added to the vocabulary"
-        f" list{RESET} 💡✅"
+        f"{BLUE}The translations and examples have been added to the vocabulary list{RESET} 💡✅"
     )
 
     # Generate the Anki deck
@@ -288,9 +288,7 @@ def setup():
                 "language_to_learn"
             ]
             default_mother_tongue = config_handler.get_default_language_pair()["mother_tongue"]
-            click.echo(
-                f"{BOLD}Language to" f" learn:{RESET} {default_language_to_learn.capitalize()}"
-            )
+            click.echo(f"{BOLD}Language to learn:{RESET} {default_language_to_learn.capitalize()}")
             click.echo(f"{BOLD}Mother tongue:{RESET} {default_mother_tongue.capitalize()}")
             click.echo()
 
@@ -409,7 +407,7 @@ def config_key():
     if openai_api_key_exists():
         click.echo(f"{GREEN}OpenAI API key found!{RESET}")
         click.echo()
-        click.echo(f"You can use '{BOLD}vocabmaster translate{RESET}' to generate" " translations.")
+        click.echo(f"You can use '{BOLD}vocabmaster translate{RESET}' to generate translations.")
         click.echo()
         click.echo(
             "If you only want to generate your Anki deck, you can use"
@@ -497,9 +495,7 @@ def print_all_language_pairs():
     click.echo(f"{BLUE}The following language pairs have been set up:{RESET}")
     language_pairs = config_handler.get_all_language_pairs()
     for idx, language_pair in enumerate(language_pairs, start=1):
-        click.echo(
-            f"{idx}." f" {language_pair['language_to_learn']}:{language_pair['mother_tongue']}"
-        )
+        click.echo(f"{idx}. {language_pair['language_to_learn']}:{language_pair['mother_tongue']}")
     click.echo()
 
 
@@ -510,7 +506,7 @@ def handle_rate_limit_error():
     click.echo()
     click.echo(
         click.style(
-            ("You might not have set a usage rate limit in your" " OpenAI account settings. "),
+            ("You might not have set a usage rate limit in your OpenAI account settings. "),
             fg="blue",
         )
     )
