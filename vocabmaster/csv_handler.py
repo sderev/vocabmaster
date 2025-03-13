@@ -62,7 +62,7 @@ def get_words_to_translate(translations_filepath):
 
     if not words_to_translate:
         raise Exception(
-            "All the words in the vocabulary list already have translations and" " examples"
+            "All the words in the vocabulary list already have translations and examples"
         )
     else:
         return words_to_translate
@@ -192,9 +192,10 @@ def generate_anki_output_file(translations_filepath, anki_output_file):
     Returns:
         None
     """
-    with open(translations_filepath, encoding="UTF-8") as translations_file, open(
-        anki_output_file, "w", encoding="UTF-8"
-    ) as anki_file:
+    with (
+        open(translations_filepath, encoding="UTF-8") as translations_file,
+        open(anki_output_file, "w", encoding="UTF-8") as anki_file,
+    ):
         translations_dict_reader = DictReader(
             translations_file, fieldnames=["word", "translation", "example"]
         )
