@@ -71,10 +71,10 @@ def add(pair, word):
 
     word = " ".join(word)
     if csv_handler.word_exists(word, translations_filepath):
-        click.echo("The word is already in the list 📒")
+        click.echo("That word is already in your list 📒")
     else:
         csv_handler.append_word(word, translations_filepath)
-        click.echo("The word has been appended to the list 📝✅")
+        click.echo("Added to your list! 📝✅")
 
 
 @vocabmaster.command()
