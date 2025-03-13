@@ -17,23 +17,23 @@ def setup_dir():
     Returns:
         pathlib.Path: The path to the application data directory.
     """
-    match platform.system():
-        case "Windows":
-            app_data_dir = Path.home() / "AppData" / "Roaming" / app_name
-        case "Linux" | "Darwin":
-            app_data_dir = Path.home() / ".local" / "share" / app_name
-        case _:
-            print("We couldn't identify your OS.")
-            while True:
-                try:
-                    app_data_dir = Path(
-                        input("Please, tell us where you want your files to be installed")
-                    )
-                    app_data_dir.mkdir(exist_ok=True, parents=True)
-                except Exception as e:
-                    print(e)
-                else:
-                    break
+    system = platform.system()
+    if system == "Windows":
+        app_data_dir = Path.home() / "AppData" / "Roaming" / app_name
+    elif system in ("Linux", "Darwin"):
+        app_data_dir = Path.home() / ".local" / "share" / app_name
+    else:
+        click.echo("We couldn't identify your OS.", err=True)
+        while True:
+            try:
+                app_data_dir = Path(
+                    input("Please, tell us where you want your files to be installed: ")
+                )
+                app_data_dir.mkdir(exist_ok=True, parents=True)
+            except Exception as err:
+                click.echo(click.style("Error:", fg="red", bold=True) + f" {err}", err=True)
+            else:
+                break
     app_data_dir.mkdir(exist_ok=True, parents=True)
     return app_data_dir
 
