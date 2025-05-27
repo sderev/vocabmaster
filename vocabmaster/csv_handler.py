@@ -1,6 +1,7 @@
 import csv
 from csv import DictReader, DictWriter
 
+import click
 from vocabmaster import gpt_integration, utils
 
 
@@ -121,12 +122,23 @@ def convert_text_to_dict(generated_text):
     # Create a dictionary of words with translations and examples
     result = {}
     for line in lines:
-        word, translation_and_example = line.split(",", 1)
-        translation, example = translation_and_example.rsplit(",", 1)
-        result[word.replace("'", "")] = {
-            "translation": translation.replace("'", ""),
-            "example": example.replace("'", ""),
-        }
+        line = line.strip()
+        if not line:
+            continue
+
+        try:
+            word, translation_quoted, example_quoted = line.split("\t")
+
+            translation = translation_quoted.strip("'")
+            example = example_quoted.strip('"')
+
+            result[word] = {
+                "translation": translation,
+                "example": example,
+            }
+        except ValueError:
+            click.echo(f"{click.style('Warning: ', fg='yellow')} Could not parse line:\n{line}")
+            continue
     return result
 
 

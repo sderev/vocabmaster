@@ -11,25 +11,26 @@ def format_prompt(language_to_learn, mother_tongue, words_to_translate):
         {
             "role": "system",
             "content": """
-            You are an expert at building vocabulary lists in a CSV file.
-            You do NOT say anything else but the content of the CSV file.""",
+            You are an expert at building vocabulary lists and formatting them as Tab-Separated Values TSV file.
+            You do NOT say anything else but the content of the TSV file.""",
         },
         {
             "role": "user",
             "content": f"""
             Translate the following {language_to_learn} words into {mother_tongue}
-            and provide a CSV file with each row consisting of the {language_to_learn} word,
+            and provide a TSV file with each row consisting of the {language_to_learn} word,
             its {mother_tongue} translations (if there are multiple translations possible,
             list them in the same column), and an example sentence in {language_to_learn}.
 
             Always give ONLY ONE example! The example HAS TO BE in {language_to_learn}!
-            Separate each column with commas.
+            Separate each column with a tab character.
             For the translation column, ALWAYS give at least two or three possible translations!
             
             When you start a new row, you HAVE TO add a newline character.
-            Below is the list of words to translate.
             The format should look like this:
-            word,'translation1, translation2, translation3','example'.
+            word\ttranslation1, translation2, translation3\texample sentence in {language_to_learn}
+
+            Below is the list of words to translate.
             ---
             {words_to_translate}""",
         },
