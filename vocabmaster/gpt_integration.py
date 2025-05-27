@@ -40,7 +40,7 @@ def format_prompt(language_to_learn, mother_tongue, words_to_translate):
 
 def chatgpt_request(
     prompt,
-    model="gpt-4o",
+    model="gpt-4.1",
     # max_tokens=3600,
     n=1,
     temperature=0.7,
