@@ -5,6 +5,70 @@ import click
 from vocabmaster import gpt_integration, utils
 
 
+def detect_word_mismatches(original_words, gpt_response):
+    """
+    Detect words that don't match between original words and LM response.
+    
+    Args:
+        original_words (list): List of original words sent to the LM
+        gpt_response (dict): Dictionary of LM responses with word as key
+        
+    Returns:
+        list: List of tuples (original_word, [possible_corrections])
+    """
+    mismatches = []
+    
+    # Find words in LM response that aren't in original words (potential corrections)
+    original_words_set = set(original_words)
+    gpt_words_set = set(gpt_response.keys())
+    potential_corrections = gpt_words_set - original_words_set
+    
+    for original_word in original_words:
+        if original_word not in gpt_response:
+            # Only report as mismatch if there are potential corrections available
+            if potential_corrections:
+                mismatches.append((original_word, list(potential_corrections)))
+    
+    return mismatches
+
+
+def ask_user_about_correction(original_word, corrected_word):
+    """
+    Ask user if they want to replace the original word with the LM's correction.
+    
+    Args:
+        original_word (str): The original word with potential typo
+        corrected_word (str): The LM's suggested correction
+        
+    Returns:
+        bool: True if user wants to replace, False otherwise
+    """
+    message = f"The LM returned '{corrected_word}' instead of '{original_word}'. Replace the original word?"
+    return click.confirm(message)
+
+
+def update_word_in_entries(current_entries, old_word, new_word):
+    """
+    Update a word key in the entries dictionary.
+    
+    Args:
+        current_entries (dict): Dictionary of CSV entries with word as key
+        old_word (str): The old word key to replace
+        new_word (str): The new word key
+        
+    Returns:
+        dict: Updated entries dictionary
+    """
+    if old_word in current_entries:
+        # Move the entry to the new key
+        current_entries[new_word] = current_entries[old_word]
+        # Update the internal "word" field to match the new key
+        current_entries[new_word]["word"] = new_word
+        del current_entries[old_word]
+    
+    return current_entries
+
+
 def word_exists(word, translations_filepath):
     """
     Checks if the word is already present in the `translations_filepath`.
@@ -71,12 +135,12 @@ def get_words_to_translate(translations_filepath):
 
 def generate_translations_and_examples(language_to_learn, mother_tongue, translations_filepath):
     """
-    Generates translations and examples for a list of words using the GPT model.
+    Generates translations and examples for a list of words using the LM.
 
     This function calls `get_words_to_translate` to obtain a list of words that need translations,
     using the provided `translations_filepath`. It then formats the prompt using
-    `gpt_integration.format_prompt` and sends a request to the GPT model. The generated text from
-    the GPT model is returned.
+    `gpt_integration.format_prompt` and sends a request to the LM. The generated text from
+    the LM is returned.
 
     Args:
         language_to_learn (str): The language to learn.
@@ -87,15 +151,15 @@ def generate_translations_and_examples(language_to_learn, mother_tongue, transla
     Returns:
         str: The generated text containing translations and examples.
     """
-    # Get the list of words that need translations and generate the GPT model prompt
+    # Get the list of words that need translations and generate the LM prompt
     words_to_translate = get_words_to_translate(translations_filepath)
     prompt = gpt_integration.format_prompt(language_to_learn, mother_tongue, words_to_translate)
 
-    # Send a request to the GPT model and extract the generated text
+    # Send a request to the LM and extract the generated text
     gpt_response = gpt_integration.chatgpt_request(prompt=prompt, stream=True, temperature=0.6)
     generated_text = gpt_response[0]
 
-    # Create a backup of the GPT response
+    # Create a backup of the LM response
     backup_dir = utils.get_backup_dir(language_to_learn, mother_tongue)
     utils.backup_content(backup_dir, gpt_response)
 
@@ -160,6 +224,9 @@ def add_translations_and_examples_to_file(translations_filepath, pair):
     # Generate new translations and examples, then convert the results to a dictionary
     language_to_learn, mother_tongue = utils.get_language_pair_from_option(pair)
 
+    # Get the original words that were sent to the LM for mismatch detection
+    original_words = get_words_to_translate(translations_filepath)
+
     new_entries = convert_text_to_dict(
         generate_translations_and_examples(language_to_learn, mother_tongue, translations_filepath)
     )
@@ -168,6 +235,49 @@ def add_translations_and_examples_to_file(translations_filepath, pair):
     with open(translations_filepath, "r", encoding="UTF-8") as input_file:
         translations_reader = DictReader(input_file)
         current_entries = {row["word"]: row for row in translations_reader}
+
+    # Detect and handle word mismatches (e.g., typo corrections by the LM)
+    mismatches = detect_word_mismatches(original_words, new_entries)
+    
+    if mismatches:
+        click.echo(f"\n{click.style('Word corrections detected:', fg='yellow')}")
+        
+        for original_word, potential_corrections in mismatches:
+            if len(potential_corrections) == 1:
+                corrected_word = potential_corrections[0]
+                if ask_user_about_correction(original_word, corrected_word):
+                    current_entries = update_word_in_entries(
+                        current_entries, original_word, corrected_word
+                    )
+                    # Apply the translation and example immediately
+                    current_entries[corrected_word]["translation"] = new_entries[corrected_word]["translation"]
+                    current_entries[corrected_word]["example"] = new_entries[corrected_word]["example"]
+                    click.echo(f"Updated '{original_word}' → '{corrected_word}' ✓")
+                else:
+                    click.echo(f"Kept original word '{original_word}'")
+            else:
+                click.echo(f"\nThe LM didn't return a translation for '{original_word}'.")
+                click.echo(f"Available translations: {', '.join(potential_corrections)}")
+                
+                corrected_word = click.prompt(
+                    f"Enter the correct word for '{original_word}' (or press Enter to skip)",
+                    type=str,
+                    default="",
+                    show_default=False
+                )
+                
+                if corrected_word and corrected_word in potential_corrections:
+                    current_entries = update_word_in_entries(
+                        current_entries, original_word, corrected_word
+                    )
+                    # Apply the translation and example immediately
+                    current_entries[corrected_word]["translation"] = new_entries[corrected_word]["translation"]
+                    current_entries[corrected_word]["example"] = new_entries[corrected_word]["example"]
+                    click.echo(f"Updated '{original_word}' → '{corrected_word}' ✓")
+                else:
+                    click.echo(f"Skipped '{original_word}'")
+        
+        click.echo()
 
     # Write the updated translations and examples to the output file
     with open(translations_filepath, "w", encoding="UTF-8") as output_file:
