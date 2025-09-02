@@ -170,10 +170,10 @@ def translate(pair, count):
     )
 
     # Generate the Anki deck
-    generate_anki_deck(translations_filepath, anki_filepath)
+    generate_anki_deck(translations_filepath, anki_filepath, language_to_learn, mother_tongue)
 
 
-def generate_anki_deck(translations_filepath, anki_filepath):
+def generate_anki_deck(translations_filepath, anki_filepath, language_to_learn, mother_tongue):
     """
     Generates an Anki deck file from a translations file and saves it to the specified path.
 
@@ -184,6 +184,8 @@ def generate_anki_deck(translations_filepath, anki_filepath):
     Args:
         translations_filepath (pathlib.Path): Path to the input translations file (CSV format).
         anki_filepath (pathlib.Path): Path to save the generated Anki deck file.
+        language_to_learn (str): The target language being learned.
+        mother_tongue (str): The user's native language.
 
     Returns:
         None
@@ -191,7 +193,7 @@ def generate_anki_deck(translations_filepath, anki_filepath):
     click.echo()
     click.echo("Generating the Anki deck... 📜")
     click.echo()
-    csv_handler.generate_anki_output_file(translations_filepath, anki_filepath)
+    csv_handler.generate_anki_output_file(translations_filepath, anki_filepath, language_to_learn, mother_tongue)
     click.echo("The Anki deck has been generated 🤓✅")
     click.echo()
     click.echo(f"{GREEN}You can now import the deck into Anki{RESET} 📚")
@@ -214,7 +216,7 @@ def anki():
         setup_dir(), language_to_learn, mother_tongue
     )
 
-    generate_anki_deck(translations_filepath, anki_filepath)
+    generate_anki_deck(translations_filepath, anki_filepath, language_to_learn, mother_tongue)
 
 
 @vocabmaster.command()
