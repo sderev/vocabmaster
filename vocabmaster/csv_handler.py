@@ -299,17 +299,40 @@ def add_translations_and_examples_to_file(translations_filepath, pair):
     utils.backup_file(backup_dir, translations_filepath)
 
 
-def generate_anki_output_file(translations_filepath, anki_output_file):
+def generate_anki_headers(language_to_learn, mother_tongue):
+    """
+    Generate Anki file headers for proper import configuration.
+    
+    Args:
+        language_to_learn (str): The target language being learned
+        mother_tongue (str): The user's native language
+    
+    Returns:
+        str: Formatted header lines for Anki import
+    """
+    headers = [
+        "#separator:tab",
+        "#html:true",
+        "#notetype:Basic (and reversed card)",
+        "#tags:vocabmaster",
+        f"#deck:{language_to_learn.capitalize()} vocabulary",
+    ]
+    return "\n".join(headers)
+
+
+def generate_anki_output_file(translations_filepath, anki_output_file, language_to_learn, mother_tongue):
     """
     Converts a translations file to a CSV file formatted for Anki import.
 
-    This function reads a translations file with words, their translations, and examples, and creates a new CSV file
-    formatted as an Anki deck. The resulting file can be imported into Anki to create flashcards with the word on the
-    front and the translation and example on the back.
+    This function reads a translations file with words, their translations, and examples, and creates a new TSV file
+    formatted as an Anki deck with proper headers. The resulting file can be imported into Anki to create flashcards 
+    with the word on the front and the translation and example on the back.
 
     Args:
         translations_filepath (str): The path to the CSV file containing the translations and examples.
-        anki_output_file (str): The path to the output CSV file formatted for Anki import.
+        anki_output_file (str): The path to the output TSV file formatted for Anki import.
+        language_to_learn (str): The target language being learned.
+        mother_tongue (str): The user's native language.
 
     Returns:
         None
@@ -318,6 +341,10 @@ def generate_anki_output_file(translations_filepath, anki_output_file):
         open(translations_filepath, encoding="UTF-8") as translations_file,
         open(anki_output_file, "w", encoding="UTF-8") as anki_file,
     ):
+        # Write Anki headers first
+        headers = generate_anki_headers(language_to_learn, mother_tongue)
+        anki_file.write(headers + "\n")
+        
         translations_dict_reader = DictReader(
             translations_file, fieldnames=["word", "translation", "example"]
         )
@@ -325,9 +352,9 @@ def generate_anki_output_file(translations_filepath, anki_output_file):
 
         anki_dict_writer = DictWriter(
             anki_file,
-            fieldnames=["front", "back"],
+            fieldnames=["Front", "Back"],
             quoting=csv.QUOTE_MINIMAL,
-            delimiter=";",
+            delimiter="\t",
         )
 
         for translations in translations_dict_reader:
@@ -338,8 +365,8 @@ def generate_anki_output_file(translations_filepath, anki_output_file):
 
                 # Create a card with the word on the front, and the translations and example on the back
                 card = {
-                    "front": translations["word"],
-                    "back": f"{translations['translation']}<br><br><details><summary>example</summary><i>&quot;{translations['example']}&quot;</i></details>",
+                    "Front": translations["word"],
+                    "Back": f"{translations['translation']}<br><br><details><summary>example</summary><i>&quot;{translations['example']}&quot;</i></details>",
                 }
 
                 # Write the card to the Anki output file

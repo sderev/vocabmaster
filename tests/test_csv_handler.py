@@ -142,3 +142,127 @@ def test_word_correction_applies_translation_immediately():
     assert current_entries["brethren"]["word"] == "brethren"  # The word field should be corrected!
     assert current_entries["brethren"]["translation"] == "frères"
     assert current_entries["brethren"]["example"] == "The brethren gather"
+
+
+def test_generate_anki_headers():
+    """Test generation of Anki file headers."""
+    headers = csv_handler.generate_anki_headers("english", "french")
+    
+    expected_lines = [
+        "#separator:tab",
+        "#html:true",
+        "#notetype:Basic (and reversed card)",
+        "#tags:vocabmaster",
+        "#deck:English vocabulary",
+    ]
+    
+    assert headers.split("\n") == expected_lines
+
+
+def test_generate_anki_headers_different_languages():
+    """Test header generation with different language pairs."""
+    headers = csv_handler.generate_anki_headers("spanish", "italian")
+    
+    assert "#deck:Spanish vocabulary" in headers
+    assert "#separator:tab" in headers
+    assert "#html:true" in headers
+    assert "#notetype:Basic (and reversed card)" in headers
+    assert "#tags:vocabmaster" in headers
+
+
+def test_generate_anki_headers_capitalization():
+    """Test that language names are properly capitalized in deck name."""
+    headers = csv_handler.generate_anki_headers("german", "english")
+    
+    assert "#deck:German vocabulary" in headers
+
+
+def test_generate_anki_output_file_with_headers(tmp_path):
+    """Test complete Anki output file generation with headers and tab separator."""
+    # Create a test translations file
+    translations_file = tmp_path / "translations.csv"
+    translations_content = """word,translation,example
+to harken back,"se rappeler, évoquer, remonter à",The story harks back to ancient legends.
+a queasiness,"nausée, malaise, haut-le-cœur",He felt a queasiness after the roller coaster ride.
+to snigger,"rire sous cape, ricaner, pouffer",They began to snigger at the teacher's mistake.
+"""
+    translations_file.write_text(translations_content)
+    
+    # Generate Anki output file
+    anki_file = tmp_path / "anki_deck.tsv"
+    csv_handler.generate_anki_output_file(
+        str(translations_file), str(anki_file), "english", "french"
+    )
+    
+    # Read and verify the output
+    anki_content = anki_file.read_text()
+    lines = anki_content.split('\n')
+    
+    # Check headers
+    assert lines[0] == "#separator:tab"
+    assert lines[1] == "#html:true"
+    assert lines[2] == "#notetype:Basic (and reversed card)"
+    assert lines[3] == "#tags:vocabmaster"
+    assert lines[4] == "#deck:English vocabulary"
+    
+    # Check that data rows use tab separator and proper field names
+    data_lines = [line for line in lines[5:] if line.strip()]
+    assert len(data_lines) == 3  # Three words
+    
+    # Check first data row
+    first_row = data_lines[0].split('\t')
+    assert first_row[0] == "to harken back"
+    assert "se rappeler, évoquer, remonter à" in first_row[1]
+    assert "The story harks back to ancient legends." in first_row[1]
+    assert "<br><br>" in first_row[1]  # HTML formatting preserved
+
+
+def test_generate_anki_output_file_skips_incomplete_entries(tmp_path):
+    """Test that incomplete entries (missing translation or example) are skipped."""
+    # Create a test translations file with incomplete entries
+    translations_file = tmp_path / "translations.csv"
+    translations_content = """word,translation,example
+to relitigate,"relancer un débat, réexaminer, rejuger",They decided not to relitigate the old arguments.
+incomplete1,,"Missing example"
+incomplete2,translation,
+to harken back,"se rappeler, évoquer, remonter à",The story harks back to ancient legends.
+"""
+    translations_file.write_text(translations_content)
+    
+    # Generate Anki output file
+    anki_file = tmp_path / "anki_deck.tsv"
+    csv_handler.generate_anki_output_file(
+        str(translations_file), str(anki_file), "english", "french"
+    )
+    
+    # Read and verify the output
+    anki_content = anki_file.read_text()
+    data_lines = [line for line in anki_content.split('\n')[5:] if line.strip()]
+    
+    # Should only have 2 complete entries, not 4
+    assert len(data_lines) == 2
+    assert "to relitigate" in data_lines[0]
+    assert "to harken back" in data_lines[1]
+
+
+def test_generate_anki_output_file_different_languages(tmp_path):
+    """Test output generation with different language pairs."""
+    # Create a test translations file
+    translations_file = tmp_path / "translations.csv"
+    translations_content = """word,translation,example
+a queasiness,"nausée, malaise, haut-le-cœur",He felt a queasiness after the roller coaster ride.
+to snigger,"rire sous cape, ricaner, pouffer",They began to snigger at the teacher's mistake.
+"""
+    translations_file.write_text(translations_content)
+    
+    # Generate Anki output file
+    anki_file = tmp_path / "anki_deck.tsv"
+    csv_handler.generate_anki_output_file(
+        str(translations_file), str(anki_file), "spanish", "italian"
+    )
+    
+    # Read and verify the deck name header
+    anki_content = anki_file.read_text()
+    lines = anki_content.split('\n')
+    
+    assert "#deck:Spanish vocabulary" in lines
