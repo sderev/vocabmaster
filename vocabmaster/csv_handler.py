@@ -2,44 +2,45 @@ import csv
 from csv import DictReader, DictWriter
 
 import click
+
 from vocabmaster import gpt_integration, utils
 
 
 def detect_word_mismatches(original_words, gpt_response):
     """
     Detect words that don't match between original words and LM response.
-    
+
     Args:
         original_words (list): List of original words sent to the LM
         gpt_response (dict): Dictionary of LM responses with word as key
-        
+
     Returns:
         list: List of tuples (original_word, [possible_corrections])
     """
     mismatches = []
-    
+
     # Find words in LM response that aren't in original words (potential corrections)
     original_words_set = set(original_words)
     gpt_words_set = set(gpt_response.keys())
     potential_corrections = gpt_words_set - original_words_set
-    
+
     for original_word in original_words:
         if original_word not in gpt_response:
             # Only report as mismatch if there are potential corrections available
             if potential_corrections:
                 mismatches.append((original_word, list(potential_corrections)))
-    
+
     return mismatches
 
 
 def ask_user_about_correction(original_word, corrected_word):
     """
     Ask user if they want to replace the original word with the LM's correction.
-    
+
     Args:
         original_word (str): The original word with potential typo
         corrected_word (str): The LM's suggested correction
-        
+
     Returns:
         bool: True if user wants to replace, False otherwise
     """
@@ -50,12 +51,12 @@ def ask_user_about_correction(original_word, corrected_word):
 def update_word_in_entries(current_entries, old_word, new_word):
     """
     Update a word key in the entries dictionary.
-    
+
     Args:
         current_entries (dict): Dictionary of CSV entries with word as key
         old_word (str): The old word key to replace
         new_word (str): The new word key
-        
+
     Returns:
         dict: Updated entries dictionary
     """
@@ -65,7 +66,7 @@ def update_word_in_entries(current_entries, old_word, new_word):
         # Update the internal "word" field to match the new key
         current_entries[new_word]["word"] = new_word
         del current_entries[old_word]
-    
+
     return current_entries
 
 
@@ -118,7 +119,7 @@ def get_words_to_translate(translations_filepath):
 
     with open(translations_filepath, encoding="UTF-8") as translations_file:
         dict_reader = DictReader(translations_file)
-        fieldnames = ["word", "translation", "example"]
+        # fieldnames = ["word", "translation", "example"]
 
         for row in dict_reader:
             # If a row is missing a translation or example, add the word to the list of words to translate
@@ -238,10 +239,10 @@ def add_translations_and_examples_to_file(translations_filepath, pair):
 
     # Detect and handle word mismatches (e.g., typo corrections by the LM)
     mismatches = detect_word_mismatches(original_words, new_entries)
-    
+
     if mismatches:
         click.echo(f"\n{click.style('Word corrections detected:', fg='yellow')}")
-        
+
         for original_word, potential_corrections in mismatches:
             if len(potential_corrections) == 1:
                 corrected_word = potential_corrections[0]
@@ -250,33 +251,41 @@ def add_translations_and_examples_to_file(translations_filepath, pair):
                         current_entries, original_word, corrected_word
                     )
                     # Apply the translation and example immediately
-                    current_entries[corrected_word]["translation"] = new_entries[corrected_word]["translation"]
-                    current_entries[corrected_word]["example"] = new_entries[corrected_word]["example"]
+                    current_entries[corrected_word]["translation"] = new_entries[corrected_word][
+                        "translation"
+                    ]
+                    current_entries[corrected_word]["example"] = new_entries[corrected_word][
+                        "example"
+                    ]
                     click.echo(f"Updated '{original_word}' → '{corrected_word}' ✓")
                 else:
                     click.echo(f"Kept original word '{original_word}'")
             else:
                 click.echo(f"\nThe LM didn't return a translation for '{original_word}'.")
                 click.echo(f"Available translations: {', '.join(potential_corrections)}")
-                
+
                 corrected_word = click.prompt(
                     f"Enter the correct word for '{original_word}' (or press Enter to skip)",
                     type=str,
                     default="",
-                    show_default=False
+                    show_default=False,
                 )
-                
+
                 if corrected_word and corrected_word in potential_corrections:
                     current_entries = update_word_in_entries(
                         current_entries, original_word, corrected_word
                     )
                     # Apply the translation and example immediately
-                    current_entries[corrected_word]["translation"] = new_entries[corrected_word]["translation"]
-                    current_entries[corrected_word]["example"] = new_entries[corrected_word]["example"]
+                    current_entries[corrected_word]["translation"] = new_entries[corrected_word][
+                        "translation"
+                    ]
+                    current_entries[corrected_word]["example"] = new_entries[corrected_word][
+                        "example"
+                    ]
                     click.echo(f"Updated '{original_word}' → '{corrected_word}' ✓")
                 else:
                     click.echo(f"Skipped '{original_word}'")
-        
+
         click.echo()
 
     # Write the updated translations and examples to the output file
@@ -302,11 +311,11 @@ def add_translations_and_examples_to_file(translations_filepath, pair):
 def generate_anki_headers(language_to_learn, mother_tongue):
     """
     Generate Anki file headers for proper import configuration.
-    
+
     Args:
         language_to_learn (str): The target language being learned
         mother_tongue (str): The user's native language
-    
+
     Returns:
         str: Formatted header lines for Anki import
     """
@@ -320,12 +329,14 @@ def generate_anki_headers(language_to_learn, mother_tongue):
     return "\n".join(headers)
 
 
-def generate_anki_output_file(translations_filepath, anki_output_file, language_to_learn, mother_tongue):
+def generate_anki_output_file(
+    translations_filepath, anki_output_file, language_to_learn, mother_tongue
+):
     """
     Converts a translations file to a CSV file formatted for Anki import.
 
     This function reads a translations file with words, their translations, and examples, and creates a new TSV file
-    formatted as an Anki deck with proper headers. The resulting file can be imported into Anki to create flashcards 
+    formatted as an Anki deck with proper headers. The resulting file can be imported into Anki to create flashcards
     with the word on the front and the translation and example on the back.
 
     Args:
@@ -344,7 +355,7 @@ def generate_anki_output_file(translations_filepath, anki_output_file, language_
         # Write Anki headers first
         headers = generate_anki_headers(language_to_learn, mother_tongue)
         anki_file.write(headers + "\n")
-        
+
         translations_dict_reader = DictReader(
             translations_file, fieldnames=["word", "translation", "example"]
         )

@@ -1,4 +1,3 @@
-import pytest
 from vocabmaster import csv_handler
 
 
@@ -7,12 +6,12 @@ def test_detect_word_mismatches_finds_typo_corrections():
     original_words = ["brethen", "hello"]
     gpt_response = {
         "brethren": {"translation": "frères", "example": "The brethren gather"},
-        "hello": {"translation": "bonjour", "example": "Hello there"}
+        "hello": {"translation": "bonjour", "example": "Hello there"},
     }
-    
+
     # This function doesn't exist yet - we'll implement it
     mismatches = csv_handler.detect_word_mismatches(original_words, gpt_response)
-    
+
     expected = [("brethen", ["brethren"])]
     assert mismatches == expected
 
@@ -22,9 +21,9 @@ def test_detect_word_mismatches_returns_empty_when_all_match():
     original_words = ["hello", "world"]
     gpt_response = {
         "hello": {"translation": "bonjour", "example": "Hello there"},
-        "world": {"translation": "monde", "example": "The world is big"}
+        "world": {"translation": "monde", "example": "The world is big"},
     }
-    
+
     mismatches = csv_handler.detect_word_mismatches(original_words, gpt_response)
     assert mismatches == []
 
@@ -35,20 +34,15 @@ def test_detect_word_mismatches_handles_multiple_corrections():
     gpt_response = {
         "brethren": {"translation": "frères", "example": "The brethren gather"},
         "separate": {"translation": "séparer", "example": "Separate items"},
-        "definitely": {"translation": "définitivement", "example": "Definitely yes"}
+        "definitely": {"translation": "définitivement", "example": "Definitely yes"},
     }
-    
+
     mismatches = csv_handler.detect_word_mismatches(original_words, gpt_response)
-    
+
     # Current simple logic: all missing words get all potential corrections
     # We can improve this later with similarity matching
     expected_corrections = ["brethren", "separate", "definitely"]
-    expected = [
-        ("brethen", expected_corrections),
-        ("seperate", expected_corrections), 
-        ("definately", expected_corrections)
-    ]
-    
+
     assert len(mismatches) == 3
     # Check that all original words are detected as mismatches
     original_words_in_mismatches = [mismatch[0] for mismatch in mismatches]
@@ -62,10 +56,10 @@ def test_ask_user_about_word_correction_accepts_change(monkeypatch):
     """Test user confirmation flow when user accepts word correction."""
     # Mock click.confirm to return True
     monkeypatch.setattr("click.confirm", lambda msg: True)
-    
+
     # This function doesn't exist yet - we'll implement it
     result = csv_handler.ask_user_about_correction("brethen", "brethren")
-    
+
     assert result is True
 
 
@@ -73,9 +67,9 @@ def test_ask_user_about_word_correction_rejects_change(monkeypatch):
     """Test user confirmation flow when user rejects word correction."""
     # Mock click.confirm to return False
     monkeypatch.setattr("click.confirm", lambda msg: False)
-    
+
     result = csv_handler.ask_user_about_correction("brethen", "brethren")
-    
+
     assert result is False
 
 
@@ -83,22 +77,20 @@ def test_update_word_key_in_csv_entries():
     """Test updating a word key in the CSV entries dictionary after user confirmation."""
     current_entries = {
         "brethen": {"word": "brethen", "translation": "", "example": ""},
-        "hello": {"word": "hello", "translation": "bonjour", "example": "Hello there"}
+        "hello": {"word": "hello", "translation": "bonjour", "example": "Hello there"},
     }
-    
-    updated_entries = csv_handler.update_word_in_entries(
-        current_entries, "brethen", "brethren"
-    )
-    
+
+    updated_entries = csv_handler.update_word_in_entries(current_entries, "brethen", "brethren")
+
     # Check that dictionary keys are updated
     assert "brethen" not in updated_entries
     assert "brethren" in updated_entries
-    
+
     # Check that the internal "word" field is also updated
     assert updated_entries["brethren"]["word"] == "brethren"
     assert updated_entries["brethren"]["translation"] == ""
     assert updated_entries["brethren"]["example"] == ""
-    
+
     # Check that other entries are unchanged
     assert updated_entries["hello"]["word"] == "hello"
     assert updated_entries["hello"]["translation"] == "bonjour"
@@ -109,33 +101,33 @@ def test_word_correction_applies_translation_immediately():
     """Test that when a word is corrected, the translation is applied immediately."""
     current_entries = {
         "brethen": {"word": "brethen", "translation": "", "example": ""},
-        "hello": {"word": "hello", "translation": "bonjour", "example": "Hello there"}
+        "hello": {"word": "hello", "translation": "bonjour", "example": "Hello there"},
     }
-    
+
     new_entries = {
         "brethren": {"translation": "frères", "example": "The brethren gather"},
-        "hello": {"translation": "bonjour", "example": "Hello there"}
+        "hello": {"translation": "bonjour", "example": "Hello there"},
     }
-    
+
     # Test the logic that should apply translations immediately after word correction
     original_words = ["brethen", "hello"]
     mismatches = csv_handler.detect_word_mismatches(original_words, new_entries)
-    
+
     assert len(mismatches) == 1
     original_word, potential_corrections = mismatches[0]
     assert original_word == "brethen"
     assert "brethren" in potential_corrections
-    
+
     # Simulate user accepting the correction
     corrected_word = "brethren"
     current_entries = csv_handler.update_word_in_entries(
         current_entries, original_word, corrected_word
     )
-    
+
     # Apply translation immediately (this is what the bug fix does)
     current_entries[corrected_word]["translation"] = new_entries[corrected_word]["translation"]
     current_entries[corrected_word]["example"] = new_entries[corrected_word]["example"]
-    
+
     # Verify the correction is properly applied including the internal word field
     assert "brethen" not in current_entries
     assert "brethren" in current_entries
@@ -147,7 +139,7 @@ def test_word_correction_applies_translation_immediately():
 def test_generate_anki_headers():
     """Test generation of Anki file headers."""
     headers = csv_handler.generate_anki_headers("english", "french")
-    
+
     expected_lines = [
         "#separator:tab",
         "#html:true",
@@ -155,14 +147,14 @@ def test_generate_anki_headers():
         "#tags:vocabmaster",
         "#deck:English vocabulary",
     ]
-    
+
     assert headers.splitlines() == expected_lines
 
 
 def test_generate_anki_headers_different_languages():
     """Test header generation with different language pairs."""
     headers = csv_handler.generate_anki_headers("spanish", "italian")
-    
+
     assert "#deck:Spanish vocabulary" in headers
     assert "#separator:tab" in headers
     assert "#html:true" in headers
@@ -173,7 +165,7 @@ def test_generate_anki_headers_different_languages():
 def test_generate_anki_headers_capitalization():
     """Test that language names are properly capitalized in deck name."""
     headers = csv_handler.generate_anki_headers("german", "english")
-    
+
     assert "#deck:German vocabulary" in headers
 
 
@@ -187,30 +179,30 @@ a queasiness,"nausée, malaise, haut-le-cœur",He felt a queasiness after the ro
 to snigger,"rire sous cape, ricaner, pouffer",They began to snigger at the teacher's mistake.
 """
     translations_file.write_text(translations_content)
-    
+
     # Generate Anki output file
     anki_file = tmp_path / "anki_deck.tsv"
     csv_handler.generate_anki_output_file(
         str(translations_file), str(anki_file), "english", "french"
     )
-    
+
     # Read and verify the output
     anki_content = anki_file.read_text()
     lines = anki_content.splitlines()
-    
+
     # Check headers
     assert lines[0] == "#separator:tab"
     assert lines[1] == "#html:true"
     assert lines[2] == "#notetype:Basic (and reversed card)"
     assert lines[3] == "#tags:vocabmaster"
     assert lines[4] == "#deck:English vocabulary"
-    
+
     # Check that data rows use tab separator and proper field names
     data_lines = [line for line in lines[5:] if line.strip()]
     assert len(data_lines) == 3  # Three words
-    
+
     # Check first data row
-    first_row = data_lines[0].split('\t')
+    first_row = data_lines[0].split("\t")
     assert first_row[0] == "to harken back"
     assert "se rappeler, évoquer, remonter à" in first_row[1]
     assert "The story harks back to ancient legends." in first_row[1]
@@ -228,17 +220,17 @@ incomplete2,translation,
 to harken back,"se rappeler, évoquer, remonter à",The story harks back to ancient legends.
 """
     translations_file.write_text(translations_content)
-    
+
     # Generate Anki output file
     anki_file = tmp_path / "anki_deck.tsv"
     csv_handler.generate_anki_output_file(
         str(translations_file), str(anki_file), "english", "french"
     )
-    
+
     # Read and verify the output
     anki_content = anki_file.read_text()
     data_lines = [line for line in anki_content.splitlines()[5:] if line.strip()]
-    
+
     # Should only have 2 complete entries, not 4
     assert len(data_lines) == 2
     assert "to relitigate" in data_lines[0]
@@ -254,15 +246,15 @@ a queasiness,"nausée, malaise, haut-le-cœur",He felt a queasiness after the ro
 to snigger,"rire sous cape, ricaner, pouffer",They began to snigger at the teacher's mistake.
 """
     translations_file.write_text(translations_content)
-    
+
     # Generate Anki output file
     anki_file = tmp_path / "anki_deck.tsv"
     csv_handler.generate_anki_output_file(
         str(translations_file), str(anki_file), "spanish", "italian"
     )
-    
+
     # Read and verify the deck name header
     anki_content = anki_file.read_text()
     lines = anki_content.splitlines()
-    
+
     assert "#deck:Spanish vocabulary" in lines
