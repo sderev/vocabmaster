@@ -156,7 +156,7 @@ def test_generate_anki_headers():
         "#deck:English vocabulary",
     ]
     
-    assert headers.split("\n") == expected_lines
+    assert headers.splitlines() == expected_lines
 
 
 def test_generate_anki_headers_different_languages():
@@ -196,7 +196,7 @@ to snigger,"rire sous cape, ricaner, pouffer",They began to snigger at the teach
     
     # Read and verify the output
     anki_content = anki_file.read_text()
-    lines = anki_content.split('\n')
+    lines = anki_content.splitlines()
     
     # Check headers
     assert lines[0] == "#separator:tab"
@@ -237,7 +237,7 @@ to harken back,"se rappeler, évoquer, remonter à",The story harks back to anci
     
     # Read and verify the output
     anki_content = anki_file.read_text()
-    data_lines = [line for line in anki_content.split('\n')[5:] if line.strip()]
+    data_lines = [line for line in anki_content.splitlines()[5:] if line.strip()]
     
     # Should only have 2 complete entries, not 4
     assert len(data_lines) == 2
@@ -263,6 +263,6 @@ to snigger,"rire sous cape, ricaner, pouffer",They began to snigger at the teach
     
     # Read and verify the deck name header
     anki_content = anki_file.read_text()
-    lines = anki_content.split('\n')
+    lines = anki_content.splitlines()
     
     assert "#deck:Spanish vocabulary" in lines

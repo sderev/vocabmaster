@@ -181,7 +181,7 @@ def convert_text_to_dict(generated_text):
     """
     # Clean input text and split it into lines
     cleaned_text = generated_text.replace("\n\n", "\n").replace("```csv", "").replace("```", "")
-    lines = cleaned_text.strip().split("\n")
+    lines = cleaned_text.strip().splitlines()
 
     # Create a dictionary of words with translations and examples
     result = {}
