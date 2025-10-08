@@ -332,8 +332,9 @@ def default():
     click.secho("vocabmaster config default", bold=True)
 
 
-@vocabmaster.group()
-def config():
+@vocabmaster.group(invoke_without_command=True)
+@click.pass_context
+def config(ctx):
     """
     Manage the configuration of VocabMaster.
 
@@ -349,7 +350,8 @@ def config():
     # the directory where the translations and Anki decks are stored,
     # Example usage:
     #'vocabmaster config dir'
-    pass
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
 
 
 @config.command("default")
