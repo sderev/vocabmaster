@@ -9,9 +9,10 @@ from vocabmaster import config_handler, csv_handler, gpt_integration
 from .utils import openai_api_key_exists, setup_backup_dir, setup_dir, setup_files
 
 
-@click.group()
+@click.group(invoke_without_command=True)
 @click.version_option()
-def vocabmaster():
+@click.pass_context
+def vocabmaster(ctx):
     """
     VocabMaster is a command-line tool to help you learn vocabulary.
 
@@ -32,7 +33,8 @@ def vocabmaster():
 
     For more information, please visit https://github.com/sderev/vocabmaster.
     """
-    pass
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
 
 
 @vocabmaster.command()
@@ -330,8 +332,9 @@ def default():
     click.secho("vocabmaster config default", bold=True)
 
 
-@vocabmaster.group()
-def config():
+@vocabmaster.group(invoke_without_command=True)
+@click.pass_context
+def config(ctx):
     """
     Manage the configuration of VocabMaster.
 
@@ -347,7 +350,8 @@ def config():
     # the directory where the translations and Anki decks are stored,
     # Example usage:
     #'vocabmaster config dir'
-    pass
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
 
 
 @config.command("default")
