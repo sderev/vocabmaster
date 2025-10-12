@@ -11,13 +11,13 @@ def test_get_config_filepath_uses_home_config(fake_home):
     assert config_path.parent.exists()
 
 
-
 def test_get_data_directory_defaults_to_home(fake_home):
     data_dir = config_handler.get_data_directory()
 
     expected = fake_home / config_handler.DEFAULT_DATA_DIR_NAME
     assert data_dir == expected
     assert not data_dir.exists()
+
 
 def test_legacy_config_migrated(fake_home):
     legacy_path = fake_home / ".local" / "share" / config_handler.APP_NAME / config_handler.CONFIG_FILENAME
