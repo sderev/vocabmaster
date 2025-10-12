@@ -425,8 +425,12 @@ def vocabulary_list_is_empty(translations_filepath):
     Returns:
         bool: True if the vocabulary list is empty, False otherwise.
     """
+    ensure_csv_has_fieldnames(translations_filepath, ["word", "translation", "example"])
+
     with open(translations_filepath, encoding="UTF-8") as file:
-        csv_reader = csv.reader(file)
-        next(csv_reader)  # Skip the fieldnames
-        if len(list(csv_reader)) == 0:
-            return True
+        dict_reader = DictReader(file)
+
+        for row in dict_reader:
+            if any((value or "").strip() for value in row.values()):
+                return False
+    return True
