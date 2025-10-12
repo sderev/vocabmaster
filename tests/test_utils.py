@@ -1,7 +1,6 @@
 from vocabmaster import config_handler, utils
 
 
-
 def test_setup_dir_defaults_to_lowercase(fake_home):
     data_dir = utils.setup_dir()
 
@@ -11,24 +10,25 @@ def test_setup_dir_defaults_to_lowercase(fake_home):
 
 
 def test_get_backup_dir_creates_language_directory(fake_home):
-    backup_dir = utils.get_backup_dir('english', 'french')
+    backup_dir = utils.get_backup_dir("english", "french")
 
-    expected = fake_home / '.vocabmaster' / '.backup' / 'english-french'
+    expected = fake_home / ".vocabmaster" / ".backup" / "english-french"
     assert backup_dir == expected
     assert backup_dir.exists()
 
 
 def test_get_backup_dir_respects_configured_storage(fake_home, monkeypatch):
-    custom_dir = fake_home / 'custom-storage'
+    custom_dir = fake_home / "custom-storage"
     config_handler.set_data_directory(custom_dir)
 
-    monkeypatch.setattr(config_handler, 'get_data_directory', lambda: custom_dir)
+    monkeypatch.setattr(config_handler, "get_data_directory", lambda: custom_dir)
 
-    backup_dir = utils.get_backup_dir('english', 'french')
+    backup_dir = utils.get_backup_dir("english", "french")
 
-    expected = custom_dir / '.backup' / 'english-french'
+    expected = custom_dir / ".backup" / "english-french"
     assert backup_dir == expected
     assert backup_dir.exists()
+
 
 def test_setup_dir_uses_configured_path(fake_home):
     custom_dir = fake_home / "custom" / "data"

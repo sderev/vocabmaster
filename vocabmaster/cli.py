@@ -334,7 +334,6 @@ def default():
     Show the current default language pair.
     """
     print_default_language_pair()
-    click.echo()
     click.secho("You can change the default language pair at any time by running:", fg="blue")
     click.secho("vocabmaster config default", bold=True)
 
@@ -496,9 +495,7 @@ def config_remove_language_pair():
 
     display_pairs = [f"{lang}:{mother}" for lang, mother in selections]
     if len(display_pairs) == 1:
-        confirm_prompt = (
-            f"Remove {display_pairs[0]} from your configured language pairs?"
-        )
+        confirm_prompt = f"Remove {display_pairs[0]} from your configured language pairs?"
     else:
         confirm_prompt = (
             "Remove the following language pairs from your configuration?\n"
