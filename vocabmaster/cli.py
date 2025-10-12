@@ -222,8 +222,14 @@ def anki():
 
     The Anki deck will be saved in the same folder as your vocabulary list.
     """
-    language_to_learn = config_handler.get_default_language_pair()["language_to_learn"]
-    mother_tongue = config_handler.get_default_language_pair()["mother_tongue"]
+    default_pair = config_handler.get_default_language_pair()
+    if default_pair is None:
+        click.secho("Error: ", fg="red", nl=False)
+        click.echo("No default language pair found. Run 'vocabmaster setup' to create one.")
+        sys.exit(1)
+
+    language_to_learn = default_pair["language_to_learn"]
+    mother_tongue = default_pair["mother_tongue"]
 
     translations_filepath, anki_filepath = setup_files(
         setup_dir(), language_to_learn, mother_tongue
@@ -365,7 +371,14 @@ def config_default_language_pair():
     """
     print_default_language_pair()
 
-    print_all_language_pairs()
+    language_pairs = print_all_language_pairs()
+    if not language_pairs:
+        click.secho("Error: ", fg="red", nl=False)
+        click.echo(
+            "No language pairs found. Run 'vocabmaster setup' to add one before setting a default."
+        )
+        sys.exit(1)
+
     choice = click.prompt(
         "Type the language pair or its number to set it as the new default",
         type=str,
@@ -374,10 +387,10 @@ def config_default_language_pair():
     # Check if the user entered a correct number
     if choice.isdigit():
         idx = int(choice) - 1
-        if 0 <= idx < len(config_handler.get_all_language_pairs()):
+        if 0 <= idx < len(language_pairs):
             # Set the language pair as the default
-            language_to_learn = config_handler.get_all_language_pairs()[idx]["language_to_learn"]
-            mother_tongue = config_handler.get_all_language_pairs()[idx]["mother_tongue"]
+            language_to_learn = language_pairs[idx]["language_to_learn"]
+            mother_tongue = language_pairs[idx]["mother_tongue"]
             config_handler.set_default_language_pair(language_to_learn, mother_tongue)
             click.echo(
                 f"{click.style(f'{language_to_learn}:{mother_tongue}', bold=True)} "
@@ -388,8 +401,9 @@ def config_default_language_pair():
             click.secho("Invalid choice", fg="red")
             click.echo(
                 "Please enter a number between 1 and"
-                f" {len(config_handler.get_all_language_pairs())}"
+                f" {len(language_pairs)}"
             )
+            sys.exit(1)
     else:
         # Check if the language pair exists
         try:
@@ -461,9 +475,10 @@ def show():
     """
     Show all the language pairs that have been set up.
     """
-    print_all_language_pairs()
-    click.secho("You can change the default at any time by running:", fg="blue")
-    click.secho("vocabmaster config default", bold=True)
+    language_pairs = print_all_language_pairs()
+    if language_pairs:
+        click.secho("You can change the default at any time by running:", fg="blue")
+        click.secho("vocabmaster config default", bold=True)
 
 
 @vocabmaster.command()
@@ -478,8 +493,14 @@ def tokens():
     not the total cost of the translation.
     The total cost (prompt + translation) cannot exceed $0.008192 per request, though.
     """
-    language_to_learn = config_handler.get_default_language_pair()["language_to_learn"]
-    mother_tongue = config_handler.get_default_language_pair()["mother_tongue"]
+    default_pair = config_handler.get_default_language_pair()
+    if default_pair is None:
+        click.secho("Error: ", fg="red", nl=False)
+        click.echo("No default language pair found. Run 'vocabmaster setup' before estimating costs.")
+        sys.exit(1)
+
+    language_to_learn = default_pair["language_to_learn"]
+    mother_tongue = default_pair["mother_tongue"]
     translations_filepath, anki_file = setup_files(setup_dir(), language_to_learn, mother_tongue)
 
     if csv_handler.vocabulary_list_is_empty(translations_filepath):
@@ -506,10 +527,19 @@ def print_default_language_pair():
     Print the current default language pair.
     """
     click.secho("The current default language pair is:", fg="blue")
-    default_language_to_learn = config_handler.get_default_language_pair()["language_to_learn"]
-    default_mother_tongue = config_handler.get_default_language_pair()["mother_tongue"]
-    click.secho(f"{default_language_to_learn}:{default_mother_tongue}", fg="yellow", bold=True)
+    default_pair = config_handler.get_default_language_pair()
+    if default_pair is None:
+        click.secho("No default language pair configured yet.", fg="yellow")
+        click.echo()
+        return None
+
+    click.secho(
+        f"{default_pair['language_to_learn']}:{default_pair['mother_tongue']}",
+        fg="yellow",
+        bold=True,
+    )
     click.echo()
+    return default_pair
 
 
 def print_all_language_pairs():
@@ -518,9 +548,16 @@ def print_all_language_pairs():
     """
     click.secho("The following language pairs have been set up:", fg="blue")
     language_pairs = config_handler.get_all_language_pairs()
+    if not language_pairs:
+        click.secho("No language pairs found yet.", fg="yellow")
+        click.echo(f"Use {click.style('vocabmaster setup', bold=True)} to add a new language pair.")
+        click.echo()
+        return []
+
     for idx, language_pair in enumerate(language_pairs, start=1):
         click.echo(f"{idx}. {language_pair['language_to_learn']}:{language_pair['mother_tongue']}")
     click.echo()
+    return language_pairs
 
 
 def handle_rate_limit_error():
