@@ -1,5 +1,6 @@
 import platform
 import sys
+from pathlib import Path
 
 import click
 import openai
@@ -271,7 +272,7 @@ def setup():
             app_data_dir, language_to_learn, mother_tongue
         )
 
-        backup_lang = setup_backup_dir(app_data_dir, language_to_learn, mother_tongue)
+        backup_lang = setup_backup_dir(language_to_learn, mother_tongue)
         config_handler.set_language_pair(language_to_learn, mother_tongue)
 
         click.echo()
@@ -342,20 +343,11 @@ def default():
 @click.pass_context
 def config(ctx):
     """
-    Manage the configuration of VocabMaster.
+    Manage VocabMaster configuration such as language pairs, storage location, and API keys.
 
-    This command allows you to set the default language pair,
-    and the OpenAI API key.
-
-    Example usage:
-    'vocabmaster config default'
-
-    Example usage:
-    'vocabmaster config key'
+    Run 'vocabmaster config dir' to choose where CSV and Anki files are stored. The configuration
+    file itself always lives under ~/.config/vocabmaster/config.json.
     """
-    # the directory where the translations and Anki decks are stored,
-    # Example usage:
-    #'vocabmaster config dir'
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
 
@@ -546,13 +538,41 @@ def config_remove_language_pair():
         click.secho("Use 'vocabmaster setup' to add a new language pair.", fg="blue")
 
 
-# @config.command("dir")
-# def config_dir():
-#    """
-#    Set the directory where the list and the Anki deck are stored.
-#    """
-#    custom_app_data_dir = click.prompt("Enter the path for the new directory", type=str)
-#    setup_dir(custom_app_data_dir)
+@config.command("dir")
+@click.argument("directory", required=False)
+def config_dir(directory):
+    """
+    Set the dir where the vocab list and Anki deck are stored.
+    """
+    current_dir = config_handler.get_data_directory()
+    click.secho("Current storage directory:", fg="blue")
+    click.echo(current_dir)
+
+    if directory is None:
+        directory_input = click.prompt(
+            "Enter the directory to store your CSV and Anki files",
+            default=str(current_dir),
+        )
+    else:
+        directory_input = directory
+
+    target_path = Path(directory_input).expanduser()
+    if target_path.exists() and not target_path.is_dir():
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(f"{target_path} exists and is not a directory.", err=True)
+        sys.exit(1)
+
+    try:
+        target_path.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(f"Unable to use '{target_path}': {error}", err=True)
+        sys.exit(1)
+
+    config_handler.set_data_directory(target_path)
+    click.secho("Storage updated!", fg="green")
+    click.echo(f"Vocabulary CSV and Anki decks will now be stored in {target_path}")
+    click.echo(f"You can also edit {config_handler.get_config_filepath()} directly.")
 
 
 @config.command("key")
