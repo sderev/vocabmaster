@@ -73,9 +73,13 @@ def get_backup_dir(language_to_learn=None, mother_tongue=None):
         pathlib.Path: Backup directory path.
     """
     base_dir = setup_dir() / ".backup"
+    base_dir.mkdir(parents=True, exist_ok=True)
     if language_to_learn and mother_tongue:
-        return base_dir / f"{language_to_learn}-{mother_tongue}"
-    return base_dir
+        backup_path = base_dir / f"{language_to_learn}-{mother_tongue}"
+    else:
+        backup_path = base_dir
+    backup_path.mkdir(parents=True, exist_ok=True)
+    return backup_path
 
 
 def backup_content(backup_dir, content):
@@ -89,6 +93,7 @@ def backup_content(backup_dir, content):
         content (str): Content to write to the backup file.
     """
     iso_timestamp = generate_iso_timestamp()
+    backup_dir.mkdir(parents=True, exist_ok=True)
     backup_file = backup_dir / f"gpt_request_{iso_timestamp}.bak"
     with backup_file.open("w", encoding="UTF-8") as file:
         file.write(str(content))
@@ -114,6 +119,7 @@ def backup_file(backup_dir, filepath):
     """
     iso_timestamp = generate_iso_timestamp()
 
+    backup_dir.mkdir(parents=True, exist_ok=True)
     backup_voc_list = backup_dir / f"{filepath.stem}_{iso_timestamp}.bak"
     shutil.copy(filepath, backup_voc_list)
 
