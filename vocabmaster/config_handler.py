@@ -66,12 +66,13 @@ def set_language_pair(language_to_learn, mother_tongue):
         language_to_learn (str): The language the user wants to learn.
         mother_tongue (str): The user's mother tongue.
     """
-    config = read_config() or {"language_pairs": []}
+    config = read_config() or {}
+    language_pairs = config.setdefault("language_pairs", [])
     new_pair = {
         "language_to_learn": language_to_learn,
         "mother_tongue": mother_tongue,
     }
-    config["language_pairs"].append(new_pair)
+    language_pairs.append(new_pair)
     write_config(config)
 
 
@@ -132,6 +133,6 @@ def get_all_language_pairs():
               The keys are 'language_to_learn' and 'mother_tongue'.
     """
     config = read_config()
-    if config is None or "language_pairs" not in config:
-        return None
+    if not config or "language_pairs" not in config:
+        return []
     return config["language_pairs"]
