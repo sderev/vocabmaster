@@ -2,7 +2,6 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-
 from vocabmaster import cli, config_handler, utils
 
 
@@ -43,7 +42,9 @@ def isolated_app_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(utils, "setup_dir", fake_setup_dir)
     monkeypatch.setattr(cli, "setup_dir", fake_setup_dir)
     monkeypatch.setattr(config_handler, "get_data_directory", lambda: fake_get_data_directory())
-    monkeypatch.setattr(config_handler, "get_default_data_directory", fake_get_default_data_directory)
+    monkeypatch.setattr(
+        config_handler, "get_default_data_directory", fake_get_default_data_directory
+    )
     monkeypatch.setattr(config_handler, "set_data_directory", fake_set_data_directory)
 
     yield storage_dir
@@ -84,10 +85,16 @@ class TestAddCommand:
         assert "Invalid language pair." in result.output
 
     def test_add_requires_word_argument(self, isolated_app_dir, monkeypatch):
-        monkeypatch.setattr(cli.config_handler, "get_language_pair", lambda pair: ("english", "french"))
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
         monkeypatch.setattr(cli.csv_handler, "word_exists", lambda word, path: False)
         monkeypatch.setattr(cli.csv_handler, "append_word", lambda word, path: None)
-        monkeypatch.setattr(cli, "setup_files", lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"))
+        monkeypatch.setattr(
+            cli,
+            "setup_files",
+            lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"),
+        )
 
         result = invoke_cli(["add"])
 
@@ -95,10 +102,16 @@ class TestAddCommand:
         assert "Please provide a word to add." in result.output
 
     def test_add_notifies_when_word_exists(self, isolated_app_dir, monkeypatch):
-        monkeypatch.setattr(cli.config_handler, "get_language_pair", lambda pair: ("english", "french"))
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
         monkeypatch.setattr(cli.csv_handler, "word_exists", lambda word, path: True)
         monkeypatch.setattr(cli.csv_handler, "append_word", lambda word, path: None)
-        monkeypatch.setattr(cli, "setup_files", lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"))
+        monkeypatch.setattr(
+            cli,
+            "setup_files",
+            lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"),
+        )
 
         result = invoke_cli(["add", "bonjour"])
 
@@ -108,7 +121,9 @@ class TestAddCommand:
     def test_add_appends_word_when_missing(self, isolated_app_dir, monkeypatch):
         captured = {}
 
-        monkeypatch.setattr(cli.config_handler, "get_language_pair", lambda pair: ("english", "french"))
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
         monkeypatch.setattr(cli.csv_handler, "word_exists", lambda word, path: False)
 
         def capture_append(word, path):
@@ -116,7 +131,11 @@ class TestAddCommand:
             captured["path"] = path
 
         monkeypatch.setattr(cli.csv_handler, "append_word", capture_append)
-        monkeypatch.setattr(cli, "setup_files", lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"))
+        monkeypatch.setattr(
+            cli,
+            "setup_files",
+            lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"),
+        )
 
         result = invoke_cli(["add", "to", "learn"])
 
@@ -140,8 +159,14 @@ class TestTranslateCommand:
         assert "Pair missing." in result.output
 
     def test_translate_requires_non_empty_vocabulary(self, isolated_app_dir, monkeypatch):
-        monkeypatch.setattr(cli.config_handler, "get_language_pair", lambda pair: ("english", "french"))
-        monkeypatch.setattr(cli, "setup_files", lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"))
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        monkeypatch.setattr(
+            cli,
+            "setup_files",
+            lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"),
+        )
         monkeypatch.setattr(cli.csv_handler, "ensure_csv_has_fieldnames", lambda path: None)
         monkeypatch.setattr(cli.csv_handler, "vocabulary_list_is_empty", lambda path: True)
 
@@ -151,11 +176,19 @@ class TestTranslateCommand:
         assert "Your vocabulary list is empty" in result.output
 
     def test_translate_count_option_success(self, isolated_app_dir, monkeypatch):
-        monkeypatch.setattr(cli.config_handler, "get_language_pair", lambda pair: ("english", "french"))
-        monkeypatch.setattr(cli, "setup_files", lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"))
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        monkeypatch.setattr(
+            cli,
+            "setup_files",
+            lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"),
+        )
         monkeypatch.setattr(cli.csv_handler, "ensure_csv_has_fieldnames", lambda path: None)
         monkeypatch.setattr(cli.csv_handler, "vocabulary_list_is_empty", lambda path: False)
-        monkeypatch.setattr(cli.csv_handler, "get_words_to_translate", lambda path: ["word1", "word2"])
+        monkeypatch.setattr(
+            cli.csv_handler, "get_words_to_translate", lambda path: ["word1", "word2"]
+        )
 
         result = invoke_cli(["translate", "--count"])
 
@@ -164,8 +197,14 @@ class TestTranslateCommand:
         assert "2" in result.output
 
     def test_translate_count_option_handles_error(self, isolated_app_dir, monkeypatch):
-        monkeypatch.setattr(cli.config_handler, "get_language_pair", lambda pair: ("english", "french"))
-        monkeypatch.setattr(cli, "setup_files", lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"))
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        monkeypatch.setattr(
+            cli,
+            "setup_files",
+            lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"),
+        )
         monkeypatch.setattr(cli.csv_handler, "ensure_csv_has_fieldnames", lambda path: None)
         monkeypatch.setattr(cli.csv_handler, "vocabulary_list_is_empty", lambda path: False)
 
@@ -181,8 +220,14 @@ class TestTranslateCommand:
         assert "CSV corrupted" in result.output
 
     def test_translate_requires_api_key(self, isolated_app_dir, monkeypatch):
-        monkeypatch.setattr(cli.config_handler, "get_language_pair", lambda pair: ("english", "french"))
-        monkeypatch.setattr(cli, "setup_files", lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"))
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        monkeypatch.setattr(
+            cli,
+            "setup_files",
+            lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"),
+        )
         monkeypatch.setattr(cli.csv_handler, "ensure_csv_has_fieldnames", lambda path: None)
         monkeypatch.setattr(cli.csv_handler, "vocabulary_list_is_empty", lambda path: False)
         monkeypatch.setattr(cli, "openai_api_key_exists", lambda: False)
@@ -200,8 +245,14 @@ class TestTranslateCommand:
         assert called["explain"] is True
 
     def test_translate_handles_rate_limit_error(self, isolated_app_dir, monkeypatch):
-        monkeypatch.setattr(cli.config_handler, "get_language_pair", lambda pair: ("english", "french"))
-        monkeypatch.setattr(cli, "setup_files", lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"))
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        monkeypatch.setattr(
+            cli,
+            "setup_files",
+            lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"),
+        )
         monkeypatch.setattr(cli.csv_handler, "ensure_csv_has_fieldnames", lambda path: None)
         monkeypatch.setattr(cli.csv_handler, "vocabulary_list_is_empty", lambda path: False)
         monkeypatch.setattr(cli, "openai_api_key_exists", lambda: True)
@@ -226,14 +277,22 @@ class TestTranslateCommand:
         assert "Error:" in result.output
 
     def test_translate_handles_all_translated_exception(self, isolated_app_dir, monkeypatch):
-        monkeypatch.setattr(cli.config_handler, "get_language_pair", lambda pair: ("english", "french"))
-        monkeypatch.setattr(cli, "setup_files", lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"))
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        monkeypatch.setattr(
+            cli,
+            "setup_files",
+            lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"),
+        )
         monkeypatch.setattr(cli.csv_handler, "ensure_csv_has_fieldnames", lambda path: None)
         monkeypatch.setattr(cli.csv_handler, "vocabulary_list_is_empty", lambda path: False)
         monkeypatch.setattr(cli, "openai_api_key_exists", lambda: True)
 
         def fail_add(*_args, **_kwargs):
-            raise Exception("All the words in the vocabulary list already have translations and examples")
+            raise Exception(
+                "All the words in the vocabulary list already have translations and examples"
+            )
 
         monkeypatch.setattr(cli.csv_handler, "add_translations_and_examples_to_file", fail_add)
         monkeypatch.setattr(cli, "generate_anki_deck", lambda *args, **kwargs: None)
@@ -244,8 +303,14 @@ class TestTranslateCommand:
         assert "No action needed" in result.output
 
     def test_translate_handles_generic_exception(self, isolated_app_dir, monkeypatch):
-        monkeypatch.setattr(cli.config_handler, "get_language_pair", lambda pair: ("english", "french"))
-        monkeypatch.setattr(cli, "setup_files", lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"))
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        monkeypatch.setattr(
+            cli,
+            "setup_files",
+            lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"),
+        )
         monkeypatch.setattr(cli.csv_handler, "ensure_csv_has_fieldnames", lambda path: None)
         monkeypatch.setattr(cli.csv_handler, "vocabulary_list_is_empty", lambda path: False)
         monkeypatch.setattr(cli, "openai_api_key_exists", lambda: True)
@@ -263,7 +328,9 @@ class TestTranslateCommand:
         assert "Permission denied" in result.output
 
     def test_translate_success_flow_triggers_generation(self, isolated_app_dir, monkeypatch):
-        monkeypatch.setattr(cli.config_handler, "get_language_pair", lambda pair: ("english", "french"))
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
 
         translations_path = isolated_app_dir / "vocab.csv"
         anki_path = isolated_app_dir / "anki.csv"
@@ -395,7 +462,9 @@ class TestSetupCommand:
         assert default_pair["language_to_learn"] == "italian"
         assert default_pair["mother_tongue"] == "french"
 
-    def test_setup_existing_default_keeps_current_when_declined(self, isolated_app_dir, monkeypatch):
+    def test_setup_existing_default_keeps_current_when_declined(
+        self, isolated_app_dir, monkeypatch
+    ):
         config_handler.set_language_pair("spanish", "english")
         config_handler.set_default_language_pair("spanish", "english")
 
@@ -559,7 +628,9 @@ class TestConfigRemoveCommand:
         pairs = config_handler.get_all_language_pairs()
         assert result.exit_code == 0
         assert "has been removed" in result.output
-        assert "spanish:english" not in {f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs}
+        assert "spanish:english" not in {
+            f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs
+        }
 
     def test_config_remove_by_pair_string(self, isolated_app_dir, monkeypatch):
         config_handler.set_language_pair("english", "french")
@@ -574,7 +645,9 @@ class TestConfigRemoveCommand:
         pairs = config_handler.get_all_language_pairs()
         assert result.exit_code == 0
         assert "has been removed" in result.output
-        assert "spanish:english" not in {f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs}
+        assert "spanish:english" not in {
+            f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs
+        }
 
     def test_config_remove_no_selection(self, isolated_app_dir, monkeypatch):
         config_handler.set_language_pair("english", "french")
@@ -599,8 +672,12 @@ class TestConfigRemoveCommand:
 
         pairs = config_handler.get_all_language_pairs()
         assert result.exit_code == 0
-        assert "spanish:english" not in {f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs}
-        assert "german:english" not in {f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs}
+        assert "spanish:english" not in {
+            f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs
+        }
+        assert "german:english" not in {
+            f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs
+        }
         assert result.output.count("has been removed") == 2
 
     def test_config_remove_multiple_pairs(self, isolated_app_dir, monkeypatch):
@@ -616,8 +693,12 @@ class TestConfigRemoveCommand:
 
         pairs = config_handler.get_all_language_pairs()
         assert result.exit_code == 0
-        assert "spanish:english" not in {f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs}
-        assert "german:english" not in {f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs}
+        assert "spanish:english" not in {
+            f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs
+        }
+        assert "german:english" not in {
+            f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs
+        }
         assert result.output.count("has been removed") == 2
 
     def test_config_remove_removes_default(self, isolated_app_dir, monkeypatch):
@@ -709,7 +790,11 @@ class TestTokensCommand:
             "get_default_language_pair",
             lambda: {"language_to_learn": "english", "mother_tongue": "french"},
         )
-        monkeypatch.setattr(cli, "setup_files", lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"))
+        monkeypatch.setattr(
+            cli,
+            "setup_files",
+            lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"),
+        )
         monkeypatch.setattr(cli.csv_handler, "vocabulary_list_is_empty", lambda path: True)
 
         result = invoke_cli(["tokens"])
@@ -723,7 +808,11 @@ class TestTokensCommand:
             "get_default_language_pair",
             lambda: {"language_to_learn": "english", "mother_tongue": "french"},
         )
-        monkeypatch.setattr(cli, "setup_files", lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"))
+        monkeypatch.setattr(
+            cli,
+            "setup_files",
+            lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"),
+        )
         monkeypatch.setattr(cli.csv_handler, "vocabulary_list_is_empty", lambda path: False)
 
         def fail_words(_path):
@@ -744,11 +833,17 @@ class TestTokensCommand:
             "get_default_language_pair",
             lambda: {"language_to_learn": "english", "mother_tongue": "french"},
         )
-        monkeypatch.setattr(cli, "setup_files", lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"))
+        monkeypatch.setattr(
+            cli,
+            "setup_files",
+            lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"),
+        )
         monkeypatch.setattr(cli.csv_handler, "vocabulary_list_is_empty", lambda path: False)
         monkeypatch.setattr(cli.csv_handler, "get_words_to_translate", lambda path: ["word"])
         monkeypatch.setattr(cli.gpt_integration, "format_prompt", lambda *_: "prompt")
-        monkeypatch.setattr(cli.gpt_integration, "estimate_prompt_cost", lambda *_: {"gpt-3.5-turbo": "0.004"})
+        monkeypatch.setattr(
+            cli.gpt_integration, "estimate_prompt_cost", lambda *_: {"gpt-3.5-turbo": "0.004"}
+        )
 
         result = invoke_cli(["tokens"])
 

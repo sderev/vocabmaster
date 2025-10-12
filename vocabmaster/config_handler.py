@@ -55,11 +55,7 @@ def _migrate_legacy_config_if_needed(target_path: Path) -> None:
     Copy the legacy configuration file to the new location if needed.
     """
     legacy_path = _get_legacy_config_path()
-    if (
-        legacy_path
-        and legacy_path.exists()
-        and not target_path.exists()
-    ):
+    if legacy_path and legacy_path.exists() and not target_path.exists():
         try:
             data = legacy_path.read_text(encoding="utf-8")
             json.loads(data)
@@ -128,9 +124,7 @@ def set_language_pair(language_to_learn, mother_tongue):
     """
     config = read_config() or {}
     language_pairs = config.setdefault("language_pairs", [])
-    language_pairs.append(
-        {"language_to_learn": language_to_learn, "mother_tongue": mother_tongue}
-    )
+    language_pairs.append({"language_to_learn": language_to_learn, "mother_tongue": mother_tongue})
     write_config(config)
 
 
