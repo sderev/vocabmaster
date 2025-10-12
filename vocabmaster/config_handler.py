@@ -76,6 +76,58 @@ def set_language_pair(language_to_learn, mother_tongue):
     write_config(config)
 
 
+def remove_language_pair(language_to_learn, mother_tongue):
+    """
+    Removes a language pair from the configuration file.
+
+    Args:
+        language_to_learn (str): The language the user wants to learn.
+        mother_tongue (str): The user's mother tongue.
+
+    Returns:
+        bool: True if the removed pair was the default language pair, False otherwise.
+
+    Raises:
+        ValueError: If no language pairs are configured or if the specified pair is not found.
+    """
+    config = read_config() or {}
+    language_pairs = config.get("language_pairs", [])
+    if not language_pairs:
+        raise ValueError("No language pairs configured.")
+
+    language_to_learn = language_to_learn.casefold()
+    mother_tongue = mother_tongue.casefold()
+
+    remaining_pairs = [
+        pair
+        for pair in language_pairs
+        if not (
+            pair["language_to_learn"] == language_to_learn
+            and pair["mother_tongue"] == mother_tongue
+        )
+    ]
+
+    if len(remaining_pairs) == len(language_pairs):
+        raise ValueError("Language pair not found.")
+
+    removed_default = False
+    default_pair = config.get("default")
+    if default_pair:
+        default_language = default_pair.get("language_to_learn", "").casefold()
+        default_mother = default_pair.get("mother_tongue", "").casefold()
+        if default_language == language_to_learn and default_mother == mother_tongue:
+            config.pop("default", None)
+            removed_default = True
+
+    if remaining_pairs:
+        config["language_pairs"] = remaining_pairs
+    else:
+        config.pop("language_pairs", None)
+
+    write_config(config)
+    return removed_default
+
+
 def get_default_language_pair():
     """
     Gets the default language pair from the configuration file.
