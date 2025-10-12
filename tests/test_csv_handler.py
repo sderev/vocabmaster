@@ -258,3 +258,28 @@ to snigger,"rire sous cape, ricaner, pouffer",They began to snigger at the teach
     lines = anki_content.splitlines()
 
     assert "#deck:Spanish vocabulary" in lines
+
+
+def test_vocabulary_list_is_empty_inserts_header_when_missing(tmp_path):
+    """Ensure the helper adds the header row before evaluating emptiness."""
+    translations_file = tmp_path / "translations.csv"
+    translations_file.write_text("")
+
+    assert csv_handler.vocabulary_list_is_empty(translations_file) is True
+    assert translations_file.read_text().splitlines()[0] == "word,translation,example"
+
+
+def test_vocabulary_list_is_empty_ignores_blank_rows(tmp_path):
+    """Blank or whitespace-only rows should not count as vocabulary entries."""
+    translations_file = tmp_path / "translations.csv"
+    translations_file.write_text("word,translation,example\n   , ,   \n")
+
+    assert csv_handler.vocabulary_list_is_empty(translations_file) is True
+
+
+def test_vocabulary_list_is_empty_detects_existing_entries(tmp_path):
+    """A row containing any value should mark the list as non-empty."""
+    translations_file = tmp_path / "translations.csv"
+    translations_file.write_text("word,translation,example\nbonjour,,\n")
+
+    assert csv_handler.vocabulary_list_is_empty(translations_file) is False
