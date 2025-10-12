@@ -5,6 +5,8 @@ import click
 
 from vocabmaster import gpt_integration, utils
 
+CSV_FIELDNAMES = ["word", "translation", "example"]
+
 
 def detect_word_mismatches(original_words, gpt_response):
     """
@@ -82,7 +84,7 @@ def word_exists(word, translations_filepath):
         bool: True if the word is found in the file, False otherwise.
     """
     with open(translations_filepath, encoding="UTF-8") as file:
-        dict_reader = DictReader(file, fieldnames=["word", "translation", "example"])
+        dict_reader = DictReader(file, fieldnames=CSV_FIELDNAMES)
         for row in dict_reader:
             if word == row["word"]:
                 return True
@@ -98,7 +100,7 @@ def append_word(word, translations_filepath):
         translations_filepath (str): The path to the file containing the list of words.
     """
     with open(translations_filepath, "a", encoding="UTF-8") as file:
-        dict_writer = DictWriter(file, fieldnames=["word", "translation", "example"])
+        dict_writer = DictWriter(file, fieldnames=CSV_FIELDNAMES)
         dict_writer.writerow({"word": word, "translation": "", "example": ""})
 
 
@@ -290,8 +292,7 @@ def add_translations_and_examples_to_file(translations_filepath, pair):
 
     # Write the updated translations and examples to the output file
     with open(translations_filepath, "w", encoding="UTF-8") as output_file:
-        fieldnames = ["word", "translation", "example"]
-        writer = DictWriter(output_file, fieldnames=fieldnames)
+        writer = DictWriter(output_file, fieldnames=CSV_FIELDNAMES)
         writer.writeheader()
 
         # Iterate through the current entries and update them with the new translations and examples
@@ -349,7 +350,7 @@ def generate_anki_output_file(
         None
     """
     # Ensure the source file contains the expected header so the DictReader can parse rows safely.
-    ensure_csv_has_fieldnames(translations_filepath, ["word", "translation", "example"])
+    ensure_csv_has_fieldnames(translations_filepath)
 
     with (
         open(translations_filepath, encoding="UTF-8") as translations_file,
@@ -384,7 +385,7 @@ def generate_anki_output_file(
                 anki_dict_writer.writerow(card)
 
 
-def ensure_csv_has_fieldnames(translations_filepath, fieldnames):
+def ensure_csv_has_fieldnames(translations_filepath, fieldnames=None):
     """
     Ensure the CSV file starts with the expected fieldnames.
 
@@ -394,6 +395,9 @@ def ensure_csv_has_fieldnames(translations_filepath, fieldnames):
         translations_filepath (str): The path to the CSV file.
         fieldnames (list): A list of strings containing the column names.
     """
+    if fieldnames is None:
+        fieldnames = CSV_FIELDNAMES
+
     with open(translations_filepath, "r+", encoding="UTF-8") as file:
         # Check if the fieldnames is already present in the first row of the content
         for line in file:
