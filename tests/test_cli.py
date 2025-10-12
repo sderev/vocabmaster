@@ -478,6 +478,167 @@ class TestConfigDefaultCommand:
         assert default_pair["mother_tongue"] == "english"
 
 
+class TestConfigRemoveCommand:
+    def test_config_remove_requires_pairs(self, isolated_app_dir):
+        result = invoke_cli(["config", "remove"])
+
+        assert result.exit_code == 1
+        assert "No language pairs found yet." in result.output
+
+    def test_config_remove_invalid_number(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "3")
+
+        result = invoke_cli(["config", "remove"])
+
+        assert result.exit_code == 1
+        assert "Invalid choice" in result.output
+
+    def test_config_remove_invalid_pair_format(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "english-french")
+
+        result = invoke_cli(["config", "remove"])
+
+        assert result.exit_code == 1
+        assert "Invalid language pair." in result.output
+
+    def test_config_remove_pair_not_found(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "spanish:english")
+
+        result = invoke_cli(["config", "remove"])
+
+        assert result.exit_code == 1
+        assert "was not found" in result.output
+
+    def test_config_remove_decline_confirmation(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_language_pair("spanish", "english")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "1")
+        monkeypatch.setattr("click.confirm", lambda *_, **__: False)
+
+        result = invoke_cli(["config", "remove"])
+
+        pairs = config_handler.get_all_language_pairs()
+        assert result.exit_code == 0
+        assert "No changes made." in result.output
+        assert len(pairs) == 2
+
+    def test_config_remove_by_number(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_language_pair("spanish", "english")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "2")
+        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
+
+        result = invoke_cli(["config", "remove"])
+
+        pairs = config_handler.get_all_language_pairs()
+        assert result.exit_code == 0
+        assert "has been removed" in result.output
+        assert "spanish:english" not in {f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs}
+
+    def test_config_remove_by_pair_string(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_language_pair("spanish", "english")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "Spanish:English")
+        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
+
+        result = invoke_cli(["config", "remove"])
+
+        pairs = config_handler.get_all_language_pairs()
+        assert result.exit_code == 0
+        assert "has been removed" in result.output
+        assert "spanish:english" not in {f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs}
+
+    def test_config_remove_no_selection(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "   ")
+
+        result = invoke_cli(["config", "remove"])
+
+        assert result.exit_code == 1
+        assert "No language pairs selected for removal." in result.output
+
+    def test_config_remove_multiple_numbers(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_language_pair("spanish", "english")
+        config_handler.set_language_pair("german", "english")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "2, 3")
+        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
+
+        result = invoke_cli(["config", "remove"])
+
+        pairs = config_handler.get_all_language_pairs()
+        assert result.exit_code == 0
+        assert "spanish:english" not in {f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs}
+        assert "german:english" not in {f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs}
+        assert result.output.count("has been removed") == 2
+
+    def test_config_remove_multiple_pairs(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_language_pair("spanish", "english")
+        config_handler.set_language_pair("german", "english")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "spanish:english, GERMAN:english")
+        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
+
+        result = invoke_cli(["config", "remove"])
+
+        pairs = config_handler.get_all_language_pairs()
+        assert result.exit_code == 0
+        assert "spanish:english" not in {f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs}
+        assert "german:english" not in {f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs}
+        assert result.output.count("has been removed") == 2
+
+    def test_config_remove_removes_default(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_language_pair("spanish", "english")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "1")
+        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
+
+        result = invoke_cli(["config", "remove"])
+
+        default_pair = config_handler.get_default_language_pair()
+        assert result.exit_code == 0
+        assert "default language pair was removed" in result.output
+        assert "Run 'vocabmaster config default' to choose a new default." in result.output
+        assert default_pair is None
+
+    def test_config_remove_last_pair(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "1")
+        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
+
+        result = invoke_cli(["config", "remove"])
+
+        pairs = config_handler.get_all_language_pairs()
+        assert result.exit_code == 0
+        assert pairs == []
+        assert "There are no language pairs configured now." in result.output
+        assert "Use 'vocabmaster setup' to add a new language pair." in result.output
+
+
 class TestConfigKeyCommand:
     def test_config_key_confirms_when_present(self, isolated_app_dir, monkeypatch):
         monkeypatch.setattr(cli, "openai_api_key_exists", lambda: True)
@@ -580,6 +741,47 @@ class TestTokensCommand:
 
         assert result.exit_code == 0
         assert "$0.004" in result.output
+
+
+class TestConfigHandlerRemove:
+    def test_remove_language_pair_errors_when_empty(self, isolated_app_dir):
+        with pytest.raises(ValueError, match="No language pairs configured."):
+            config_handler.remove_language_pair("english", "french")
+
+    def test_remove_language_pair_errors_when_missing(self, isolated_app_dir):
+        config_handler.set_language_pair("english", "french")
+
+        with pytest.raises(ValueError, match="Language pair not found."):
+            config_handler.remove_language_pair("spanish", "english")
+
+    def test_remove_language_pair_removes_default(self, isolated_app_dir):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_language_pair("spanish", "english")
+        config_handler.set_default_language_pair("spanish", "english")
+
+        removed_default = config_handler.remove_language_pair("spanish", "english")
+
+        assert removed_default is True
+        assert config_handler.get_default_language_pair() is None
+        assert config_handler.get_all_language_pairs() == [
+            {"language_to_learn": "english", "mother_tongue": "french"}
+        ]
+
+    def test_remove_language_pair_non_default(self, isolated_app_dir):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_language_pair("spanish", "english")
+        config_handler.set_default_language_pair("english", "french")
+
+        removed_default = config_handler.remove_language_pair("spanish", "english")
+
+        assert removed_default is False
+        assert config_handler.get_default_language_pair() == {
+            "language_to_learn": "english",
+            "mother_tongue": "french",
+        }
+        assert config_handler.get_all_language_pairs() == [
+            {"language_to_learn": "english", "mother_tongue": "french"}
+        ]
 
 
 class TestHelperFunctions:
