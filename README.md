@@ -125,6 +125,14 @@ vocabmaster translate
 
 ![vocabmaster_translate](https://github.com/sderev/vocabmaster/assets/24412384/63e5423a-6f1b-4452-aefd-dd15444cb8df)
 
+### Choose where your files live
+
+```
+vocabmaster config dir ~/Documents/vocabmaster
+```
+
+Vocabulary CSV and Anki decks default to `~/.vocabmaster`, but you can relocate them anywhere. The configuration file itself always stays under `~/.config/vocabmaster/config.json`, and VocabMaster remembers your storage choice for future runs.
+
 ### For detailed help on each command, run
 
 ```
