@@ -23,4 +23,5 @@ setup(
     long_description_content_type="text/markdown",
     author="Sébastien De Revière",
     url="https://github.com/sderev/vocabmaster",
+    python_requires=">=3.10",
 )

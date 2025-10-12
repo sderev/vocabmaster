@@ -34,7 +34,7 @@ Master new languages with this CLI tool, designed to help you record vocabulary 
 
 ### Prerequisites
 
-* Python 3.8 or higher
+* Python 3.10+
 * Compatible with Windows, Linux, and macOS
 
 ### Install via `pip`
