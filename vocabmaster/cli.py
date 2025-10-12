@@ -428,6 +428,124 @@ def config_default_language_pair():
         )
 
 
+@config.command("remove")
+def config_remove_language_pair():
+    """
+    Remove an existing language pair.
+    """
+    language_pairs = print_all_language_pairs()
+    if not language_pairs:
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(
+            "No language pairs found. Run 'vocabmaster setup' to add one before removing.",
+            err=True,
+        )
+        sys.exit(1)
+
+    choices_input = click.prompt(
+        "Type the language pair(s) or number(s) to remove (comma-separated)",
+        type=str,
+    ).strip()
+
+    raw_choices = [item.strip() for item in choices_input.split(",") if item.strip()]
+    if not raw_choices:
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo("No language pairs selected for removal.", err=True)
+        sys.exit(1)
+
+    selections = []
+    seen_pairs = set()
+
+    for choice in raw_choices:
+        if choice.isdigit():
+            idx = int(choice) - 1
+            if 0 <= idx < len(language_pairs):
+                language_to_learn = language_pairs[idx]["language_to_learn"]
+                mother_tongue = language_pairs[idx]["mother_tongue"]
+            else:
+                click.secho("Invalid choice", fg="red", err=True)
+                click.echo(
+                    f"Please enter a number between 1 and {len(language_pairs)}",
+                    err=True,
+                )
+                sys.exit(1)
+        else:
+            try:
+                language_to_learn, mother_tongue = config_handler.get_language_pair(choice)
+            except ValueError as error:
+                click.secho(str(error), fg="red", err=True)
+                click.echo(
+                    f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}",
+                    err=True,
+                )
+                sys.exit(1)
+
+            language_to_learn = language_to_learn.casefold()
+            mother_tongue = mother_tongue.casefold()
+
+            pair_exists = any(
+                pair["language_to_learn"] == language_to_learn
+                and pair["mother_tongue"] == mother_tongue
+                for pair in language_pairs
+            )
+
+            if not pair_exists:
+                click.secho("Error: ", fg="red", nl=False, err=True)
+                click.echo(
+                    f"The language pair {language_to_learn}:{mother_tongue} was not found.",
+                    err=True,
+                )
+                sys.exit(1)
+
+        pair_key = (language_to_learn, mother_tongue)
+        if pair_key not in seen_pairs:
+            selections.append(pair_key)
+            seen_pairs.add(pair_key)
+
+    display_pairs = [f"{lang}:{mother}" for lang, mother in selections]
+    if len(display_pairs) == 1:
+        confirm_prompt = (
+            f"Remove {display_pairs[0]} from your configured language pairs?"
+        )
+    else:
+        confirm_prompt = (
+            "Remove the following language pairs from your configuration?\n"
+            + ", ".join(display_pairs)
+        )
+
+    if not click.confirm(confirm_prompt, default=False):
+        click.echo("No changes made.")
+        return
+
+    removed_default = False
+    for language_to_learn, mother_tongue in selections:
+        try:
+            removed_default = (
+                config_handler.remove_language_pair(language_to_learn, mother_tongue)
+                or removed_default
+            )
+        except ValueError as error:
+            click.secho("Error: ", fg="red", nl=False, err=True)
+            click.echo(error, err=True)
+            sys.exit(1)
+
+        click.echo(
+            f"{click.style(f'{language_to_learn}:{mother_tongue}', bold=True)} "
+            f"{click.style('has been removed', fg='green')} ✅"
+        )
+
+    remaining_pairs = config_handler.get_all_language_pairs()
+
+    if removed_default:
+        click.secho("Heads-up: the default language pair was removed.", fg="yellow")
+        if remaining_pairs:
+            click.secho("Run 'vocabmaster config default' to choose a new default.", fg="blue")
+
+    if not remaining_pairs:
+        click.secho("There are no language pairs configured now.", fg="yellow")
+        click.secho("Use 'vocabmaster setup' to add a new language pair.", fg="blue")
+
+
 # @config.command("dir")
 # def config_dir():
 #    """
