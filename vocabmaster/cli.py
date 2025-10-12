@@ -296,11 +296,9 @@ def setup():
     else:
         print_default_language_pair()
 
-        if click.confirm("Do you want to set this language pair as the default?"):
-            if click.confirm(
-                f"{click.style('Are you sure?', fg='red')} This will overwrite the current default 🚨"
-            ):
-                config_handler.set_default_language_pair(language_to_learn, mother_tongue)
+        prompt = f"Set this language pair ({language_to_learn}:{mother_tongue}) as the default?"
+        if click.confirm(prompt, default=False):
+            config_handler.set_default_language_pair(language_to_learn, mother_tongue)
             click.echo()
             click.echo("This language pair has been set as the default ✅")
             click.secho("The new default language pair is:", fg="blue")
@@ -319,7 +317,7 @@ def setup():
             click.echo()
 
         else:
-            click.echo("This language pair has not been set as the default ❌")
+            click.echo("Keeping the existing default language pair.")
             click.echo()
             click.echo("The current default language pair is:")
             default_language_to_learn = config_handler.get_default_language_pair()[
@@ -403,8 +401,7 @@ def config_default_language_pair():
             # The user entered a number that is out of range
             click.secho("Invalid choice", fg="red", err=True)
             click.echo(
-                "Please enter a number between 1 and"
-                f" {len(language_pairs)}",
+                f"Please enter a number between 1 and {len(language_pairs)}",
                 err=True,
             )
             sys.exit(1)
