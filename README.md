@@ -10,14 +10,16 @@ Master new languages with this CLI tool, designed to help you record vocabulary 
 1. [Features](#features)
 1. [Installation](#installation)
     1. [Prerequisites](#prerequisites)
-    1. [Install via pip](#install-via-pip)
-    1. [Install via pipx (recommended)](#install-via-pipx-recommended)
+    1. [Install via `pip`](#install-via-pip)
+    1. [Install via `uv` (recommended)](#install-via-uv-recommended)
+    1. [OpenAI API key](#openai-api-key)
     1. [Shell Completion](#shell-completion)
 1. [Usage](#usage)
     1. [Set up a new language pair](#set-up-a-new-language-pair)
     1. [Add words to your vocabulary list](#add-words-to-your-vocabulary-list)
     1. [Generate an Anki deck from your vocabulary list](#generate-an-anki-deck-from-your-vocabulary-list)
     1. [For detailed help on each command, run](#for-detailed-help-on-each-command-run)
+1. [Importing into Anki](#importing-into-anki)
 1. [Licence](#licence)
 <!-- /TOC -->
 
@@ -35,40 +37,16 @@ Master new languages with this CLI tool, designed to help you record vocabulary 
 * Python 3.8 or higher
 * Compatible with Windows, Linux, and macOS
 
-### Install via pip
-
-You can install VocabMaster using pip. Simply run the following command:
+### Install via `pip`
 
 ```
 python3 -m pip install vocabmaster
 ```
 
-### Install via pipx (recommended)
-
-[`pipx`](https://pypi.org/project/pipx/) is an alternative package manager for Python applications. It allows you to install and run Python applications in isolated environments, preventing conflicts between dependencies and ensuring that each application uses its own set of packages. I recommend using `pipx` to install VocabMaster.
-
-**First, install `pipx` if you haven't already:**
-
-* On macOS and Linux:
-
-  ```
-  python3 -m pip install --user pipx
-  pipx ensurepath
-  ```
-
-Alternatively, you can use your package manager (`brew`, `apt`, etc.).
-
-* On Windows:
-
-  ```
-  py -m pip install --user pipx
-  py -m pipx ensurepath
-  ```
-
-**Once `pipx` is installed, you can install VocabMaster using the following command:**
+### Install via `uv` (recommended)
 
 ```
-pipx install vocabmaster
+uv tool install vocabmaster
 ```
 
 ### OpenAI API key
@@ -123,16 +101,6 @@ Remember to replace `/path/to/vocabmaster` with the actual path where the comple
 
 ## Usage
 
-Before using VocabMaster, you need to set up the OpenAI API key, which is required for the translations and usage examples. 
-
-Follow the instructions provided within the CLI tool to configure the API key:
-
-```
-vocabmaster config key
-```
-
-Below is an example of common commands and their usage:
-
 ### Set up a new language pair
 
 ```
@@ -170,15 +138,7 @@ To import the vocabulary deck into Anki, follow the steps below:
 1. Launch Anki.
 1. Click on the `Import File` button. This will open a file picker dialog.
 1. In the file picker, locate and select the `anki_deck_language1-language2.csv` file.
-1. When prompted for the field separator, use "semicolon" (this should be set as the default in Anki).
-1. Ensure that the *Allow HTML in fields* option is selected. This allows the app to correctly interpret any HTML formatting in your card fields.
-1. In the import options, choose *Basic (and reversed card)* for the `Note type` field.
-1. Select the name of your vocabulary deck in which you want the cards to be added.
-1. For the `Existing notes` field, choose *Update*. This will prevent the creation of duplicate cards if the same note already exists in your deck.
-
-These instructions will ensure your imported cards appear correctly in your Anki deck.
-
-Remember that the naming scheme `anki_deck_language1-language2.csv` is an example, replace `language1` and `language2` with the appropriate languages you're learning and the deck corresponds to.
+1. Ensure the `Existing notes` field is set to *Update*. This will prevent the creation of duplicate cards if the same note already exists in your deck.
 
 ## Licence
 
