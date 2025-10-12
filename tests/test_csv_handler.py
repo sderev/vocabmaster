@@ -1,6 +1,16 @@
 from vocabmaster import csv_handler
 
 
+def test_convert_text_to_dict_preserves_single_quotes():
+    """Ensure apostrophes inside translations and examples are preserved."""
+    generated_text = "saluer\tl'amour, l'ami\t\"Je dis 'bonjour'\"\n"
+
+    result = csv_handler.convert_text_to_dict(generated_text)
+
+    assert result["saluer"]["translation"] == "l'amour, l'ami"
+    assert result["saluer"]["example"] == "Je dis 'bonjour'"
+
+
 def test_detect_word_mismatches_finds_typo_corrections():
     """Test detecting when the LM corrects typos in word responses."""
     original_words = ["brethen", "hello"]
