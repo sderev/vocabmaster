@@ -16,24 +16,37 @@ def reset_click_defaults(monkeypatch):
 
 @pytest.fixture
 def isolated_app_dir(tmp_path, monkeypatch):
-    """Redirect app data paths to a temporary directory for each test."""
+    """Redirect config and storage paths to a temporary HOME directory for each test."""
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.delenv("APPDATA", raising=False)
+
+    storage_dir = tmp_path / ".vocabmaster"
+    storage_dir.mkdir(parents=True, exist_ok=True)
 
     def fake_setup_dir():
-        tmp_path.mkdir(parents=True, exist_ok=True)
-        return tmp_path
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        return storage_dir
+
+    def fake_get_data_directory():
+        return fake_setup_dir()
+
+    def fake_get_default_data_directory():
+        return storage_dir
+
+    def fake_set_data_directory(path):
+        config_handler.write_config(
+            {**(config_handler.read_config() or {}), "data_dir": str(Path(path).expanduser())}
+        )
 
     monkeypatch.setattr(utils, "setup_dir", fake_setup_dir)
-    monkeypatch.setattr(utils, "app_data_dir", tmp_path)
     monkeypatch.setattr(cli, "setup_dir", fake_setup_dir)
+    monkeypatch.setattr(config_handler, "get_data_directory", lambda: fake_get_data_directory())
+    monkeypatch.setattr(config_handler, "get_default_data_directory", fake_get_default_data_directory)
+    monkeypatch.setattr(config_handler, "set_data_directory", fake_set_data_directory)
 
-    config_file = tmp_path / "config.json"
-    if config_file.exists():
-        config_file.unlink()
-
-    yield tmp_path
-
-    if config_file.exists():
-        config_file.unlink()
+    yield storage_dir
 
 
 def invoke_cli(args, input_data=None):
@@ -52,9 +65,9 @@ class TestRootCommand:
     def test_config_group_help(self):
         result = invoke_cli(["config"])
 
-        assert result.exit_code == 2
-        assert "Manage the configuration of VocabMaster." in result.output
-        assert "COMMAND [ARGS]" in result.output
+        assert result.exit_code == 0
+        assert "Manage VocabMaster configuration" in result.output
+        assert "config dir" in result.output
 
 
 class TestAddCommand:
@@ -842,3 +855,14 @@ class TestHelperFunctions:
         output = capsys.readouterr().out
         assert "You might not have set a usage rate limit" in output
         assert "OpenAI rate limits" in output
+
+    def test_config_dir_updates_data_directory(self, fake_home):
+        runner = CliRunner()
+        target_dir = fake_home / "storage"
+
+        result = runner.invoke(cli.vocabmaster, ["config", "dir", str(target_dir)])
+
+        assert result.exit_code == 0
+        config = config_handler.read_config()
+        assert config["data_dir"] == str(target_dir)
+        assert target_dir.exists()

@@ -1,5 +1,4 @@
 import os
-import platform
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -11,113 +10,91 @@ from vocabmaster import config_handler
 
 def setup_dir():
     """
-    Creates the application data directory if it doesn't exist and returns its path.
-    The directory location is determined based on the global app_name variable and the user's operating system.
+    Ensure the data directory exists and return its path.
 
     Returns:
-        pathlib.Path: The path to the application data directory.
+        pathlib.Path: The application data directory.
     """
-    system = platform.system()
-    if system == "Windows":
-        app_data_dir = Path.home() / "AppData" / "Roaming" / app_name
-    elif system in ("Linux", "Darwin"):
-        app_data_dir = Path.home() / ".local" / "share" / app_name
-    else:
-        click.echo("We couldn't identify your OS.", err=True)
-        while True:
-            try:
-                app_data_dir = Path(
-                    input("Please, tell us where you want your files to be installed: ")
-                )
-                app_data_dir.mkdir(exist_ok=True, parents=True)
-            except Exception as err:
-                click.echo(click.style("Error:", fg="red", bold=True) + f" {err}", err=True)
-            else:
-                break
-    app_data_dir.mkdir(exist_ok=True, parents=True)
-    return app_data_dir
+    data_dir = config_handler.get_data_directory()
+    try:
+        data_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as err:
+        raise click.ClickException(f"Unable to create directory '{data_dir}': {err}") from err
+    return data_dir
 
 
 def setup_files(app_data_dir, language_to_learn, mother_tongue):
     """
-    Creates the necessary file paths in the data directory if they don't exist.
+    Create the vocabulary and Anki files inside the provided directory if they do not exist.
 
     Args:
-    app_data_dir (pathlib.Path): The directory where the application data files should be created.
-    language_to_learn (str): The language the user wants to learn.
-    mother_tongue (str): The user's mother tongue.
+        app_data_dir (pathlib.Path): Directory where application data files should be created.
+        language_to_learn (str): Target language.
+        mother_tongue (str): User's mother tongue.
 
     Returns:
-    tuple: A tuple containing the paths of the created files (vocab_list.csv, anki_deck.csv).
+        tuple[pathlib.Path, pathlib.Path]: Paths for the vocabulary and Anki files.
     """
     file_paths = (
         app_data_dir / f"vocab_list_{language_to_learn}-{mother_tongue}.csv",
         app_data_dir / f"anki_deck_{language_to_learn}-{mother_tongue}.csv",
     )
     for file in file_paths:
-        file.touch()
+        file.parent.mkdir(parents=True, exist_ok=True)
+        file.touch(exist_ok=True)
     return file_paths
 
 
-def setup_backup_dir(app_data_dir, language_to_learn, mother_tongue):
+def setup_backup_dir(language_to_learn, mother_tongue):
     """
-    Creates the backup directory if it doesn't exist and returns its path.
-        The backup directory is created inside the global app_data_dir directory.
-        If both mother_tongue and language_to_learn are provided, a subdirectory is created for the specific language pair.
+    Ensure the backup directory for a language pair exists and return its path.
 
     Args:
-        app_data_dir (pathlib.Path): The global application data directory.
-        language_to_learn (str): The language the user wants to learn.
-        mother_tongue (str): The user's mother tongue.
+        language_to_learn (str): Target language.
+        mother_tongue (str): User's mother tongue.
 
     Returns:
-        pathlib.Path: The path to the backup directory (or the language-specific subdirectory).
+        pathlib.Path: Backup directory for the provided language pair.
     """
     backup_dir = get_backup_dir(language_to_learn, mother_tongue)
-    backup_lang = backup_dir / ".backup" / f"{language_to_learn}-{mother_tongue}"
-    backup_lang.mkdir(exist_ok=True, parents=True)
-    return backup_lang
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    return backup_dir
 
 
-def get_backup_dir(language_to_learn, mother_tongue):
+def get_backup_dir(language_to_learn=None, mother_tongue=None):
     """
-    Returns the path to the backup directory (or the language-specific subdirectory).
+    Return the backup directory path, optionally scoped to the provided language pair.
 
     Args:
-        language_to_learn (str): The language the user wants to learn.
-        mother_tongue (str): The user's mother tongue.
+        language_to_learn (str | None): Target language.
+        mother_tongue (str | None): User's mother tongue.
 
     Returns:
-        pathlib.Path: The path to the backup directory (or the language-specific subdirectory).
+        pathlib.Path: Backup directory path.
     """
-    backup_dir = app_data_dir / ".backup"
+    base_dir = setup_dir() / ".backup"
     if language_to_learn and mother_tongue:
-        backup_dir = backup_dir / f"{language_to_learn}-{mother_tongue}"
-    return backup_dir
+        return base_dir / f"{language_to_learn}-{mother_tongue}"
+    return base_dir
 
 
 def backup_content(backup_dir, content):
     """
-    Creates a timestamped backup file for the provided content in the backup_dir directory.
-    A maximum of 15 backup files will be saved, after which the oldest backup file will be overwritten.
+    Create a timestamped backup file for the provided content in the backup_dir directory.
+
+    A maximum of 15 backup files will be saved, after which the oldest backup file will be deleted.
 
     Args:
-        backup_dir (pathlib.Path): The backup directory path.
-        content (str): The content to be written to the backup file.
-
-    Returns:
-        None
+        backup_dir (pathlib.Path): Backup directory path.
+        content (str): Content to write to the backup file.
     """
     iso_timestamp = generate_iso_timestamp()
-
-    # Create a new backup file with the generated timestamp
     backup_file = backup_dir / f"gpt_request_{iso_timestamp}.bak"
     with backup_file.open("w", encoding="UTF-8") as file:
         file.write(str(content))
 
-    # If there are more than 15 backup files in the directory, delete the oldest backup file
     backup_files = sorted(
-        list(backup_dir.glob("gpt_request" + "_*.bak")),
+        list(backup_dir.glob("gpt_request_*.bak")),
         key=lambda p: p.stat().st_mtime,
     )
     if len(backup_files) > 15:
@@ -127,25 +104,22 @@ def backup_content(backup_dir, content):
 
 def backup_file(backup_dir, filepath):
     """
-    Creates a timestamped backup file for the provided filepath in the backup_dir directory.
-    A maximum of 10 backup files will be saved, after which the oldest backup file will be overwritten.
+    Create a timestamped backup file for the provided filepath in the backup_dir directory.
+
+    A maximum of 10 backup files will be saved, after which the oldest backup file will be deleted.
 
     Args:
-        backup_dir (pathlib.Path): The backup directory path.
-        filepath (pathlib.Path): The path to the file to be backed up.
-
-    Returns:
-        None
+        backup_dir (pathlib.Path): Backup directory path.
+        filepath (pathlib.Path): File to back up.
     """
     iso_timestamp = generate_iso_timestamp()
 
-    # Create a new backup file with the generated timestamp
     backup_voc_list = backup_dir / f"{filepath.stem}_{iso_timestamp}.bak"
     shutil.copy(filepath, backup_voc_list)
 
-    # If there are more than 10 backup files in the directory, delete the oldest backup file
     backup_files = sorted(
-        list(backup_dir.glob(f"{filepath.stem}_*.bak")), key=lambda p: p.stat().st_mtime
+        list(backup_dir.glob(f"{filepath.stem}_*.bak")),
+        key=lambda p: p.stat().st_mtime,
     )
     if len(backup_files) > 10:
         oldest_backup_file = backup_files[0]
@@ -154,10 +128,7 @@ def backup_file(backup_dir, filepath):
 
 def generate_iso_timestamp():
     """
-    Generates an ISO 8601 formatted timestamp with colons replaced by underscores.
-
-    Returns:
-        str: The generated ISO 8601 formatted timestamp with colons replaced by underscores.
+    Generate an ISO 8601 formatted timestamp with colons replaced by underscores.
     """
     now = datetime.now()
     return now.isoformat().replace(":", "_")
@@ -165,19 +136,13 @@ def generate_iso_timestamp():
 
 def get_language_pair_from_option(pair):
     """
-    Gets the language pair based on the input option string or the default language pair.
-
-    If the 'pair' argument is not empty, the function will extract the mother tongue and language
-    to learn from the input string. If the 'pair' argument is empty, the default language pair
-    from the configuration file will be used.
+    Get the language pair based on the input option string or the default language pair.
 
     Args:
-        pair (str): A string containing the language pair separated by a colon, e.g. "english:french",
-            where 'english' is the language to learn and 'french' is the mother tongue. If empty, the default
-            language pair from the configuration file will be used.
+        pair (str): Language pair in the format "language_to_learn:mother_tongue".
 
     Returns:
-        tuple: A tuple containing the language to learn and the mother tongue as strings.
+        tuple[str, str]: Language to learn and mother tongue.
     """
     if pair:
         language_to_learn, mother_tongue = pair.split(":")
@@ -191,16 +156,11 @@ def get_language_pair_from_option(pair):
 
 def openai_api_key_exists():
     """
-    Checks if an OpenAI API key is set on the system.
-
-    Returns:
-        bool: True if the OpenAI API key is set, False otherwise.
+    Check if an OpenAI API key is set on the system.
     """
     return bool(os.environ.get("OPENAI_API_KEY"))
 
 
-app_name = "vocabmaster"
-app_data_dir = setup_dir()
 BLUE = "\x1b[94m"
 BOLD = "\x1b[1m"
 GREEN = "\x1b[92m"
