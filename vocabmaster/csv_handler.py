@@ -348,6 +348,9 @@ def generate_anki_output_file(
     Returns:
         None
     """
+    # Ensure the source file contains the expected header so the DictReader can parse rows safely.
+    add_fieldnames_to_csv_file(translations_filepath, ["word", "translation", "example"])
+
     with (
         open(translations_filepath, encoding="UTF-8") as translations_file,
         open(anki_output_file, "w", encoding="UTF-8") as anki_file,
@@ -356,10 +359,7 @@ def generate_anki_output_file(
         headers = generate_anki_headers(language_to_learn, mother_tongue)
         anki_file.write(headers + "\n")
 
-        translations_dict_reader = DictReader(
-            translations_file, fieldnames=["word", "translation", "example"]
-        )
-        next(translations_dict_reader)
+        translations_dict_reader = DictReader(translations_file)
 
         anki_dict_writer = DictWriter(
             anki_file,
