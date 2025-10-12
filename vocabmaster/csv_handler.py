@@ -349,7 +349,7 @@ def generate_anki_output_file(
         None
     """
     # Ensure the source file contains the expected header so the DictReader can parse rows safely.
-    add_fieldnames_to_csv_file(translations_filepath, ["word", "translation", "example"])
+    ensure_csv_has_fieldnames(translations_filepath, ["word", "translation", "example"])
 
     with (
         open(translations_filepath, encoding="UTF-8") as translations_file,
@@ -384,9 +384,11 @@ def generate_anki_output_file(
                 anki_dict_writer.writerow(card)
 
 
-def add_fieldnames_to_csv_file(translations_filepath, fieldnames):
+def ensure_csv_has_fieldnames(translations_filepath, fieldnames):
     """
-    Adds fieldnames to a CSV file if it's missing.
+    Ensure the CSV file starts with the expected fieldnames.
+
+    The header row is inserted only when it is missing.
 
     Args:
         translations_filepath (str): The path to the CSV file.

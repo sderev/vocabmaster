@@ -120,7 +120,7 @@ def translate(pair, count):
     )
 
     # Add the fieldnames to the CSV file if it's missing
-    csv_handler.add_fieldnames_to_csv_file(
+    csv_handler.ensure_csv_has_fieldnames(
         translations_filepath, ["word", "translation", "example"]
     )
 
