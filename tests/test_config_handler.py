@@ -20,13 +20,17 @@ def test_get_data_directory_defaults_to_home(fake_home):
 
 
 def test_legacy_config_migrated(fake_home):
-    legacy_path = fake_home / ".local" / "share" / config_handler.APP_NAME / config_handler.CONFIG_FILENAME
+    legacy_path = (
+        fake_home / ".local" / "share" / config_handler.APP_NAME / config_handler.CONFIG_FILENAME
+    )
     legacy_path.parent.mkdir(parents=True, exist_ok=True)
 
     legacy_payload = {"default": {"language_to_learn": "japanese", "mother_tongue": "english"}}
     legacy_path.write_text(json.dumps(legacy_payload))
 
-    new_config_path = fake_home / ".config" / config_handler.APP_NAME / config_handler.CONFIG_FILENAME
+    new_config_path = (
+        fake_home / ".config" / config_handler.APP_NAME / config_handler.CONFIG_FILENAME
+    )
     if new_config_path.exists():
         new_config_path.unlink()
 
