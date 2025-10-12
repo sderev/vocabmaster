@@ -59,8 +59,8 @@ def add(pair, word):
     try:
         language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
     except Exception as error:
-        click.secho("Error: ", fg="red", nl=False)
-        click.echo(error)
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(error, err=True)
         sys.exit(1)
 
     translations_filepath, anki_filepath = setup_files(
@@ -111,8 +111,8 @@ def translate(pair, count):
     try:
         language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
     except Exception as error:
-        click.secho("Error: ", fg="red", nl=False)
-        click.echo(error)
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(error, err=True)
         sys.exit(1)
 
     translations_filepath, anki_filepath = setup_files(
@@ -126,10 +126,11 @@ def translate(pair, count):
 
     # Check if the vocabulary list is empty
     if csv_handler.vocabulary_list_is_empty(translations_filepath):
-        click.secho("Your vocabulary list is empty.", fg="red", nl=False)
-        click.echo(" Please add some words first.")
+        click.secho("Your vocabulary list is empty.", fg="red", nl=False, err=True)
+        click.echo(" Please add some words first.", err=True)
         click.echo(
-            f"Run '{click.style('vocabmaster add --help', bold=True)}' for more information."
+            f"Run '{click.style('vocabmaster add --help', bold=True)}' for more information.",
+            err=True,
         )
         sys.exit(0)
 
@@ -158,7 +159,7 @@ def translate(pair, count):
         csv_handler.add_translations_and_examples_to_file(translations_filepath, pair)
         click.echo()
     except openai.error.RateLimitError as error:
-        click.echo(click.style("Error: ", fg="red") + f"{error}")
+        click.echo(click.style("Error: ", fg="red") + f"{error}", err=True)
         handle_rate_limit_error()
         sys.exit(1)
     except Exception as error:
@@ -173,8 +174,8 @@ def translate(pair, count):
                 f"If you only want to generate the Anki deck, you can run '{click.style('vocabmaster anki', bold=True)}'."
             )
         else:
-            click.secho("Status: ", fg="red", nl=False)
-            click.echo(error)
+            click.secho("Status: ", fg="red", nl=False, err=True)
+            click.echo(error, err=True)
         sys.exit(0)
     click.secho(
         "The translations and examples have been added to the vocabulary list 💡✅", fg="blue"
@@ -224,8 +225,11 @@ def anki():
     """
     default_pair = config_handler.get_default_language_pair()
     if default_pair is None:
-        click.secho("Error: ", fg="red", nl=False)
-        click.echo("No default language pair found. Run 'vocabmaster setup' to create one.")
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(
+            "No default language pair found. Run 'vocabmaster setup' to create one.",
+            err=True,
+        )
         sys.exit(1)
 
     language_to_learn = default_pair["language_to_learn"]
@@ -373,9 +377,10 @@ def config_default_language_pair():
 
     language_pairs = print_all_language_pairs()
     if not language_pairs:
-        click.secho("Error: ", fg="red", nl=False)
+        click.secho("Error: ", fg="red", nl=False, err=True)
         click.echo(
-            "No language pairs found. Run 'vocabmaster setup' to add one before setting a default."
+            "No language pairs found. Run 'vocabmaster setup' to add one before setting a default.",
+            err=True,
         )
         sys.exit(1)
 
@@ -398,10 +403,11 @@ def config_default_language_pair():
             )
         else:
             # The user entered a number that is out of range
-            click.secho("Invalid choice", fg="red")
+            click.secho("Invalid choice", fg="red", err=True)
             click.echo(
                 "Please enter a number between 1 and"
-                f" {len(language_pairs)}"
+                f" {len(language_pairs)}",
+                err=True,
             )
             sys.exit(1)
     else:
@@ -412,8 +418,11 @@ def config_default_language_pair():
                 language_to_learn, mother_tongue = config_handler.get_language_pair(choice)
         # The user entered an invalid language pair
         except ValueError as error:
-            click.secho(str(error), fg="red")
-            click.echo(f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}")
+            click.secho(str(error), fg="red", err=True)
+            click.echo(
+                f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}",
+                err=True,
+            )
             sys.exit(1)
 
         # Set the language pair as the default
@@ -495,8 +504,11 @@ def tokens():
     """
     default_pair = config_handler.get_default_language_pair()
     if default_pair is None:
-        click.secho("Error: ", fg="red", nl=False)
-        click.echo("No default language pair found. Run 'vocabmaster setup' before estimating costs.")
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(
+            "No default language pair found. Run 'vocabmaster setup' before estimating costs.",
+            err=True,
+        )
         sys.exit(1)
 
     language_to_learn = default_pair["language_to_learn"]
@@ -504,16 +516,16 @@ def tokens():
     translations_filepath, anki_file = setup_files(setup_dir(), language_to_learn, mother_tongue)
 
     if csv_handler.vocabulary_list_is_empty(translations_filepath):
-        click.secho("The list is empty!", fg="red")
-        click.echo("Please add words to the list before running this command.")
+        click.secho("The list is empty!", fg="red", err=True)
+        click.echo("Please add words to the list before running this command.", err=True)
         sys.exit(0)
 
     try:
         words_to_translate = csv_handler.get_words_to_translate(translations_filepath)
     except Exception as error:
-        click.secho("Status: ", fg="blue", nl=False)
-        click.echo(error)
-        click.echo("Therefore, the cost of the next prompt cannot be estimated.")
+        click.secho("Status: ", fg="blue", nl=False, err=True)
+        click.echo(error, err=True)
+        click.echo("Therefore, the cost of the next prompt cannot be estimated.", err=True)
     else:
         prompt = gpt_integration.format_prompt(language_to_learn, mother_tongue, words_to_translate)
         estimated_cost = gpt_integration.estimate_prompt_cost(prompt)["gpt-3.5-turbo"]
