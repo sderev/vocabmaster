@@ -536,14 +536,28 @@ def config_remove_language_pair():
 
 
 @config.command("dir")
+@click.option(
+    "--show",
+    "show_only",
+    is_flag=True,
+    help="Display the current storage directory and exit without making changes.",
+)
 @click.argument("directory", required=False)
-def config_dir(directory):
+def config_dir(show_only, directory):
     """
     Set the dir where the vocab list and Anki deck are stored.
     """
     current_dir = config_handler.get_data_directory()
-    click.secho("Current storage directory:", fg="blue")
-    click.echo(current_dir)
+    if show_only and directory is not None:
+        raise click.BadParameter(
+            "Cannot use '--show' together with a directory path.",
+            param_hint="'--show'",
+        )
+
+    print_current_storage_directory(current_dir)
+
+    if show_only:
+        return
 
     if directory is None:
         directory_input = click.prompt(
@@ -700,6 +714,24 @@ def print_all_language_pairs():
         click.echo(f"{idx}. {language_pair['language_to_learn']}:{language_pair['mother_tongue']}")
     click.echo()
     return language_pairs
+
+
+def print_current_storage_directory(current_dir: Path | None = None) -> Path:
+    """
+    Print and return the directory where CSV and Anki files are stored.
+
+    Args:
+        current_dir (pathlib.Path | None): Directory to display. If None, the configured
+            storage directory is resolved before printing.
+
+    Returns:
+        pathlib.Path: The directory that was printed.
+    """
+    if current_dir is None:
+        current_dir = config_handler.get_data_directory()
+    click.secho("Current storage directory:", fg="blue")
+    click.echo(current_dir)
+    return current_dir
 
 
 def handle_rate_limit_error():
