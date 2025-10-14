@@ -1,4 +1,6 @@
-from vocabmaster import csv_handler
+from pathlib import Path
+
+from vocabmaster import config_handler, csv_handler
 
 
 def test_convert_text_to_dict_preserves_single_quotes():
@@ -144,6 +146,43 @@ def test_word_correction_applies_translation_immediately():
     assert current_entries["brethren"]["word"] == "brethren"  # The word field should be corrected!
     assert current_entries["brethren"]["translation"] == "frères"
     assert current_entries["brethren"]["example"] == "The brethren gather"
+
+
+def test_backup_occurs_before_chat_request(tmp_path, fake_home, monkeypatch):
+    """Ensure the vocabulary file is backed up before contacting the language model."""
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    config_handler.set_data_directory(data_dir)
+
+    translations_file = data_dir / "vocab_list_english-french.csv"
+    translations_file.write_text("word,translation,example\nhello,,\n", encoding="utf-8")
+
+    call_order = []
+
+    def fake_backup_file(backup_dir, filepath):
+        call_order.append(("backup_file", Path(filepath).name))
+
+    monkeypatch.setattr(csv_handler.utils, "backup_file", fake_backup_file)
+
+    def fake_generate(language_to_learn, mother_tongue, filepath):
+        call_order.append(("generate_translations_and_examples", None))
+        return "hello\tbonjour\t\"Salut !\"\n"
+
+    monkeypatch.setattr(
+        csv_handler,
+        "generate_translations_and_examples",
+        fake_generate,
+    )
+
+    csv_handler.add_translations_and_examples_to_file(
+        str(translations_file),
+        "english:french",
+    )
+
+    assert call_order[0][0] == "backup_file"
+    assert call_order[1][0] == "generate_translations_and_examples"
+    assert sum(1 for name, _ in call_order if name == "backup_file") == 2
+    assert "bonjour" in translations_file.read_text(encoding="utf-8")
 
 
 def test_generate_anki_headers():

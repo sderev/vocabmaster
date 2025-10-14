@@ -226,6 +226,10 @@ def add_translations_and_examples_to_file(translations_filepath, pair):
     """
     # Generate new translations and examples, then convert the results to a dictionary
     language_to_learn, mother_tongue = utils.get_language_pair_from_option(pair)
+    backup_dir = utils.get_backup_dir(language_to_learn, mother_tongue)
+
+    # Preserve the current vocabulary file before making external requests.
+    utils.backup_file(backup_dir, translations_filepath)
 
     # Get the original words that were sent to the LM for mismatch detection
     original_words = get_words_to_translate(translations_filepath)
@@ -305,7 +309,6 @@ def add_translations_and_examples_to_file(translations_filepath, pair):
             writer.writerow(current_entry)
 
     # Create a backup of the translations file
-    backup_dir = utils.get_backup_dir(language_to_learn, mother_tongue)
     utils.backup_file(backup_dir, translations_filepath)
 
 
