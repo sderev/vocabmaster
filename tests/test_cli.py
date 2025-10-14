@@ -961,3 +961,36 @@ class TestHelperFunctions:
         config = config_handler.read_config()
         assert config["data_dir"] == str(target_dir)
         assert target_dir.exists()
+
+    def test_config_dir_show_only_prints_directory(self, fake_home):
+        runner = CliRunner()
+
+        result = runner.invoke(cli.vocabmaster, ["config", "dir", "--show"])
+
+        assert result.exit_code == 0
+        assert "Current storage directory:" in result.output
+        assert str(fake_home / ".vocabmaster") in result.output
+        assert "Enter the directory" not in result.output
+
+    def test_config_dir_show_with_directory_errors(self, fake_home):
+        runner = CliRunner()
+        target_dir = fake_home / "storage"
+
+        result = runner.invoke(
+            cli.vocabmaster,
+            ["config", "dir", "--show", str(target_dir)],
+        )
+
+        assert result.exit_code == 2
+        assert "Cannot use '--show' together with a directory path." in result.output
+
+    def test_print_current_storage_directory_returns_path(self, fake_home, capsys):
+        custom_dir = fake_home / "custom"
+        config_handler.set_data_directory(custom_dir)
+
+        returned = cli.print_current_storage_directory()
+
+        output = capsys.readouterr().out
+        assert returned == custom_dir
+        assert "Current storage directory:" in output
+        assert str(custom_dir) in output
