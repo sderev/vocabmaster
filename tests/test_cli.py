@@ -290,9 +290,7 @@ class TestTranslateCommand:
         monkeypatch.setattr(cli, "openai_api_key_exists", lambda: True)
 
         def fail_add(*_args, **_kwargs):
-            raise Exception(
-                "All the words in the vocabulary list already have translations and examples"
-            )
+            raise cli.csv_handler.AllWordsTranslatedError()
 
         monkeypatch.setattr(cli.csv_handler, "add_translations_and_examples_to_file", fail_add)
         monkeypatch.setattr(cli, "generate_anki_deck", lambda *args, **kwargs: None)

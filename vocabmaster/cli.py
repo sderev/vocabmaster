@@ -137,6 +137,9 @@ def translate(pair, count):
     if count:
         try:
             number_words = len(csv_handler.get_words_to_translate(translations_filepath))
+        except csv_handler.AllWordsTranslatedError as error:
+            click.secho("Status: ", fg="green", nl=False)
+            click.echo(error)
         except Exception as error:
             click.secho("Status: ", fg="green", nl=False)
             click.echo(error)
@@ -161,20 +164,17 @@ def translate(pair, count):
         click.echo(click.style("Error: ", fg="red") + f"{error}", err=True)
         handle_rate_limit_error()
         sys.exit(1)
+    except csv_handler.AllWordsTranslatedError as error:
+        click.secho("Actually...", fg="blue")
+        click.secho("No action needed: ", fg="green", nl=False)
+        click.echo(f"{error} 🤓")
+        click.echo(
+            f"If you only want to generate the Anki deck, you can run '{click.style('vocabmaster anki', bold=True)}'."
+        )
+        sys.exit(0)
     except Exception as error:
-        if (
-            str(error) == "All the words in the vocabulary list already have translations and"
-            " examples"
-        ):
-            click.secho("Actually...", fg="blue")
-            click.secho("No action needed: ", fg="green", nl=False)
-            click.echo(f"{error} 🤓")
-            click.echo(
-                f"If you only want to generate the Anki deck, you can run '{click.style('vocabmaster anki', bold=True)}'."
-            )
-        else:
-            click.secho("Status: ", fg="red", nl=False, err=True)
-            click.echo(error, err=True)
+        click.secho("Status: ", fg="red", nl=False, err=True)
+        click.echo(error, err=True)
         sys.exit(0)
     click.secho(
         "The translations and examples have been added to the vocabulary list 💡✅", fg="blue"

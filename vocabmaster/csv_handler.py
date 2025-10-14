@@ -6,6 +6,16 @@ import click
 from vocabmaster import gpt_integration, utils
 
 CSV_FIELDNAMES = ["word", "translation", "example"]
+ALL_WORDS_TRANSLATED_MESSAGE = (
+    "All the words in the vocabulary list already have translations and examples"
+)
+
+
+class AllWordsTranslatedError(Exception):
+    """Raised when the vocabulary file has no pending translations."""
+
+    def __init__(self, message=ALL_WORDS_TRANSLATED_MESSAGE):
+        super().__init__(message)
 
 
 def detect_word_mismatches(original_words, gpt_response):
@@ -129,9 +139,7 @@ def get_words_to_translate(translations_filepath):
                 words_to_translate.append(row["word"])
 
     if not words_to_translate:
-        raise Exception(
-            "All the words in the vocabulary list already have translations and examples"
-        )
+        raise AllWordsTranslatedError()
     else:
         return words_to_translate
 
