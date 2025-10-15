@@ -7,10 +7,35 @@ import openai
 
 from vocabmaster import config_handler, csv_handler, gpt_integration
 
+from . import utils
 from .utils import openai_api_key_exists, setup_backup_dir, setup_dir, setup_files
 
 
-@click.group(invoke_without_command=True)
+class AliasedGroup(click.Group):
+    """
+    Click group with support for hidden command aliases.
+    """
+
+    def __init__(self, *args, **kwargs):
+        self._aliases = kwargs.pop("aliases", {})
+        super().__init__(*args, **kwargs)
+
+    def get_command(self, ctx, cmd_name):
+        command = super().get_command(ctx, cmd_name)
+        if command is not None:
+            return command
+
+        target = self._aliases.get(cmd_name)
+        if target is not None:
+            return super().get_command(ctx, target)
+        return None
+
+    def list_commands(self, ctx):
+        commands = super().list_commands(ctx)
+        return [name for name in commands if name not in self._aliases]
+
+
+@click.group(cls=AliasedGroup, invoke_without_command=True, aliases={"pair": "pairs"})
 @click.version_option()
 @click.pass_context
 def vocabmaster(ctx):
