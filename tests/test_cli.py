@@ -789,6 +789,10 @@ class TestPairsAddCommand:
         assert Path(config_handler.get_config_filepath()).exists()
 
     def test_pairs_add_canceled_keeps_state(self, isolated_app_dir, monkeypatch):
+        # Set up initial state
+        config_handler.set_language_pair("french", "english")
+        config_handler.set_default_language_pair("french", "english")
+
         prompts = iter(["German", "English"])
         confirmations = iter([False])
 
@@ -800,8 +804,9 @@ class TestPairsAddCommand:
         config = config_handler.read_config()
         assert result.exit_code == 0
         assert "Creation canceled" in result.output
-        assert config["default"]["language_to_learn"] == "German"
-        assert config["default"]["mother_tongue"] == "English"
+        # Verify the original state is preserved
+        assert config["default"]["language_to_learn"] == "french"
+        assert config["default"]["mother_tongue"] == "english"
 
     def test_pairs_add_existing_default_sets_new_when_confirmed(
         self, isolated_app_dir, monkeypatch
