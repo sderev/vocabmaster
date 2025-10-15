@@ -5,36 +5,78 @@ import openai
 import tiktoken
 
 
-def format_prompt(language_to_learn, mother_tongue, words_to_translate):
+def format_prompt(language_to_learn, mother_tongue, words_to_translate, mode="translation"):
+    """
+    Generate a prompt for translation or definition mode.
+
+    Args:
+        language_to_learn (str): Target language.
+        mother_tongue (str): User's mother tongue.
+        words_to_translate (list): List of words to process.
+        mode (str): "translation" or "definition" mode.
+
+    Returns:
+        list: Formatted prompt messages for the LLM.
+    """
     words_to_translate = "\n".join(words_to_translate)
-    prompt = [
-        {
-            "role": "system",
-            "content": """
-            You are an expert at building vocabulary lists and formatting them as Tab-Separated Values TSV file.
-            You do NOT say anything else but the content of the TSV file.""",
-        },
-        {
-            "role": "user",
-            "content": f"""
-            Translate the following {language_to_learn} words into {mother_tongue}
-            and provide a TSV file with each row consisting of the {language_to_learn} word,
-            its {mother_tongue} translations (if there are multiple translations possible,
-            list them in the same column), and an example sentence in {language_to_learn}.
 
-            Always give ONLY ONE example! The example HAS TO BE in {language_to_learn}!
-            Separate each column with a tab character.
-            For the translation column, ALWAYS give at least two or three possible translations!
-            
-            When you start a new row, you HAVE TO add a newline character.
-            The format should look like this:
-            word\ttranslation1, translation2, translation3\texample sentence in {language_to_learn}
+    if mode == "definition":
+        prompt = [
+            {
+                "role": "system",
+                "content": """
+                You are an expert at building vocabulary lists and formatting them as Tab-Separated Values TSV file.
+                You do NOT say anything else but the content of the TSV file.""",
+            },
+            {
+                "role": "user",
+                "content": f"""
+                Provide concise definitions for the following {language_to_learn} words
+                and create a TSV file with each row consisting of the {language_to_learn} word,
+                a concise definition (2-3 words), and an example sentence in {language_to_learn}.
 
-            Below is the list of words to translate.
-            ---
-            {words_to_translate}""",
-        },
-    ]
+                Always give ONLY ONE example! The example HAS TO BE in {language_to_learn}!
+                Separate each column with a tab character.
+                For the definition column, provide a brief, clear definition (2-3 words preferred).
+
+                When you start a new row, you HAVE TO add a newline character.
+                The format should look like this:
+                word\tconcise definition\texample sentence in {language_to_learn}
+
+                Below is the list of words.
+                ---
+                {words_to_translate}""",
+            },
+        ]
+    else:  # translation mode
+        prompt = [
+            {
+                "role": "system",
+                "content": """
+                You are an expert at building vocabulary lists and formatting them as Tab-Separated Values TSV file.
+                You do NOT say anything else but the content of the TSV file.""",
+            },
+            {
+                "role": "user",
+                "content": f"""
+                Translate the following {language_to_learn} words into {mother_tongue}
+                and provide a TSV file with each row consisting of the {language_to_learn} word,
+                its {mother_tongue} translations (if there are multiple translations possible,
+                list them in the same column), and an example sentence in {language_to_learn}.
+
+                Always give ONLY ONE example! The example HAS TO BE in {language_to_learn}!
+                Separate each column with a tab character.
+                For the translation column, ALWAYS give at least two or three possible translations!
+
+                When you start a new row, you HAVE TO add a newline character.
+                The format should look like this:
+                word\ttranslation1, translation2, translation3\texample sentence in {language_to_learn}
+
+                Below is the list of words to translate.
+                ---
+                {words_to_translate}""",
+            },
+        ]
     return prompt
 
 
