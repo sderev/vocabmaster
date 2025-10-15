@@ -238,6 +238,34 @@ def get_language_pair_from_option(pair):
     return language_to_learn, mother_tongue
 
 
+def is_same_language_pair(language_to_learn, mother_tongue):
+    """
+    Determine whether a language pair represents the same language.
+
+    Args:
+        language_to_learn (str): Target language.
+        mother_tongue (str): User's mother tongue.
+
+    Returns:
+        bool: True if both languages are the same (case-insensitive), False otherwise.
+    """
+    return language_to_learn.casefold() == mother_tongue.casefold()
+
+
+def get_pair_mode(language_to_learn, mother_tongue):
+    """
+    Determine the mode for a language pair.
+
+    Args:
+        language_to_learn (str): Target language.
+        mother_tongue (str): User's mother tongue.
+
+    Returns:
+        str: "definition" if the languages match, "translation" otherwise.
+    """
+    return "definition" if is_same_language_pair(language_to_learn, mother_tongue) else "translation"
+
+
 def openai_api_key_exists():
     """
     Check if an OpenAI API key is set on the system.
