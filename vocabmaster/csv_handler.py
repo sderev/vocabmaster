@@ -1,5 +1,6 @@
 import csv
 from csv import DictReader, DictWriter
+from pathlib import Path
 
 import click
 
@@ -445,3 +446,37 @@ def vocabulary_list_is_empty(translations_filepath):
             if any((value or "").strip() for value in row.values()):
                 return False
     return True
+
+
+def calculate_vocabulary_stats(translations_filepath):
+    """
+    Compute statistics about a translations file.
+
+    Args:
+        translations_filepath (pathlib.Path | str): Path to the vocabulary CSV file.
+
+    Returns:
+        dict[str, int]: Dictionary with total, translated, and pending counts.
+    """
+    translations_path = Path(translations_filepath)
+    if not translations_path.exists():
+        return {"total": 0, "translated": 0, "pending": 0}
+
+    total = 0
+    translated = 0
+
+    with open(translations_path, encoding="UTF-8") as translations_file:
+        dict_reader = DictReader(translations_file)
+
+        for row in dict_reader:
+            word = (row.get("word") or "").strip()
+            if not word:
+                continue
+            total += 1
+            has_translation = bool((row.get("translation") or "").strip())
+            has_example = bool((row.get("example") or "").strip())
+            if has_translation and has_example:
+                translated += 1
+
+    pending = total - translated
+    return {"total": total, "translated": translated, "pending": pending}
