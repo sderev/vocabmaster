@@ -540,17 +540,17 @@ class TestTokensCommand:
             lambda *_: [{"role": "system", "content": "prompt"}],
         )
 
-        def fake_estimate(prompt, model="gpt-3.5-turbo"):
-            assert model == "gpt-3.5-turbo"
-            return {"gpt-3.5-turbo": "0.004"}
+        def fake_estimate(prompt, model):
+            assert model == "gpt-4.1"
+            return "0.004"
 
         monkeypatch.setattr(cli.gpt_integration, "estimate_prompt_cost", fake_estimate)
 
         result = invoke_cli(["tokens"])
 
         assert result.exit_code == 0
-        assert "Prompt tokens (input only):" in result.output
-        assert "gpt-3.5-turbo" in result.output
+        assert "Number of tokens in the prompt:" in result.output
+        assert "Cost estimate for gpt-4.1 model:" in result.output
         assert "$0.004" in result.output
 
     def test_tokens_pair_option(self, isolated_app_dir, monkeypatch):
@@ -584,7 +584,7 @@ class TestTokensCommand:
         result = invoke_cli(["tokens", "--pair", "spanish:english"])
 
         assert result.exit_code == 0
-        assert "Prompt tokens (input only):" in result.output
+        assert "Number of tokens in the prompt:" in result.output
 
 
 class TestConfigHandlerRemove:
@@ -1276,7 +1276,7 @@ class TestPairsInspectCommand:
         monkeypatch.setattr(
             cli.gpt_integration,
             "estimate_prompt_cost",
-            lambda *args, **kwargs: {"gpt-3.5-turbo": "0.123"},
+            lambda *args, **kwargs: "0.123",
         )
 
         result = invoke_cli(["pairs", "inspect", "--pair", "english:french"])
@@ -1289,8 +1289,9 @@ class TestPairsInspectCommand:
         assert "Total words: 2" in result.output
         assert "Translated: 1" in result.output
         assert "Pending: 1" in result.output
-        assert "Prompt tokens (input only):" in result.output
-        assert "Estimated prompt cost (input tokens only, gpt-3.5-turbo): $0.123" in result.output
+        assert "Number of tokens in the prompt:" in result.output
+        assert "Cost estimate for gpt-4.1 model:" in result.output
+        assert "$0.123" in result.output
 
     def test_pairs_inspect_uses_default_when_no_argument(self, isolated_app_dir, monkeypatch):
         config_handler.set_language_pair("english", "french")
@@ -1308,7 +1309,7 @@ class TestPairsInspectCommand:
         monkeypatch.setattr(
             cli.gpt_integration,
             "estimate_prompt_cost",
-            lambda *args, **kwargs: {"gpt-3.5-turbo": "0.456"},
+            lambda *args, **kwargs: "0.456",
         )
 
         result = invoke_cli(["pairs", "inspect"])
@@ -1316,7 +1317,8 @@ class TestPairsInspectCommand:
         assert result.exit_code == 0
         assert "Language pair: english:french" in result.output
         assert "Default: Yes" in result.output
-        assert "Estimated prompt cost (input tokens only, gpt-3.5-turbo): $0.456" in result.output
+        assert "Cost estimate for gpt-4.1 model:" in result.output
+        assert "$0.456" in result.output
 
     def test_pairs_inspect_non_default_pair(self, isolated_app_dir, monkeypatch):
         config_handler.set_language_pair("english", "french")
@@ -1335,7 +1337,7 @@ class TestPairsInspectCommand:
         monkeypatch.setattr(
             cli.gpt_integration,
             "estimate_prompt_cost",
-            lambda *args, **kwargs: {"gpt-3.5-turbo": "0.111"},
+            lambda *args, **kwargs: "0.111",
         )
 
         result = invoke_cli(["pairs", "inspect", "--pair", "english:french"])
@@ -1343,7 +1345,8 @@ class TestPairsInspectCommand:
         assert result.exit_code == 0
         assert "Default: No" in result.output
         assert "Pending: 1" in result.output
-        assert "Estimated prompt cost (input tokens only, gpt-3.5-turbo): $0.111" in result.output
+        assert "Cost estimate for gpt-4.1 model:" in result.output
+        assert "$0.111" in result.output
 
     def test_pairs_inspect_handles_missing_files(self, isolated_app_dir):
         config_handler.set_language_pair("english", "french")
@@ -1355,4 +1358,4 @@ class TestPairsInspectCommand:
         assert "Anki deck:" in result.output
         assert "Total words: 0" in result.output
         assert "Translated: 0" in result.output
-        assert "Prompt tokens (input only): N/A (vocabulary file not found)" in result.output
+        assert "Number of tokens in the prompt: N/A (vocabulary file not found)" in result.output

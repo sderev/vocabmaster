@@ -93,39 +93,27 @@ def chatgpt_request(
     )
 
 
-def num_tokens_from_string(string, model="gpt-3.5-turbo-0613"):
+def num_tokens_from_string(string, model="gpt-4.1"):
     """Returns the number of tokens in a text string."""
-    encoding = tiktoken.encoding_for_model(model)
+    try:
+        encoding = tiktoken.encoding_for_model(model)
+    except KeyError:
+        encoding = tiktoken.get_encoding("cl100k_base")
     num_tokens = len(encoding.encode(string))
     return num_tokens
 
 
-def num_tokens_from_messages(messages, model="gpt-3.5-turbo-0613"):
+def num_tokens_from_messages(messages, model="gpt-4.1"):
     """Returns the number of tokens used by a list of messages."""
     try:
         encoding = tiktoken.encoding_for_model(model)
     except KeyError:
-        print("Warning: model not found. Using cl100k_base encoding.")
         encoding = tiktoken.get_encoding("cl100k_base")
-    if model == "gpt-3.5-turbo":
-        print(
-            "Warning: gpt-3.5-turbo may change over time. Returning num tokens assuming"
-            " gpt-3.5-turbo-0613."
-        )
-        return num_tokens_from_messages(messages, model="gpt-3.5-turbo-0613")
-    elif model == "gpt-4":
-        print("Warning: gpt-4 may change over time. Returning num tokens assuming gpt-4-0613.")
-        return num_tokens_from_messages(messages, model="gpt-4-0613")
-    elif model == "gpt-3.5-turbo-0613":
-        tokens_per_message = 4  # every message follows <|start|>{role/name}\n{content}<|end|>\n
-        tokens_per_name = -1  # if there's a name, the role is omitted
-    elif model == "gpt-4-0613":
-        tokens_per_message = 3
-        tokens_per_name = 1
-    else:
-        raise NotImplementedError(
-            f"""num_tokens_from_messages() is not implemented for model {model}. See https://github.com/openai/openai-python/blob/main/chatml.md for information on how messages are converted to tokens."""
-        )
+
+    # Use default token overhead for modern models (cl100k_base encoding)
+    tokens_per_message = 3
+    tokens_per_name = 1
+
     num_tokens = 0
     for message in messages:
         num_tokens += tokens_per_message
@@ -137,23 +125,71 @@ def num_tokens_from_messages(messages, model="gpt-3.5-turbo-0613"):
     return num_tokens
 
 
-def estimated_cost(num_tokens, price_per_1k_tokens):
+def estimated_cost(num_tokens, price_per_1M_tokens):
     """Returns the estimated cost of a number of tokens."""
-    return f"{num_tokens / 1000 * price_per_1k_tokens:.6f}"
+    return f"{num_tokens / 10**6 * price_per_1M_tokens:.6f}"
 
 
-def estimate_prompt_cost(message):
-    """Returns the estimated cost of a prompt."""
-    num_tokens = num_tokens_from_messages(message)
+def estimate_prompt_cost(message, model):
+    """
+    Returns the estimated cost of a prompt for a specific model.
 
+    Args:
+        message: The message(s) to estimate cost for
+        model: The model name to use for pricing
+
+    Returns:
+        str or None: Formatted cost string if pricing is available, None otherwise
+    """
+    num_tokens = num_tokens_from_messages(message, model)
+
+    # Prices in USD per 1M input tokens
     prices = {
-        "gpt-3.5-turbo": 0.0015,
-        "gpt-3.5-turbo-0613": 0.0015,
-        "gpt-3.5-turbo-16k": 0.003,
-        "gpt-4": 0.03,
+        "gpt-3.5-turbo": 0.50,
+        "gpt-3.5-turbo-0125": 0.50,
+        "gpt-3.5-turbo-1106": 0.50,
+        "gpt-3.5-turbo-instruct": 1.50,
+        "gpt-4": 30,
+        "gpt-4-turbo-preview": 10,
+        "gpt-4-turbo": 10,
+        "gpt-4-turbo-2024-04-09": 0.01,
         "gpt-4-0613": 0.03,
-        "gpt-4-32k": 0.06,
-        "gpt-4-32k-0613": 0.06,
+        "gpt-4-1106-preview": 10,
+        "gpt-4-0125-preview": 10,
+        "gpt-4-32k": 60,
+        "gpt-4-32k-0613": 60,
+        "gpt-4o": 2.50,
+        "gpt-4o-2024-05-13": 5,
+        "gpt-4o-2024-08-06": 2.50,
+        "gpt-4o-2024-11-20": 2.50,
+        "gpt-4o-mini": 0.15,
+        "gpt-4o-mini-2024-07-18": 0.15,
+        "chatgpt-4o-latest": 5,
+        "o1": 15,
+        "o1-2024-12-17": 15,
+        "o1-preview": 15,
+        "o1-preview-2024-09-12": 15,
+        "o1-mini": 1.10,
+        "o1-mini-2024-09-12": 1.10,
+        "gpt-4.1": 2,
+        "gpt-4.1-2025-04-14": 2,
+        "gpt-4.1-mini": 0.40,
+        "gpt-4.1-mini-2025-04-14": 0.40,
+        "gpt-4.1-nano": 0.1,
+        "gpt-4.1-nano-2025-04-14": 0.10,
+        "gpt-4.5-preview": 75,
+        "o3": 2,
+        "o3-2025-04-16": 2,
+        "o3-mini": 1.10,
+        "o3-mini-2025-01-31": 1.10,
+        "o4-mini": 1.10,
+        "o4-mini-2025-04-16": 1.10,
+        "gpt-5": 1.25,
+        "gpt-5-mini": 0.25,
+        "gpt-5-nano": 0.05,
+        "gpt-5-chat-latest": 1.25,
     }
 
-    return {model: estimated_cost(num_tokens, price) for model, price in prices.items()}
+    if model in prices:
+        return estimated_cost(num_tokens, prices[model])
+    return None
