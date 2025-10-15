@@ -1,3 +1,0 @@
-click
-openai<1.0
-tiktoken
