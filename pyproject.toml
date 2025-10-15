@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "VocabMaster"
+version = "0.2.0"
+description = "Master new languages with this CLI tool, designed to help you record vocabulary and create Anki flashcards without the need to manually input translations or example sentences."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Sébastien De Revière"}
+]
+keywords = ["vocabulary", "language-learning", "anki", "flashcards", "cli", "openai", "gpt"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Education",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Education",
+    "Topic :: Utilities",
+]
+
+dependencies = [
+    "click ~= 8.3",
+    "openai >= 0.28, <1.0",
+    "tiktoken ~= 0.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest ~= 8.4",
+]
+
+[project.scripts]
+vocabmaster = "vocabmaster.cli:vocabmaster"
+
+[project.urls]
+Homepage = "https://github.com/sderev/vocabmaster"
+Repository = "https://github.com/sderev/vocabmaster"
+Issues = "https://github.com/sderev/vocabmaster/issues"
+
+[tool.setuptools]
+packages = ["vocabmaster"]
