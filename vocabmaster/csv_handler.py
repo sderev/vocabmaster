@@ -165,7 +165,10 @@ def generate_translations_and_examples(language_to_learn, mother_tongue, transla
     """
     # Get the list of words that need translations and generate the LM prompt
     words_to_translate = get_words_to_translate(translations_filepath)
-    prompt = gpt_integration.format_prompt(language_to_learn, mother_tongue, words_to_translate)
+
+    # Determine the mode based on whether languages match
+    mode = utils.get_pair_mode(language_to_learn, mother_tongue)
+    prompt = gpt_integration.format_prompt(language_to_learn, mother_tongue, words_to_translate, mode)
 
     # Send a request to the LM and extract the generated text
     gpt_response = gpt_integration.chatgpt_request(prompt=prompt, stream=True, temperature=0.6)
@@ -332,12 +335,19 @@ def generate_anki_headers(language_to_learn, mother_tongue):
     Returns:
         str: Formatted header lines for Anki import
     """
+    # Determine deck name based on mode
+    mode = utils.get_pair_mode(language_to_learn, mother_tongue)
+    if mode == "definition":
+        deck_name = f"{language_to_learn.capitalize()} definitions"
+    else:
+        deck_name = f"{language_to_learn.capitalize()} vocabulary"
+
     headers = [
         "#separator:tab",
         "#html:true",
         "#notetype:Basic (and reversed card)",
         "#tags:vocabmaster",
-        f"#deck:{language_to_learn.capitalize()} vocabulary",
+        f"#deck:{deck_name}",
     ]
     return "\n".join(headers)
 
