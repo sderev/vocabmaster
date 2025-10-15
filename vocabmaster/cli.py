@@ -308,50 +308,50 @@ def create_language_pair_interactively():
         click.echo()
         click.echo(f"Language pair {language_to_learn}:{mother_tongue} is ready 🤓✅")
         click.echo()
+
+        # Set the default language pair
+        if config_handler.get_default_language_pair() is None:
+            config_handler.set_default_language_pair(language_to_learn, mother_tongue)
+            click.echo(
+                f"This language pair ({language_to_learn}:{mother_tongue}) has been set as"
+                " the default ✅"
+            )
+
+        # Ask the user if they want to set the language pair as the new default
+        else:
+            print_default_language_pair()
+
+            prompt = f"Set this language pair ({language_to_learn}:{mother_tongue}) as the default?"
+            if click.confirm(prompt, default=False):
+                config_handler.set_default_language_pair(language_to_learn, mother_tongue)
+                click.echo()
+                click.echo("This language pair has been set as the default ✅")
+                click.secho("The new default language pair is:", fg="blue")
+
+                # Get the new default language pair by reinitalizing the variables to avoid confusion
+                default_language_to_learn = config_handler.get_default_language_pair()[
+                    "language_to_learn"
+                ]
+                default_mother_tongue = config_handler.get_default_language_pair()["mother_tongue"]
+                click.echo(
+                    f"{click.style('Language to learn:', bold=True)} {default_language_to_learn.capitalize()}"
+                )
+                click.echo(
+                    f"{click.style('Mother tongue:', bold=True)} {default_mother_tongue.capitalize()}"
+                )
+                click.echo()
+
+            else:
+                click.echo("Keeping the existing default language pair.")
+                click.echo()
+                click.echo("The current default language pair is:")
+                default_language_to_learn = config_handler.get_default_language_pair()[
+                    "language_to_learn"
+                ]
+                default_mother_tongue = config_handler.get_default_language_pair()["mother_tongue"]
+                click.secho(f"{default_language_to_learn}:{default_mother_tongue}", bold=True)
     else:
         click.secho("Creation canceled", fg="red")
-
-    # Set the default language pair
-    if config_handler.get_default_language_pair() is None:
-        config_handler.set_default_language_pair(language_to_learn, mother_tongue)
-        click.echo(
-            f"This language pair ({language_to_learn}:{mother_tongue}) has been set as"
-            " the default ✅"
-        )
-
-    # Ask the user if they want to set the language pair as the new default
-    else:
-        print_default_language_pair()
-
-        prompt = f"Set this language pair ({language_to_learn}:{mother_tongue}) as the default?"
-        if click.confirm(prompt, default=False):
-            config_handler.set_default_language_pair(language_to_learn, mother_tongue)
-            click.echo()
-            click.echo("This language pair has been set as the default ✅")
-            click.secho("The new default language pair is:", fg="blue")
-
-            # Get the new default language pair by reinitalizing the variables to avoid confusion
-            default_language_to_learn = config_handler.get_default_language_pair()[
-                "language_to_learn"
-            ]
-            default_mother_tongue = config_handler.get_default_language_pair()["mother_tongue"]
-            click.echo(
-                f"{click.style('Language to learn:', bold=True)} {default_language_to_learn.capitalize()}"
-            )
-            click.echo(
-                f"{click.style('Mother tongue:', bold=True)} {default_mother_tongue.capitalize()}"
-            )
-            click.echo()
-
-        else:
-            click.echo("Keeping the existing default language pair.")
-            click.echo()
-            click.echo("The current default language pair is:")
-            default_language_to_learn = config_handler.get_default_language_pair()[
-                "language_to_learn"
-            ]
-            default_mother_tongue = config_handler.get_default_language_pair()["mother_tongue"]
-            click.secho(f"{default_language_to_learn}:{default_mother_tongue}", bold=True)
 
 
 @vocabmaster.group(invoke_without_command=True)
