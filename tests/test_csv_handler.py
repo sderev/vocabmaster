@@ -166,7 +166,7 @@ def test_backup_occurs_before_chat_request(tmp_path, fake_home, monkeypatch):
 
     def fake_generate(language_to_learn, mother_tongue, filepath):
         call_order.append(("generate_translations_and_examples", None))
-        return "hello\tbonjour\t\"Salut !\"\n"
+        return 'hello\tbonjour\t"Salut !"\n'
 
     monkeypatch.setattr(
         csv_handler,
