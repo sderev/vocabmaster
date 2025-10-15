@@ -15,9 +15,11 @@ Master new languages with this CLI tool, designed to help you record vocabulary 
     1. [OpenAI API key](#openai-api-key)
     1. [Shell Completion](#shell-completion)
 1. [Usage](#usage)
-    1. [Set up a new language pair](#set-up-a-new-language-pair)
+    1. [Add a new language pair](#add-a-new-language-pair)
     1. [Add words to your vocabulary list](#add-words-to-your-vocabulary-list)
+    1. [Manage language pairs](#manage-language-pairs)
     1. [Generate an Anki deck from your vocabulary list](#generate-an-anki-deck-from-your-vocabulary-list)
+    1. [Choose where your files live](#choose-where-your-files-live)
     1. [For detailed help on each command, run](#for-detailed-help-on-each-command-run)
 1. [Importing into Anki](#importing-into-anki)
 1. [Licence](#licence)
@@ -101,10 +103,10 @@ Remember to replace `/path/to/vocabmaster` with the actual path where the comple
 
 ## Usage
 
-### Set up a new language pair
+### Add a new language pair
 
 ```
-vocabmaster setup
+vocabmaster pairs add
 ```
 
 ![vocabmaster_setup](https://github.com/sderev/vocabmaster/assets/24412384/88742afa-fdc4-4808-b106-493b3c0afa8d)
@@ -117,6 +119,18 @@ vocabmaster add la casa
 
 ![vocabmaster_add](https://github.com/sderev/vocabmaster/assets/24412384/fb566562-f96c-418e-b2bb-cdb603d08aef)
 
+### Manage language pairs
+
+```
+vocabmaster pairs list
+vocabmaster pairs set-default
+vocabmaster pairs remove
+vocabmaster pairs rename
+vocabmaster pairs inspect --pair english:french
+```
+
+`inspect` shows file locations, translation counts, and the estimated input-token cost (input tokens only) for a specific pair.
+
 ### Generate an Anki deck from your vocabulary list
 
 ```
@@ -124,6 +138,12 @@ vocabmaster translate
 ```
 
 ![vocabmaster_translate](https://github.com/sderev/vocabmaster/assets/24412384/63e5423a-6f1b-4452-aefd-dd15444cb8df)
+
+Generate a deck for a specific pair with:
+
+```
+vocabmaster anki --pair spanish:english
+```
 
 ### Choose where your files live
 
