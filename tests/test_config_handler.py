@@ -1,5 +1,6 @@
 import json
 
+import pytest
 from vocabmaster import config_handler
 
 
@@ -53,3 +54,39 @@ def test_set_and_get_data_directory(fake_home):
 
     default_dir = config_handler.get_default_data_directory()
     assert default_dir == fake_home / config_handler.DEFAULT_DATA_DIR_NAME
+
+
+def test_rename_language_pair_updates_entries(fake_home):
+    config_handler.set_language_pair("english", "french")
+    config_handler.set_language_pair("spanish", "english")
+    config_handler.set_default_language_pair("english", "french")
+
+    was_default = config_handler.rename_language_pair(
+        "english",
+        "french",
+        "british",
+        "french",
+    )
+
+    pairs = config_handler.get_all_language_pairs()
+    assert was_default is True
+    assert {"language_to_learn": "british", "mother_tongue": "french"} in pairs
+    assert {"language_to_learn": "english", "mother_tongue": "french"} not in pairs
+    default_pair = config_handler.get_default_language_pair()
+    assert default_pair["language_to_learn"] == "british"
+    assert default_pair["mother_tongue"] == "french"
+
+
+def test_rename_language_pair_requires_existing_pair(fake_home):
+    config_handler.set_language_pair("english", "french")
+
+    with pytest.raises(ValueError, match="Language pair not found."):
+        config_handler.rename_language_pair("spanish", "english", "german", "english")
+
+
+def test_rename_language_pair_blocks_duplicates(fake_home):
+    config_handler.set_language_pair("english", "french")
+    config_handler.set_language_pair("spanish", "english")
+
+    with pytest.raises(ValueError, match="already exists"):
+        config_handler.rename_language_pair("english", "french", "spanish", "english")

@@ -180,6 +180,72 @@ def remove_language_pair(language_to_learn, mother_tongue):
     return removed_default
 
 
+def rename_language_pair(old_language, old_mother_tongue, new_language, new_mother_tongue):
+    """
+    Rename an existing language pair.
+
+    Args:
+        old_language (str): Current language to learn.
+        old_mother_tongue (str): Current mother tongue.
+        new_language (str): New language to learn value.
+        new_mother_tongue (str): New mother tongue value.
+
+    Returns:
+        bool: True if the renamed pair was the default, False otherwise.
+
+    Raises:
+        ValueError: If the source pair does not exist, the destination already exists,
+            or if both pairs are identical.
+    """
+    config = read_config() or {}
+    language_pairs = config.get("language_pairs", [])
+    if not language_pairs:
+        raise ValueError("No language pairs configured.")
+
+    old_key = (old_language.casefold(), old_mother_tongue.casefold())
+    new_key = (new_language.casefold(), new_mother_tongue.casefold())
+
+    if old_key == new_key:
+        raise ValueError("New language pair must be different from the current one.")
+
+    def pair_key(pair):
+        return (pair["language_to_learn"].casefold(), pair["mother_tongue"].casefold())
+
+    if any(pair_key(pair) == new_key for pair in language_pairs):
+        raise ValueError(
+            f"The language pair {new_key[0]}:{new_key[1]} already exists. Choose another name."
+        )
+
+    for index, pair in enumerate(language_pairs):
+        if pair_key(pair) == old_key:
+            language_pairs[index] = {
+                "language_to_learn": new_key[0],
+                "mother_tongue": new_key[1],
+            }
+            break
+    else:
+        raise ValueError("Language pair not found.")
+
+    config["language_pairs"] = language_pairs
+
+    was_default = False
+    default_pair = config.get("default")
+    if default_pair:
+        default_key = (
+            default_pair.get("language_to_learn", "").casefold(),
+            default_pair.get("mother_tongue", "").casefold(),
+        )
+        if default_key == old_key:
+            config["default"] = {
+                "language_to_learn": new_key[0],
+                "mother_tongue": new_key[1],
+            }
+            was_default = True
+
+    write_config(config)
+    return was_default
+
+
 def get_default_language_pair():
     """
     Get the default language pair from the configuration file.
