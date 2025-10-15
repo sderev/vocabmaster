@@ -38,3 +38,36 @@ def test_setup_dir_uses_configured_path(fake_home):
 
     assert resolved == custom_dir
     assert resolved.exists()
+
+
+def test_is_same_language_pair_exact_match():
+    """Test same language detection with exact matches."""
+    assert utils.is_same_language_pair("french", "french") is True
+    assert utils.is_same_language_pair("english", "english") is True
+
+
+def test_is_same_language_pair_case_insensitive():
+    """Test same language detection is case-insensitive."""
+    assert utils.is_same_language_pair("French", "french") is True
+    assert utils.is_same_language_pair("ENGLISH", "english") is True
+    assert utils.is_same_language_pair("SpAnIsH", "spanish") is True
+
+
+def test_is_same_language_pair_different_languages():
+    """Test different languages are correctly identified."""
+    assert utils.is_same_language_pair("french", "english") is False
+    assert utils.is_same_language_pair("spanish", "italian") is False
+
+
+def test_get_pair_mode_definition_mode():
+    """Test mode detection returns 'definition' for same-language pairs."""
+    assert utils.get_pair_mode("french", "french") == "definition"
+    assert utils.get_pair_mode("French", "FRENCH") == "definition"
+    assert utils.get_pair_mode("english", "English") == "definition"
+
+
+def test_get_pair_mode_translation_mode():
+    """Test mode detection returns 'translation' for different-language pairs."""
+    assert utils.get_pair_mode("french", "english") == "translation"
+    assert utils.get_pair_mode("spanish", "italian") == "translation"
+    assert utils.get_pair_mode("German", "french") == "translation"
