@@ -56,6 +56,14 @@ def invoke_cli(args, input_data=None):
     return runner.invoke(cli.vocabmaster, args, input=input_data)
 
 
+def touch_setup_files(directory, *_):
+    vocab = directory / "vocab.csv"
+    anki = directory / "anki.csv"
+    vocab.touch()
+    anki.touch()
+    return vocab, anki
+
+
 class TestRootCommand:
     def test_help_displayed_when_no_subcommand(self):
         result = invoke_cli([])
@@ -90,11 +98,7 @@ class TestAddCommand:
         )
         monkeypatch.setattr(cli.csv_handler, "word_exists", lambda word, path: False)
         monkeypatch.setattr(cli.csv_handler, "append_word", lambda word, path: None)
-        monkeypatch.setattr(
-            cli,
-            "setup_files",
-            lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"),
-        )
+        monkeypatch.setattr(cli, "setup_files", touch_setup_files)
 
         result = invoke_cli(["add"])
 
@@ -107,11 +111,7 @@ class TestAddCommand:
         )
         monkeypatch.setattr(cli.csv_handler, "word_exists", lambda word, path: True)
         monkeypatch.setattr(cli.csv_handler, "append_word", lambda word, path: None)
-        monkeypatch.setattr(
-            cli,
-            "setup_files",
-            lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"),
-        )
+        monkeypatch.setattr(cli, "setup_files", touch_setup_files)
 
         result = invoke_cli(["add", "bonjour"])
 
@@ -131,11 +131,7 @@ class TestAddCommand:
             captured["path"] = path
 
         monkeypatch.setattr(cli.csv_handler, "append_word", capture_append)
-        monkeypatch.setattr(
-            cli,
-            "setup_files",
-            lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"),
-        )
+        monkeypatch.setattr(cli, "setup_files", touch_setup_files)
 
         result = invoke_cli(["add", "to", "learn"])
 
@@ -162,11 +158,11 @@ class TestTranslateCommand:
         monkeypatch.setattr(
             cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
         )
-        monkeypatch.setattr(
-            cli,
-            "setup_files",
-            lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"),
-        )
+        translations = isolated_app_dir / "vocab.csv"
+        anki = isolated_app_dir / "anki.csv"
+        translations.touch()
+        anki.touch()
+        monkeypatch.setattr(cli, "setup_files", lambda *_: (translations, anki))
         monkeypatch.setattr(cli.csv_handler, "ensure_csv_has_fieldnames", lambda path: None)
         monkeypatch.setattr(cli.csv_handler, "vocabulary_list_is_empty", lambda path: True)
 
@@ -179,11 +175,11 @@ class TestTranslateCommand:
         monkeypatch.setattr(
             cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
         )
-        monkeypatch.setattr(
-            cli,
-            "setup_files",
-            lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"),
-        )
+        translations = isolated_app_dir / "vocab.csv"
+        anki = isolated_app_dir / "anki.csv"
+        translations.touch()
+        anki.touch()
+        monkeypatch.setattr(cli, "setup_files", lambda *_: (translations, anki))
         monkeypatch.setattr(cli.csv_handler, "ensure_csv_has_fieldnames", lambda path: None)
         monkeypatch.setattr(cli.csv_handler, "vocabulary_list_is_empty", lambda path: False)
         monkeypatch.setattr(
@@ -200,11 +196,11 @@ class TestTranslateCommand:
         monkeypatch.setattr(
             cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
         )
-        monkeypatch.setattr(
-            cli,
-            "setup_files",
-            lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"),
-        )
+        translations = isolated_app_dir / "vocab.csv"
+        anki = isolated_app_dir / "anki.csv"
+        translations.touch()
+        anki.touch()
+        monkeypatch.setattr(cli, "setup_files", lambda *_: (translations, anki))
         monkeypatch.setattr(cli.csv_handler, "ensure_csv_has_fieldnames", lambda path: None)
         monkeypatch.setattr(cli.csv_handler, "vocabulary_list_is_empty", lambda path: False)
 
@@ -336,7 +332,11 @@ class TestTranslateCommand:
         def fake_setup_files(directory, *_):
             return translations_path, anki_path
 
-        monkeypatch.setattr(cli, "setup_files", fake_setup_files)
+        translations = isolated_app_dir / "vocab.csv"
+        anki = isolated_app_dir / "anki.csv"
+        translations.touch()
+        anki.touch()
+        monkeypatch.setattr(cli, "setup_files", lambda *_: (translations, anki))
         monkeypatch.setattr(cli.csv_handler, "ensure_csv_has_fieldnames", lambda path: None)
         monkeypatch.setattr(cli.csv_handler, "vocabulary_list_is_empty", lambda path: False)
         monkeypatch.setattr(cli, "openai_api_key_exists", lambda: True)
@@ -380,17 +380,23 @@ class TestGenerateAnkiDeck:
 
 
 class TestAnkiCommand:
-    def test_anki_requires_default_pair(self, isolated_app_dir):
+    def test_anki_requires_default_pair(self, isolated_app_dir, monkeypatch):
+        def fail_pair(option):
+            raise ValueError("No default language pair found.")
+
+        monkeypatch.setattr(cli.config_handler, "get_language_pair", fail_pair)
+
         result = invoke_cli(["anki"])
 
         assert result.exit_code == 1
-        assert "No default language pair found" in result.output
+        assert "No default language pair found." in result.output
+        assert "vocabmaster pairs add" in result.output
 
     def test_anki_generates_deck_when_default_set(self, isolated_app_dir, monkeypatch):
         monkeypatch.setattr(
             cli.config_handler,
-            "get_default_language_pair",
-            lambda: {"language_to_learn": "english", "mother_tongue": "french"},
+            "get_language_pair",
+            lambda option: ("english", "french"),
         )
 
         translations = isolated_app_dir / "vocab.csv"
@@ -410,325 +416,34 @@ class TestAnkiCommand:
         assert result.exit_code == 0
         assert called["deck"][0] == translations
         assert called["deck"][1] == anki
+        assert called["deck"][2:] == ("english", "french")
 
+    def test_anki_generates_with_pair_option(self, isolated_app_dir, monkeypatch):
+        def capture_pair(option):
+            assert option == "spanish:english"
+            return "spanish", "english"
 
-class TestSetupCommand:
-    def test_setup_creates_files_and_sets_default(self, isolated_app_dir, monkeypatch):
-        prompts = iter(["English", "French"])
+        monkeypatch.setattr(cli.config_handler, "get_language_pair", capture_pair)
 
-        monkeypatch.setattr("click.prompt", lambda *_, **__: next(prompts))
-        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
+        translations = isolated_app_dir / "vocab.csv"
+        anki = isolated_app_dir / "anki.csv"
+        monkeypatch.setattr(cli, "setup_files", lambda *_args: (translations, anki))
 
-        result = invoke_cli(["setup"])
+        called = {}
 
-        config = config_handler.read_config()
-        assert result.exit_code == 0
-        assert config["default"]["language_to_learn"] == "english"
-        assert config["default"]["mother_tongue"] == "french"
-        assert Path(config_handler.get_config_filepath()).exists()
+        def record_generate(translations_path, anki_path, language, mother):
+            called["translations"] = translations_path
+            called["anki"] = anki_path
+            called["language"] = language
+            called["mother"] = mother
 
-    def test_setup_canceled_keeps_state(self, isolated_app_dir, monkeypatch):
-        prompts = iter(["German", "English"])
+        monkeypatch.setattr(cli, "generate_anki_deck", record_generate)
 
-        confirmations = iter([False])
-
-        monkeypatch.setattr("click.prompt", lambda *_, **__: next(prompts))
-        monkeypatch.setattr("click.confirm", lambda *_, **__: next(confirmations))
-
-        result = invoke_cli(["setup"])
-
-        config = config_handler.read_config()
-        assert result.exit_code == 0
-        assert "Setup canceled" in result.output
-        assert config["default"]["language_to_learn"] == "German"
-        assert config["default"]["mother_tongue"] == "English"
-
-    def test_setup_existing_default_sets_new_when_confirmed(self, isolated_app_dir, monkeypatch):
-        config_handler.set_language_pair("spanish", "english")
-        config_handler.set_default_language_pair("spanish", "english")
-
-        prompts = iter(["Italian", "French"])
-        confirmations = iter([True, True])
-
-        monkeypatch.setattr("click.prompt", lambda *_, **__: next(prompts))
-        monkeypatch.setattr("click.confirm", lambda *_, **__: next(confirmations))
-
-        result = invoke_cli(["setup"])
-
-        default_pair = config_handler.get_default_language_pair()
-        assert result.exit_code == 0
-        assert default_pair["language_to_learn"] == "italian"
-        assert default_pair["mother_tongue"] == "french"
-
-    def test_setup_existing_default_keeps_current_when_declined(
-        self, isolated_app_dir, monkeypatch
-    ):
-        config_handler.set_language_pair("spanish", "english")
-        config_handler.set_default_language_pair("spanish", "english")
-
-        prompts = iter(["Italian", "French"])
-        confirmations = iter([True, False])
-
-        monkeypatch.setattr("click.prompt", lambda *_, **__: next(prompts))
-        monkeypatch.setattr("click.confirm", lambda *_, **__: next(confirmations))
-
-        result = invoke_cli(["setup"])
-
-        default_pair = config_handler.get_default_language_pair()
-        assert result.exit_code == 0
-        assert "Keeping the existing default language pair." in result.output
-        assert default_pair["language_to_learn"] == "spanish"
-        assert default_pair["mother_tongue"] == "english"
-
-
-class TestDefaultCommand:
-    def test_default_command_handles_missing_default(self, isolated_app_dir):
-        result = invoke_cli(["default"])
+        result = invoke_cli(["anki", "--pair", "spanish:english"])
 
         assert result.exit_code == 0
-        assert "No default language pair configured yet." in result.output
-
-    def test_default_command_shows_current_default(self, isolated_app_dir):
-        config_handler.set_language_pair("english", "french")
-        config_handler.set_default_language_pair("english", "french")
-
-        result = invoke_cli(["default"])
-
-        assert result.exit_code == 0
-        assert "english:french" in result.output
-        assert "vocabmaster config default" in result.output
-
-
-class TestConfigDefaultCommand:
-    def test_config_default_requires_pairs(self, isolated_app_dir):
-        result = invoke_cli(["config", "default"])
-
-        assert result.exit_code == 1
-        assert "No language pairs found yet." in result.output
-
-    def test_config_default_select_by_number(self, isolated_app_dir, monkeypatch):
-        config_handler.set_language_pair("english", "french")
-        config_handler.set_language_pair("spanish", "english")
-        config_handler.set_default_language_pair("english", "french")
-
-        monkeypatch.setattr("click.prompt", lambda *_, **__: "2")
-
-        result = invoke_cli(["config", "default"])
-
-        default_pair = config_handler.get_default_language_pair()
-        assert result.exit_code == 0
-        assert default_pair["language_to_learn"] == "spanish"
-        assert default_pair["mother_tongue"] == "english"
-
-    def test_config_default_number_out_of_range(self, isolated_app_dir, monkeypatch):
-        config_handler.set_language_pair("english", "french")
-        config_handler.set_default_language_pair("english", "french")
-
-        monkeypatch.setattr("click.prompt", lambda *_, **__: "5")
-
-        result = invoke_cli(["config", "default"])
-
-        assert result.exit_code == 1
-        assert "Invalid choice" in result.output
-
-    def test_config_default_invalid_pair_format(self, isolated_app_dir, monkeypatch):
-        config_handler.set_language_pair("english", "french")
-        config_handler.set_default_language_pair("english", "french")
-
-        monkeypatch.setattr("click.prompt", lambda *_, **__: "english-french")
-
-        result = invoke_cli(["config", "default"])
-
-        assert result.exit_code == 1
-        assert "Invalid language pair." in result.output
-        assert "language_to_learn:mother_tongue" in result.output
-
-    def test_config_default_accepts_pair_string(self, isolated_app_dir, monkeypatch):
-        config_handler.set_language_pair("english", "french")
-        config_handler.set_language_pair("spanish", "english")
-        config_handler.set_default_language_pair("english", "french")
-
-        monkeypatch.setattr("click.prompt", lambda *_, **__: "spanish:english")
-
-        result = invoke_cli(["config", "default"])
-
-        default_pair = config_handler.get_default_language_pair()
-        assert result.exit_code == 0
-        assert default_pair["language_to_learn"] == "spanish"
-        assert default_pair["mother_tongue"] == "english"
-
-
-class TestConfigRemoveCommand:
-    def test_config_remove_requires_pairs(self, isolated_app_dir):
-        result = invoke_cli(["config", "remove"])
-
-        assert result.exit_code == 1
-        assert "No language pairs found yet." in result.output
-
-    def test_config_remove_invalid_number(self, isolated_app_dir, monkeypatch):
-        config_handler.set_language_pair("english", "french")
-        config_handler.set_default_language_pair("english", "french")
-
-        monkeypatch.setattr("click.prompt", lambda *_, **__: "3")
-
-        result = invoke_cli(["config", "remove"])
-
-        assert result.exit_code == 1
-        assert "Invalid choice" in result.output
-
-    def test_config_remove_invalid_pair_format(self, isolated_app_dir, monkeypatch):
-        config_handler.set_language_pair("english", "french")
-        config_handler.set_default_language_pair("english", "french")
-
-        monkeypatch.setattr("click.prompt", lambda *_, **__: "english-french")
-
-        result = invoke_cli(["config", "remove"])
-
-        assert result.exit_code == 1
-        assert "Invalid language pair." in result.output
-
-    def test_config_remove_pair_not_found(self, isolated_app_dir, monkeypatch):
-        config_handler.set_language_pair("english", "french")
-        config_handler.set_default_language_pair("english", "french")
-
-        monkeypatch.setattr("click.prompt", lambda *_, **__: "spanish:english")
-
-        result = invoke_cli(["config", "remove"])
-
-        assert result.exit_code == 1
-        assert "was not found" in result.output
-
-    def test_config_remove_decline_confirmation(self, isolated_app_dir, monkeypatch):
-        config_handler.set_language_pair("english", "french")
-        config_handler.set_language_pair("spanish", "english")
-        config_handler.set_default_language_pair("english", "french")
-
-        monkeypatch.setattr("click.prompt", lambda *_, **__: "1")
-        monkeypatch.setattr("click.confirm", lambda *_, **__: False)
-
-        result = invoke_cli(["config", "remove"])
-
-        pairs = config_handler.get_all_language_pairs()
-        assert result.exit_code == 0
-        assert "No changes made." in result.output
-        assert len(pairs) == 2
-
-    def test_config_remove_by_number(self, isolated_app_dir, monkeypatch):
-        config_handler.set_language_pair("english", "french")
-        config_handler.set_language_pair("spanish", "english")
-        config_handler.set_default_language_pair("english", "french")
-
-        monkeypatch.setattr("click.prompt", lambda *_, **__: "2")
-        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
-
-        result = invoke_cli(["config", "remove"])
-
-        pairs = config_handler.get_all_language_pairs()
-        assert result.exit_code == 0
-        assert "has been removed" in result.output
-        assert "spanish:english" not in {
-            f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs
-        }
-
-    def test_config_remove_by_pair_string(self, isolated_app_dir, monkeypatch):
-        config_handler.set_language_pair("english", "french")
-        config_handler.set_language_pair("spanish", "english")
-        config_handler.set_default_language_pair("english", "french")
-
-        monkeypatch.setattr("click.prompt", lambda *_, **__: "Spanish:English")
-        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
-
-        result = invoke_cli(["config", "remove"])
-
-        pairs = config_handler.get_all_language_pairs()
-        assert result.exit_code == 0
-        assert "has been removed" in result.output
-        assert "spanish:english" not in {
-            f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs
-        }
-
-    def test_config_remove_no_selection(self, isolated_app_dir, monkeypatch):
-        config_handler.set_language_pair("english", "french")
-
-        monkeypatch.setattr("click.prompt", lambda *_, **__: "   ")
-
-        result = invoke_cli(["config", "remove"])
-
-        assert result.exit_code == 1
-        assert "No language pairs selected for removal." in result.output
-
-    def test_config_remove_multiple_numbers(self, isolated_app_dir, monkeypatch):
-        config_handler.set_language_pair("english", "french")
-        config_handler.set_language_pair("spanish", "english")
-        config_handler.set_language_pair("german", "english")
-        config_handler.set_default_language_pair("english", "french")
-
-        monkeypatch.setattr("click.prompt", lambda *_, **__: "2, 3")
-        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
-
-        result = invoke_cli(["config", "remove"])
-
-        pairs = config_handler.get_all_language_pairs()
-        assert result.exit_code == 0
-        assert "spanish:english" not in {
-            f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs
-        }
-        assert "german:english" not in {
-            f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs
-        }
-        assert result.output.count("has been removed") == 2
-
-    def test_config_remove_multiple_pairs(self, isolated_app_dir, monkeypatch):
-        config_handler.set_language_pair("english", "french")
-        config_handler.set_language_pair("spanish", "english")
-        config_handler.set_language_pair("german", "english")
-        config_handler.set_default_language_pair("english", "french")
-
-        monkeypatch.setattr("click.prompt", lambda *_, **__: "spanish:english, GERMAN:english")
-        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
-
-        result = invoke_cli(["config", "remove"])
-
-        pairs = config_handler.get_all_language_pairs()
-        assert result.exit_code == 0
-        assert "spanish:english" not in {
-            f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs
-        }
-        assert "german:english" not in {
-            f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs
-        }
-        assert result.output.count("has been removed") == 2
-
-    def test_config_remove_removes_default(self, isolated_app_dir, monkeypatch):
-        config_handler.set_language_pair("english", "french")
-        config_handler.set_language_pair("spanish", "english")
-        config_handler.set_default_language_pair("english", "french")
-
-        monkeypatch.setattr("click.prompt", lambda *_, **__: "1")
-        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
-
-        result = invoke_cli(["config", "remove"])
-
-        default_pair = config_handler.get_default_language_pair()
-        assert result.exit_code == 0
-        assert "default language pair was removed" in result.output
-        assert "Run 'vocabmaster config default' to choose a new default." in result.output
-        assert default_pair is None
-
-    def test_config_remove_last_pair(self, isolated_app_dir, monkeypatch):
-        config_handler.set_language_pair("english", "french")
-        config_handler.set_default_language_pair("english", "french")
-
-        monkeypatch.setattr("click.prompt", lambda *_, **__: "1")
-        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
-
-        result = invoke_cli(["config", "remove"])
-
-        pairs = config_handler.get_all_language_pairs()
-        assert result.exit_code == 0
-        assert pairs == []
-        assert "There are no language pairs configured now." in result.output
-        assert "Use 'vocabmaster setup' to add a new language pair." in result.output
+        assert called["language"] == "spanish"
+        assert called["mother"] == "english"
 
 
 class TestConfigKeyCommand:
@@ -757,26 +472,13 @@ class TestConfigKeyCommand:
         assert called["explain"] is True
 
 
-class TestShowCommand:
-    def test_show_handles_absent_pairs(self, isolated_app_dir):
-        result = invoke_cli(["show"])
-
-        assert result.exit_code == 0
-        assert "No language pairs found yet." in result.output
-
-    def test_show_lists_pairs(self, isolated_app_dir):
-        config_handler.set_language_pair("english", "french")
-        config_handler.set_language_pair("spanish", "english")
-
-        result = invoke_cli(["show"])
-
-        assert result.exit_code == 0
-        assert "1. english:french" in result.output
-        assert "2. spanish:english" in result.output
-
-
 class TestTokensCommand:
-    def test_tokens_requires_default_pair(self, isolated_app_dir):
+    def test_tokens_requires_default_pair(self, isolated_app_dir, monkeypatch):
+        def fail_pair(option):
+            raise ValueError("No default language pair found")
+
+        monkeypatch.setattr(cli.config_handler, "get_language_pair", fail_pair)
+
         result = invoke_cli(["tokens"])
 
         assert result.exit_code == 1
@@ -784,15 +486,13 @@ class TestTokensCommand:
 
     def test_tokens_requires_words(self, isolated_app_dir, monkeypatch):
         monkeypatch.setattr(
-            cli.config_handler,
-            "get_default_language_pair",
-            lambda: {"language_to_learn": "english", "mother_tongue": "french"},
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
         )
-        monkeypatch.setattr(
-            cli,
-            "setup_files",
-            lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"),
-        )
+        translations = isolated_app_dir / "vocab.csv"
+        anki = isolated_app_dir / "anki.csv"
+        translations.touch()
+        anki.touch()
+        monkeypatch.setattr(cli, "setup_files", lambda *_: (translations, anki))
         monkeypatch.setattr(cli.csv_handler, "vocabulary_list_is_empty", lambda path: True)
 
         result = invoke_cli(["tokens"])
@@ -802,15 +502,13 @@ class TestTokensCommand:
 
     def test_tokens_handles_get_words_error(self, isolated_app_dir, monkeypatch):
         monkeypatch.setattr(
-            cli.config_handler,
-            "get_default_language_pair",
-            lambda: {"language_to_learn": "english", "mother_tongue": "french"},
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
         )
-        monkeypatch.setattr(
-            cli,
-            "setup_files",
-            lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"),
-        )
+        translations = isolated_app_dir / "vocab.csv"
+        anki = isolated_app_dir / "anki.csv"
+        translations.touch()
+        anki.touch()
+        monkeypatch.setattr(cli, "setup_files", lambda *_: (translations, anki))
         monkeypatch.setattr(cli.csv_handler, "vocabulary_list_is_empty", lambda path: False)
 
         def fail_words(_path):
@@ -823,30 +521,70 @@ class TestTokensCommand:
         assert result.exit_code == 0
         assert "Status:" in result.output
         assert "Cannot parse" in result.output
-        assert "Therefore, the cost of the next prompt cannot be estimated." in result.output
+        assert "Therefore, the next prompt cannot be evaluated." in result.output
 
     def test_tokens_outputs_estimated_cost(self, isolated_app_dir, monkeypatch):
         monkeypatch.setattr(
-            cli.config_handler,
-            "get_default_language_pair",
-            lambda: {"language_to_learn": "english", "mother_tongue": "french"},
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
         )
-        monkeypatch.setattr(
-            cli,
-            "setup_files",
-            lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"),
-        )
+        translations = isolated_app_dir / "vocab.csv"
+        anki = isolated_app_dir / "anki.csv"
+        translations.touch()
+        anki.touch()
+        monkeypatch.setattr(cli, "setup_files", lambda *_: (translations, anki))
         monkeypatch.setattr(cli.csv_handler, "vocabulary_list_is_empty", lambda path: False)
         monkeypatch.setattr(cli.csv_handler, "get_words_to_translate", lambda path: ["word"])
-        monkeypatch.setattr(cli.gpt_integration, "format_prompt", lambda *_: "prompt")
         monkeypatch.setattr(
-            cli.gpt_integration, "estimate_prompt_cost", lambda *_: {"gpt-3.5-turbo": "0.004"}
+            cli.gpt_integration,
+            "format_prompt",
+            lambda *_: [{"role": "system", "content": "prompt"}],
         )
+
+        def fake_estimate(prompt, model="gpt-3.5-turbo"):
+            assert model == "gpt-3.5-turbo"
+            return {"gpt-3.5-turbo": "0.004"}
+
+        monkeypatch.setattr(cli.gpt_integration, "estimate_prompt_cost", fake_estimate)
 
         result = invoke_cli(["tokens"])
 
         assert result.exit_code == 0
+        assert "Prompt tokens (input only):" in result.output
+        assert "gpt-3.5-turbo" in result.output
         assert "$0.004" in result.output
+
+    def test_tokens_pair_option(self, isolated_app_dir, monkeypatch):
+        def capture_pair(option):
+            assert option == "spanish:english"
+            return "spanish", "english"
+
+        monkeypatch.setattr(cli.config_handler, "get_language_pair", capture_pair)
+        translations = isolated_app_dir / "vocab.csv"
+        anki = isolated_app_dir / "anki.csv"
+        translations.touch()
+        anki.touch()
+        monkeypatch.setattr(cli, "setup_files", lambda *_: (translations, anki))
+        monkeypatch.setattr(cli.csv_handler, "vocabulary_list_is_empty", lambda path: False)
+        monkeypatch.setattr(cli.csv_handler, "get_words_to_translate", lambda path: ["palabra"])
+        monkeypatch.setattr(
+            cli.gpt_integration,
+            "format_prompt",
+            lambda *_: [{"role": "system", "content": "prompt"}],
+        )
+        monkeypatch.setattr(
+            cli.gpt_integration,
+            "estimate_prompt_cost",
+            lambda *args, **kwargs: {
+                "tokens": 210,
+                "cost": "0.010",
+                "price_available": True,
+            },
+        )
+
+        result = invoke_cli(["tokens", "--pair", "spanish:english"])
+
+        assert result.exit_code == 0
+        assert "Prompt tokens (input only):" in result.output
 
 
 class TestConfigHandlerRemove:
@@ -914,6 +652,7 @@ class TestHelperFunctions:
         output = capsys.readouterr().out
         assert returned == []
         assert "No language pairs found yet." in output
+        assert "vocabmaster pairs add" in output
 
     def test_print_all_language_pairs_lists_items(self, isolated_app_dir, capsys):
         config_handler.set_language_pair("english", "french")
@@ -992,3 +731,623 @@ class TestHelperFunctions:
         assert returned == custom_dir
         assert "Current storage directory:" in output
         assert str(custom_dir) in output
+
+
+class TestPairsGroup:
+    def test_pairs_group_help(self):
+        result = invoke_cli(["pairs"])
+
+        assert result.exit_code == 0
+        assert "Manage language pairs" in result.output
+        assert "add          Create a new language pair." in result.output
+        assert "list         List all configured language pairs." in result.output
+
+    def test_pair_alias_help(self):
+        result = invoke_cli(["pair"])
+
+        assert result.exit_code == 0
+        assert "Manage language pairs" in result.output
+
+    def test_pair_alias_hidden_from_root_help(self):
+        result = invoke_cli([])
+
+        assert "pairs      Manage language pairs" in result.output
+        assert "pair       Manage language pairs" not in result.output
+
+
+class TestPairsListCommand:
+    def test_pairs_list_handles_absent_pairs(self, isolated_app_dir):
+        result = invoke_cli(["pairs", "list"])
+
+        assert result.exit_code == 0
+        assert "No language pairs found yet." in result.output
+
+    def test_pairs_list_displays_pairs(self, isolated_app_dir):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_language_pair("spanish", "english")
+
+        result = invoke_cli(["pairs", "list"])
+
+        assert result.exit_code == 0
+        assert "1. english:french" in result.output
+        assert "2. spanish:english" in result.output
+
+
+class TestPairsAddCommand:
+    def test_pairs_add_creates_files_and_sets_default(self, isolated_app_dir, monkeypatch):
+        prompts = iter(["English", "French"])
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: next(prompts))
+        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
+
+        result = invoke_cli(["pairs", "add"])
+
+        config = config_handler.read_config()
+        assert result.exit_code == 0
+        assert config["default"]["language_to_learn"] == "english"
+        assert config["default"]["mother_tongue"] == "french"
+        assert Path(config_handler.get_config_filepath()).exists()
+
+    def test_pairs_add_canceled_keeps_state(self, isolated_app_dir, monkeypatch):
+        prompts = iter(["German", "English"])
+        confirmations = iter([False])
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: next(prompts))
+        monkeypatch.setattr("click.confirm", lambda *_, **__: next(confirmations))
+
+        result = invoke_cli(["pairs", "add"])
+
+        config = config_handler.read_config()
+        assert result.exit_code == 0
+        assert "Creation canceled" in result.output
+        assert config["default"]["language_to_learn"] == "German"
+        assert config["default"]["mother_tongue"] == "English"
+
+    def test_pairs_add_existing_default_sets_new_when_confirmed(
+        self, isolated_app_dir, monkeypatch
+    ):
+        config_handler.set_language_pair("spanish", "english")
+        config_handler.set_default_language_pair("spanish", "english")
+
+        prompts = iter(["Italian", "French"])
+        confirmations = iter([True, True])
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: next(prompts))
+        monkeypatch.setattr("click.confirm", lambda *_, **__: next(confirmations))
+
+        result = invoke_cli(["pairs", "add"])
+
+        default_pair = config_handler.get_default_language_pair()
+        assert result.exit_code == 0
+        assert default_pair["language_to_learn"] == "italian"
+        assert default_pair["mother_tongue"] == "french"
+
+    def test_pairs_add_existing_default_keeps_current_when_declined(
+        self, isolated_app_dir, monkeypatch
+    ):
+        config_handler.set_language_pair("spanish", "english")
+        config_handler.set_default_language_pair("spanish", "english")
+
+        prompts = iter(["Italian", "French"])
+        confirmations = iter([True, False])
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: next(prompts))
+        monkeypatch.setattr("click.confirm", lambda *_, **__: next(confirmations))
+
+        result = invoke_cli(["pairs", "add"])
+
+        default_pair = config_handler.get_default_language_pair()
+        assert result.exit_code == 0
+        assert "Keeping the existing default language pair." in result.output
+        assert default_pair["language_to_learn"] == "spanish"
+        assert default_pair["mother_tongue"] == "english"
+
+
+class TestPairsDefaultCommand:
+    def test_pairs_default_handles_missing_default(self, isolated_app_dir):
+        result = invoke_cli(["pairs", "default"])
+
+        assert result.exit_code == 0
+        assert "No default language pair configured yet." in result.output
+
+    def test_pairs_default_shows_current_default(self, isolated_app_dir):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_default_language_pair("english", "french")
+
+        result = invoke_cli(["pairs", "default"])
+
+        assert result.exit_code == 0
+        assert "english:french" in result.output
+        assert "vocabmaster pairs set-default" in result.output
+
+
+class TestPairsSetDefaultCommand:
+    def test_pairs_set_default_requires_pairs(self, isolated_app_dir):
+        result = invoke_cli(["pairs", "set-default"])
+
+        assert result.exit_code == 1
+        assert "No language pairs found yet." in result.output
+
+    def test_pairs_set_default_select_by_number(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_language_pair("spanish", "english")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "2")
+
+        result = invoke_cli(["pairs", "set-default"])
+
+        default_pair = config_handler.get_default_language_pair()
+        assert result.exit_code == 0
+        assert default_pair["language_to_learn"] == "spanish"
+        assert default_pair["mother_tongue"] == "english"
+
+    def test_pairs_set_default_number_out_of_range(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "5")
+
+        result = invoke_cli(["pairs", "set-default"])
+
+        assert result.exit_code == 1
+        assert "Invalid choice" in result.output
+
+    def test_pairs_set_default_invalid_pair_format(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "english-french")
+
+        result = invoke_cli(["pairs", "set-default"])
+
+        assert result.exit_code == 1
+        assert "Invalid language pair." in result.output
+        assert "language_to_learn:mother_tongue" in result.output
+
+    def test_pairs_set_default_accepts_pair_string(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_language_pair("spanish", "english")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "spanish:english")
+
+        result = invoke_cli(["pairs", "set-default"])
+
+        default_pair = config_handler.get_default_language_pair()
+        assert result.exit_code == 0
+        assert default_pair["language_to_learn"] == "spanish"
+        assert default_pair["mother_tongue"] == "english"
+
+    def test_pair_alias_set_default(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_language_pair("spanish", "english")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "2")
+
+        result = invoke_cli(["pair", "set-default"])
+
+        default_pair = config_handler.get_default_language_pair()
+        assert result.exit_code == 0
+        assert default_pair["language_to_learn"] == "spanish"
+        assert default_pair["mother_tongue"] == "english"
+
+
+class TestPairsRemoveCommand:
+    def test_pairs_remove_requires_pairs(self, isolated_app_dir):
+        result = invoke_cli(["pairs", "remove"])
+
+        assert result.exit_code == 1
+        assert "No language pairs found yet." in result.output
+
+    def test_pairs_remove_invalid_number(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "3")
+
+        result = invoke_cli(["pairs", "remove"])
+
+        assert result.exit_code == 1
+        assert "Invalid choice" in result.output
+
+    def test_pairs_remove_invalid_pair_format(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "english-french")
+
+        result = invoke_cli(["pairs", "remove"])
+
+        assert result.exit_code == 1
+        assert "Invalid language pair." in result.output
+
+    def test_pairs_remove_pair_not_found(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "spanish:english")
+
+        result = invoke_cli(["pairs", "remove"])
+
+        assert result.exit_code == 1
+        assert "was not found" in result.output
+
+    def test_pairs_remove_decline_confirmation(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_language_pair("spanish", "english")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "1")
+        monkeypatch.setattr("click.confirm", lambda *_, **__: False)
+
+        result = invoke_cli(["pairs", "remove"])
+
+        pairs = config_handler.get_all_language_pairs()
+        assert result.exit_code == 0
+        assert "No changes made." in result.output
+        assert len(pairs) == 2
+
+    def test_pairs_remove_by_number(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_language_pair("spanish", "english")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "2")
+        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
+
+        result = invoke_cli(["pairs", "remove"])
+
+        pairs = config_handler.get_all_language_pairs()
+        assert result.exit_code == 0
+        assert "has been removed" in result.output
+        assert "spanish:english" not in {
+            f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs
+        }
+
+    def test_pairs_remove_by_pair_string(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_language_pair("spanish", "english")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "Spanish:English")
+        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
+
+        result = invoke_cli(["pairs", "remove"])
+
+        pairs = config_handler.get_all_language_pairs()
+        assert result.exit_code == 0
+        assert "has been removed" in result.output
+        assert "spanish:english" not in {
+            f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs
+        }
+
+    def test_pairs_remove_no_selection(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "   ")
+
+        result = invoke_cli(["pairs", "remove"])
+
+        assert result.exit_code == 1
+        assert "No language pairs selected for removal." in result.output
+
+    def test_pairs_remove_multiple_numbers(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_language_pair("spanish", "english")
+        config_handler.set_language_pair("german", "english")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "2, 3")
+        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
+
+        result = invoke_cli(["pairs", "remove"])
+
+        pairs = config_handler.get_all_language_pairs()
+        assert result.exit_code == 0
+        assert "spanish:english" not in {
+            f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs
+        }
+        assert "german:english" not in {
+            f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs
+        }
+        assert result.output.count("has been removed") == 2
+
+    def test_pairs_remove_multiple_pairs(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_language_pair("spanish", "english")
+        config_handler.set_language_pair("german", "english")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "spanish:english, GERMAN:english")
+        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
+
+        result = invoke_cli(["pairs", "remove"])
+
+        pairs = config_handler.get_all_language_pairs()
+        assert result.exit_code == 0
+        assert "spanish:english" not in {
+            f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs
+        }
+        assert "german:english" not in {
+            f"{pair['language_to_learn']}:{pair['mother_tongue']}" for pair in pairs
+        }
+        assert result.output.count("has been removed") == 2
+
+    def test_pairs_remove_removes_default(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_language_pair("spanish", "english")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "1")
+        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
+
+        result = invoke_cli(["pairs", "remove"])
+
+        default_pair = config_handler.get_default_language_pair()
+        assert result.exit_code == 0
+        assert "default language pair was removed" in result.output
+        assert "Run 'vocabmaster pairs set-default' to choose a new default." in result.output
+        assert default_pair is None
+
+    def test_pairs_remove_last_pair(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_default_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "1")
+        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
+
+        result = invoke_cli(["pairs", "remove"])
+
+        pairs = config_handler.get_all_language_pairs()
+        assert result.exit_code == 0
+        assert pairs == []
+        assert "There are no language pairs configured now." in result.output
+        assert "Use 'vocabmaster pairs add' to add a new language pair." in result.output
+
+
+class TestPairsRenameCommand:
+    def test_pairs_rename_success(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_default_language_pair("english", "french")
+
+        translations, anki = utils.setup_files(isolated_app_dir, "english", "french")
+        translations.write_text(
+            'word,translation,example\nbonjour,hello,"example"', encoding="utf-8"
+        )
+        anki.write_text("#header\nrow", encoding="utf-8")
+
+        prompts = iter(["1", "british:french"])
+        confirmations = iter([True])
+
+        backup_calls = []
+        original_backup_file = utils.backup_file
+
+        def tracking_backup(backup_dir, filepath):
+            backup_calls.append(filepath.name)
+            return original_backup_file(backup_dir, filepath)
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: next(prompts))
+        monkeypatch.setattr("click.confirm", lambda *_, **__: next(confirmations))
+        monkeypatch.setattr(cli.utils, "backup_file", tracking_backup)
+
+        result = invoke_cli(["pairs", "rename"])
+
+        storage_files = sorted(p.name for p in isolated_app_dir.glob("*"))
+        assert result.exit_code == 0
+        assert "english:french has been renamed to british:french" in result.output
+        assert "vocab_list_british-french.csv" in storage_files
+        assert "anki_deck_british-french.csv" in storage_files
+        assert "vocab_list_english-french.csv" not in storage_files
+        assert "anki_deck_english-french.csv" not in storage_files
+
+        default_pair = config_handler.get_default_language_pair()
+        assert default_pair["language_to_learn"] == "british"
+        assert default_pair["mother_tongue"] == "french"
+        assert {"vocab_list_english-french.csv", "anki_deck_english-french.csv"} <= set(
+            backup_calls
+        )
+
+    def test_pairs_rename_decline_confirmation(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+
+        prompts = iter(["english:french", "british:french"])
+        confirmations = iter([False])
+
+        translations, anki = utils.setup_files(isolated_app_dir, "english", "french")
+        translations.write_text("", encoding="utf-8")
+        anki.write_text("", encoding="utf-8")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: next(prompts))
+        monkeypatch.setattr("click.confirm", lambda *_, **__: next(confirmations))
+
+        result = invoke_cli(["pairs", "rename"])
+
+        assert result.exit_code == 0
+        assert "No changes made." in result.output
+        assert (isolated_app_dir / "vocab_list_english-french.csv").exists()
+        assert (isolated_app_dir / "anki_deck_english-french.csv").exists()
+
+    def test_pairs_rename_invalid_new_format(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+
+        prompts = iter(["english:french", "british-french"])
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: next(prompts))
+        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
+
+        result = invoke_cli(["pairs", "rename"])
+
+        assert result.exit_code == 1
+        assert "Invalid language pair." in result.output
+
+    def test_pairs_rename_pair_not_found(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+
+        prompts = iter(["spanish:english"])
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: next(prompts))
+        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
+
+        result = invoke_cli(["pairs", "rename"])
+
+        assert result.exit_code == 1
+        assert "was not found" in result.output
+
+    def test_pairs_rename_target_exists(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_language_pair("spanish", "english")
+
+        prompts = iter(["english:french", "spanish:english"])
+        confirmations = iter([True])
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: next(prompts))
+        monkeypatch.setattr("click.confirm", lambda *_, **__: next(confirmations))
+
+        result = invoke_cli(["pairs", "rename"])
+
+        assert result.exit_code == 1
+        assert "already exists" in result.output
+
+    def test_pairs_rename_same_name(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+
+        prompts = iter(["english:french", "english:french"])
+        confirmations = iter([True])
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: next(prompts))
+        monkeypatch.setattr("click.confirm", lambda *_, **__: next(confirmations))
+
+        result = invoke_cli(["pairs", "rename"])
+
+        assert result.exit_code == 1
+        assert "New language pair must be different" in result.output
+
+    def test_pairs_rename_confirmation_default_is_false(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+
+        prompts = iter(["english:french", "british:french"])
+
+        confirmation_defaults = {}
+
+        def capture_confirm(prompt, default=False):
+            confirmation_defaults["value"] = default
+            return False
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: next(prompts))
+        monkeypatch.setattr("click.confirm", capture_confirm)
+
+        result = invoke_cli(["pairs", "rename"])
+
+        assert result.exit_code == 0
+        assert "No changes made." in result.output
+        assert confirmation_defaults["value"] is False
+
+
+class TestPairsInspectCommand:
+    def test_pairs_inspect_requires_existing_pair(self, isolated_app_dir):
+        result = invoke_cli(["pairs", "inspect", "--pair", "english:french"])
+
+        assert result.exit_code == 1
+        assert "The language pair english:french was not found." in result.output
+
+    def test_pairs_inspect_displays_metrics(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_default_language_pair("english", "french")
+
+        translations, anki = utils.setup_files(isolated_app_dir, "english", "french")
+        translations.write_text(
+            'word,translation,example\nbonjour,hello,"example"\nchien,,\n',
+            encoding="utf-8",
+        )
+        anki.write_text("#header\nrow", encoding="utf-8")
+
+        monkeypatch.setattr(
+            cli.gpt_integration,
+            "format_prompt",
+            lambda *args: [{"role": "system", "content": "prompt"}],
+        )
+        monkeypatch.setattr(
+            cli.gpt_integration,
+            "estimate_prompt_cost",
+            lambda *args, **kwargs: {"gpt-3.5-turbo": "0.123"},
+        )
+
+        result = invoke_cli(["pairs", "inspect", "--pair", "english:french"])
+
+        assert result.exit_code == 0
+        assert "english:french" in result.output
+        assert "Default: Yes" in result.output
+        assert f"Vocabulary file: {translations}" in result.output
+        assert f"Anki deck: {anki}" in result.output
+        assert "Total words: 2" in result.output
+        assert "Translated: 1" in result.output
+        assert "Pending: 1" in result.output
+        assert "Prompt tokens (input only):" in result.output
+        assert "Estimated prompt cost (input tokens only, gpt-3.5-turbo): $0.123" in result.output
+
+    def test_pairs_inspect_uses_default_when_no_argument(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_default_language_pair("english", "french")
+
+        translations, anki = utils.setup_files(isolated_app_dir, "english", "french")
+        translations.write_text("word,translation,example\nbonjour,,\n", encoding="utf-8")
+        anki.write_text("#header\nrow", encoding="utf-8")
+
+        monkeypatch.setattr(
+            cli.gpt_integration,
+            "format_prompt",
+            lambda *args: [{"role": "system", "content": "prompt"}],
+        )
+        monkeypatch.setattr(
+            cli.gpt_integration,
+            "estimate_prompt_cost",
+            lambda *args, **kwargs: {"gpt-3.5-turbo": "0.456"},
+        )
+
+        result = invoke_cli(["pairs", "inspect"])
+
+        assert result.exit_code == 0
+        assert "Language pair: english:french" in result.output
+        assert "Default: Yes" in result.output
+        assert "Estimated prompt cost (input tokens only, gpt-3.5-turbo): $0.456" in result.output
+
+    def test_pairs_inspect_non_default_pair(self, isolated_app_dir, monkeypatch):
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_language_pair("spanish", "english")
+        config_handler.set_default_language_pair("spanish", "english")
+
+        translations, anki = utils.setup_files(isolated_app_dir, "english", "french")
+        translations.write_text("word,translation,example\nhola,,\n", encoding="utf-8")
+        anki.write_text("#header\nrow", encoding="utf-8")
+
+        monkeypatch.setattr(
+            cli.gpt_integration,
+            "format_prompt",
+            lambda *args: [{"role": "system", "content": "prompt"}],
+        )
+        monkeypatch.setattr(
+            cli.gpt_integration,
+            "estimate_prompt_cost",
+            lambda *args, **kwargs: {"gpt-3.5-turbo": "0.111"},
+        )
+
+        result = invoke_cli(["pairs", "inspect", "--pair", "english:french"])
+
+        assert result.exit_code == 0
+        assert "Default: No" in result.output
+        assert "Pending: 1" in result.output
+        assert "Estimated prompt cost (input tokens only, gpt-3.5-turbo): $0.111" in result.output
+
+    def test_pairs_inspect_handles_missing_files(self, isolated_app_dir):
+        config_handler.set_language_pair("english", "french")
+
+        result = invoke_cli(["pairs", "inspect", "--pair", "english:french"])
+
+        assert result.exit_code == 0
+        assert "Vocabulary file:" in result.output
+        assert "Anki deck:" in result.output
+        assert "Total words: 0" in result.output
+        assert "Translated: 0" in result.output
+        assert "Prompt tokens (input only): N/A (vocabulary file not found)" in result.output
