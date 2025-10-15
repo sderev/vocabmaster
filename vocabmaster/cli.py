@@ -1022,7 +1022,9 @@ def compute_prompt_estimate(language_to_learn, mother_tongue, translations_path)
     if not words_to_translate:
         return {"status": "no_words", "model": translation_model}
 
-    prompt = gpt_integration.format_prompt(language_to_learn, mother_tongue, words_to_translate)
+    # Determine the mode based on whether languages match
+    mode = utils.get_pair_mode(language_to_learn, mother_tongue)
+    prompt = gpt_integration.format_prompt(language_to_learn, mother_tongue, words_to_translate, mode)
 
     tokens_count = gpt_integration.num_tokens_from_messages(prompt, translation_model)
     cost_value = gpt_integration.estimate_prompt_cost(prompt, translation_model)
