@@ -46,7 +46,7 @@ def vocabmaster(ctx):
     and creates an Anki deck for you to import.
 
     Start by setting up a new language pair:
-    'vocabmaster setup'
+    'vocabmaster pairs add'
 
     Add words to your vocabulary list:
     'vocabmaster add to have'
@@ -241,23 +241,32 @@ def generate_anki_deck(translations_filepath, anki_filepath, language_to_learn, 
 
 
 @vocabmaster.command()
-def anki():
+@click.option(
+    "--pair",
+    type=str,
+    help=(
+        "Generate the deck for a specific language pair. Specify in the format "
+        "'language_to_learn:mother_tongue'."
+    ),
+    required=False,
+)
+def anki(pair):
     """
     Generate an Anki deck from your vocabulary list.
 
     The Anki deck will be saved in the same folder as your vocabulary list.
     """
-    default_pair = config_handler.get_default_language_pair()
-    if default_pair is None:
+    try:
+        language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
+    except Exception as error:
         click.secho("Error: ", fg="red", nl=False, err=True)
-        click.echo(
-            "No default language pair found. Run 'vocabmaster setup' to create one.",
-            err=True,
-        )
+        click.echo(error, err=True)
+        if pair is None:
+            click.echo(
+                f"Run '{click.style('vocabmaster pairs add', bold=True)}' to create a language pair.",
+                err=True,
+            )
         sys.exit(1)
-
-    language_to_learn = default_pair["language_to_learn"]
-    mother_tongue = default_pair["mother_tongue"]
 
     translations_filepath, anki_filepath = setup_files(
         setup_dir(), language_to_learn, mother_tongue
@@ -266,17 +275,9 @@ def anki():
     generate_anki_deck(translations_filepath, anki_filepath, language_to_learn, mother_tongue)
 
 
-@vocabmaster.command()
-def setup():
+def create_language_pair_interactively():
     """
-    Set up a new language pair.
-
-    This command creates the necessary folders and files
-    for the specified mother tongue and language to learn.
-    You can set up as many language pairs as you want.
-
-    Example usage:
-    vocabmaster setup
+    Interactive workflow used by the `pairs add` command.
     """
     language_to_learn = click.prompt("Please enter the language you want to learn")
     mother_tongue = click.prompt("Please enter your mother tongue")
@@ -305,10 +306,10 @@ def setup():
         click.echo(f"Anki deck file: {anki_filepath}")
         click.echo(f"Backup directory: {backup_lang}")
         click.echo()
-        click.echo(f"VocabMaster setup for {language_to_learn} to {mother_tongue} complete 🤓✅")
+        click.echo(f"Language pair {language_to_learn}:{mother_tongue} is ready 🤓✅")
         click.echo()
     else:
-        click.secho("Setup canceled", fg="red")
+        click.secho("Creation canceled", fg="red")
 
     # Set the default language pair
     if config_handler.get_default_language_pair() is None:
@@ -353,16 +354,6 @@ def setup():
             click.secho(f"{default_language_to_learn}:{default_mother_tongue}", bold=True)
 
 
-@vocabmaster.command()
-def default():
-    """
-    Show the current default language pair.
-    """
-    print_default_language_pair()
-    click.secho("You can change the default language pair at any time by running:", fg="blue")
-    click.secho("vocabmaster config default", bold=True)
-
-
 @vocabmaster.group(invoke_without_command=True)
 @click.pass_context
 def config(ctx):
@@ -374,190 +365,6 @@ def config(ctx):
     """
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
-
-
-@config.command("default")
-def config_default_language_pair():
-    """
-    Set the default language pair.
-
-    This language pair will be used by default
-    when you run the 'vocabmaster' command
-    without specifying a language pair with '--pair'.
-    """
-    print_default_language_pair()
-
-    language_pairs = print_all_language_pairs()
-    if not language_pairs:
-        click.secho("Error: ", fg="red", nl=False, err=True)
-        click.echo(
-            "No language pairs found. Run 'vocabmaster setup' to add one before setting a default.",
-            err=True,
-        )
-        sys.exit(1)
-
-    choice = click.prompt(
-        "Type the language pair or its number to set it as the new default",
-        type=str,
-    )
-
-    # Check if the user entered a correct number
-    if choice.isdigit():
-        idx = int(choice) - 1
-        if 0 <= idx < len(language_pairs):
-            # Set the language pair as the default
-            language_to_learn = language_pairs[idx]["language_to_learn"]
-            mother_tongue = language_pairs[idx]["mother_tongue"]
-            config_handler.set_default_language_pair(language_to_learn, mother_tongue)
-            click.echo(
-                f"{click.style(f'{language_to_learn}:{mother_tongue}', bold=True)} "
-                f"{click.style('has been set as the default language pair', fg='green')} ✅"
-            )
-        else:
-            # The user entered a number that is out of range
-            click.secho("Invalid choice", fg="red", err=True)
-            click.echo(
-                f"Please enter a number between 1 and {len(language_pairs)}",
-                err=True,
-            )
-            sys.exit(1)
-    else:
-        # Check if the language pair exists
-        try:
-            if config_handler.get_language_pair(choice) is not None:
-                # Set the language pair as the default
-                language_to_learn, mother_tongue = config_handler.get_language_pair(choice)
-        # The user entered an invalid language pair
-        except ValueError as error:
-            click.secho(str(error), fg="red", err=True)
-            click.echo(
-                f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}",
-                err=True,
-            )
-            sys.exit(1)
-
-        # Set the language pair as the default
-        config_handler.set_default_language_pair(language_to_learn, mother_tongue)
-        click.echo(
-            f"{click.style(f'{language_to_learn}:{mother_tongue}', bold=True)} "
-            f"{click.style('has been set as the default language pair', fg='green')} ✅"
-        )
-
-
-@config.command("remove")
-def config_remove_language_pair():
-    """
-    Remove an existing language pair.
-    """
-    language_pairs = print_all_language_pairs()
-    if not language_pairs:
-        click.secho("Error: ", fg="red", nl=False, err=True)
-        click.echo(
-            "No language pairs found. Run 'vocabmaster setup' to add one before removing.",
-            err=True,
-        )
-        sys.exit(1)
-
-    choices_input = click.prompt(
-        "Type the language pair(s) or number(s) to remove (comma-separated)",
-        type=str,
-    ).strip()
-
-    raw_choices = [item.strip() for item in choices_input.split(",") if item.strip()]
-    if not raw_choices:
-        click.secho("Error: ", fg="red", nl=False, err=True)
-        click.echo("No language pairs selected for removal.", err=True)
-        sys.exit(1)
-
-    selections = []
-    seen_pairs = set()
-
-    for choice in raw_choices:
-        if choice.isdigit():
-            idx = int(choice) - 1
-            if 0 <= idx < len(language_pairs):
-                language_to_learn = language_pairs[idx]["language_to_learn"]
-                mother_tongue = language_pairs[idx]["mother_tongue"]
-            else:
-                click.secho("Invalid choice", fg="red", err=True)
-                click.echo(
-                    f"Please enter a number between 1 and {len(language_pairs)}",
-                    err=True,
-                )
-                sys.exit(1)
-        else:
-            try:
-                language_to_learn, mother_tongue = config_handler.get_language_pair(choice)
-            except ValueError as error:
-                click.secho(str(error), fg="red", err=True)
-                click.echo(
-                    f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}",
-                    err=True,
-                )
-                sys.exit(1)
-
-            language_to_learn = language_to_learn.casefold()
-            mother_tongue = mother_tongue.casefold()
-
-            pair_exists = any(
-                pair["language_to_learn"] == language_to_learn
-                and pair["mother_tongue"] == mother_tongue
-                for pair in language_pairs
-            )
-
-            if not pair_exists:
-                click.secho("Error: ", fg="red", nl=False, err=True)
-                click.echo(
-                    f"The language pair {language_to_learn}:{mother_tongue} was not found.",
-                    err=True,
-                )
-                sys.exit(1)
-
-        pair_key = (language_to_learn, mother_tongue)
-        if pair_key not in seen_pairs:
-            selections.append(pair_key)
-            seen_pairs.add(pair_key)
-
-    display_pairs = [f"{lang}:{mother}" for lang, mother in selections]
-    if len(display_pairs) == 1:
-        confirm_prompt = f"Remove {display_pairs[0]} from your configured language pairs?"
-    else:
-        confirm_prompt = (
-            "Remove the following language pairs from your configuration?\n"
-            + ", ".join(display_pairs)
-        )
-
-    if not click.confirm(confirm_prompt, default=False):
-        click.echo("No changes made.")
-        return
-
-    removed_default = False
-    for language_to_learn, mother_tongue in selections:
-        try:
-            removed_default = (
-                config_handler.remove_language_pair(language_to_learn, mother_tongue)
-                or removed_default
-            )
-        except ValueError as error:
-            click.secho("Error: ", fg="red", nl=False, err=True)
-            click.echo(error, err=True)
-            sys.exit(1)
-
-        click.echo(
-            f"{click.style(f'{language_to_learn}:{mother_tongue}', bold=True)} "
-            f"{click.style('has been removed', fg='green')} ✅"
-        )
-
-    remaining_pairs = config_handler.get_all_language_pairs()
-
-    if removed_default:
-        click.secho("Heads-up: the default language pair was removed.", fg="yellow")
-        if remaining_pairs:
-            click.secho("Run 'vocabmaster config default' to choose a new default.", fg="blue")
-
-    if not remaining_pairs:
-        click.secho("There are no language pairs configured now.", fg="yellow")
-        click.secho("Use 'vocabmaster setup' to add a new language pair.", fg="blue")
 
 
 @config.command("dir")
@@ -648,40 +455,326 @@ def openai_api_key_explain():
     return
 
 
-@vocabmaster.command()
-def show():
+@vocabmaster.group("pairs", invoke_without_command=True)
+@click.pass_context
+def pairs(ctx):
     """
-    Show all the language pairs that have been set up.
+    Manage language pairs (list, add, remove, rename, inspect).
     """
-    language_pairs = print_all_language_pairs()
-    if language_pairs:
-        click.secho("You can change the default at any time by running:", fg="blue")
-        click.secho("vocabmaster config default", bold=True)
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
 
 
-@vocabmaster.command()
-def tokens():
+@pairs.command("list")
+def pairs_list():
     """
-    Estimate the cost of the next translation.
-
-    This command estimates the cost of the next translation,
-    based on the number of tokens in the prompt.
-
-    Note that this is only the estimation of the cost of the next prompt,
-    not the total cost of the translation.
-    The total cost (prompt + translation) cannot exceed $0.008192 per request, though.
+    List all configured language pairs.
     """
-    default_pair = config_handler.get_default_language_pair()
-    if default_pair is None:
+    print_all_language_pairs(
+        f"Use {click.style('vocabmaster pairs add', bold=True)} to add a new language pair."
+    )
+
+
+@pairs.command("add")
+def pairs_add():
+    """
+    Create a new language pair.
+    """
+    create_language_pair_interactively()
+
+
+@pairs.command("default")
+def pairs_default_command():
+    """
+    Show the current default language pair.
+    """
+    print_default_language_pair()
+    click.secho("You can change the default language pair at any time by running:", fg="blue")
+    click.secho("vocabmaster pairs set-default", bold=True)
+
+
+@pairs.command("set-default")
+def pairs_set_default_command():
+    """
+    Set the default language pair.
+    """
+    language_pairs = get_language_pairs_or_abort(
+        f"Use {click.style('vocabmaster pairs add', bold=True)} to add a new language pair.",
+        "No language pairs found. Run 'vocabmaster pairs add' to add one before setting a default.",
+    )
+    select_default_language_pair(language_pairs)
+
+
+@pairs.command("remove")
+def pairs_remove_command():
+    """
+    Remove one or multiple language pairs.
+    """
+
+    language_pairs = get_language_pairs_or_abort(
+        f"Use {click.style('vocabmaster pairs add', bold=True)} to add a new language pair.",
+        "No language pairs found. Run 'vocabmaster pairs add' to add one before removing.",
+    )
+
+    remove_language_pairs(
+        language_pairs,
+        default_hint="Run 'vocabmaster pairs set-default' to choose a new default.",
+        add_hint="Use 'vocabmaster pairs add' to add a new language pair.",
+    )
+
+
+@pairs.command("rename")
+def pairs_rename_command():
+    """
+    Rename an existing language pair.
+    """
+    language_pairs = get_language_pairs_or_abort(
+        f"Use {click.style('vocabmaster pairs add', bold=True)} to add a new language pair.",
+        "No language pairs found. Run 'vocabmaster pairs add' to add one before renaming.",
+    )
+
+    choice = click.prompt(
+        "Type the language pair or its number to rename",
+        type=str,
+    )
+
+    try:
+        old_language, old_mother_tongue = resolve_language_pair_choice(choice, language_pairs)
+    except ValueError as error:
+        message = str(error)
         click.secho("Error: ", fg="red", nl=False, err=True)
+        if message == "Invalid choice":
+            click.echo(message, err=True)
+            click.echo(
+                f"Please enter a number between 1 and {len(language_pairs)}",
+                err=True,
+            )
+        elif "Invalid language pair." in message:
+            click.echo(message, err=True)
+            click.echo(
+                f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}",
+                err=True,
+            )
+        else:
+            click.echo(message, err=True)
+        sys.exit(1)
+
+    new_pair_input = click.prompt(
+        "Enter the new language pair (language_to_learn:mother_tongue)",
+        type=str,
+    ).strip()
+
+    if not new_pair_input:
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo("New language pair cannot be empty.", err=True)
+        sys.exit(1)
+
+    try:
+        new_language, new_mother_tongue = config_handler.get_language_pair(new_pair_input)
+    except ValueError as error:
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(str(error), err=True)
         click.echo(
-            "No default language pair found. Run 'vocabmaster setup' before estimating costs.",
+            f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}",
             err=True,
         )
         sys.exit(1)
 
-    language_to_learn = default_pair["language_to_learn"]
-    mother_tongue = default_pair["mother_tongue"]
+    new_language = new_language.casefold()
+    new_mother_tongue = new_mother_tongue.casefold()
+
+    old_key = (old_language.casefold(), old_mother_tongue.casefold())
+    new_key = (new_language, new_mother_tongue)
+
+    if old_key == new_key:
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo("New language pair must be different from the current one.", err=True)
+        sys.exit(1)
+
+    existing_pairs = config_handler.get_all_language_pairs()
+    if any(
+        pair["language_to_learn"].casefold() == new_key[0]
+        and pair["mother_tongue"].casefold() == new_key[1]
+        for pair in existing_pairs
+    ):
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(
+            f"The language pair {new_key[0]}:{new_key[1]} already exists. Choose another name.",
+            err=True,
+        )
+        sys.exit(1)
+
+    confirm_prompt = (
+        f"Rename {old_language}:{old_mother_tongue} to {new_language}:{new_mother_tongue}?"
+    )
+    if not click.confirm(confirm_prompt, default=False):
+        click.echo("No changes made.")
+        return
+
+    utils.backup_language_pair_files(old_language, old_mother_tongue)
+
+    old_translations_path, old_anki_path = utils.get_pair_file_paths(
+        old_language, old_mother_tongue
+    )
+    new_translations_path, new_anki_path = utils.get_pair_file_paths(
+        new_language, new_mother_tongue
+    )
+
+    if old_translations_path.exists():
+        old_translations_path.rename(new_translations_path)
+    else:
+        new_translations_path.touch(exist_ok=True)
+
+    if old_anki_path.exists():
+        old_anki_path.rename(new_anki_path)
+    else:
+        new_anki_path.touch(exist_ok=True)
+
+    was_default = config_handler.rename_language_pair(
+        old_language, old_mother_tongue, new_language, new_mother_tongue
+    )
+
+    click.echo(
+        f"{old_language}:{old_mother_tongue} has been renamed to {new_language}:{new_mother_tongue}"
+    )
+
+    if was_default:
+        click.secho(
+            f"{new_language}:{new_mother_tongue} is now your default language pair.",
+            fg="blue",
+        )
+
+
+@pairs.command("inspect")
+@click.option(
+    "--pair",
+    type=str,
+    help=(
+        "Inspect a specific language pair. Specify in the format 'language_to_learn:mother_tongue'."
+    ),
+    required=False,
+)
+def pairs_inspect_command(pair):
+    """
+    Inspect a language pair and display storage information.
+    """
+    if pair is None:
+        default_pair = config_handler.get_default_language_pair()
+        if default_pair is None:
+            click.secho("Error: ", fg="red", nl=False, err=True)
+            click.echo(
+                "No default language pair found. Run 'vocabmaster pairs add' to create one.",
+                err=True,
+            )
+            sys.exit(1)
+        language_to_learn = default_pair["language_to_learn"]
+        mother_tongue = default_pair["mother_tongue"]
+    else:
+        try:
+            language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
+        except ValueError:
+            click.secho("Error: ", fg="red", nl=False, err=True)
+            click.echo(
+                f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}",
+                err=True,
+            )
+            sys.exit(1)
+
+    normalized_pair = (language_to_learn.casefold(), mother_tongue.casefold())
+
+    language_pairs = config_handler.get_all_language_pairs()
+    pair_exists = any(
+        pair["language_to_learn"].casefold() == normalized_pair[0]
+        and pair["mother_tongue"].casefold() == normalized_pair[1]
+        for pair in language_pairs
+    )
+    if not pair_exists:
+        provided = pair.strip().casefold() if pair else f"{normalized_pair[0]}:{normalized_pair[1]}"
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(
+            f"The language pair {provided} was not found.",
+            err=True,
+        )
+        sys.exit(1)
+
+    translations_path, anki_path = utils.get_pair_file_paths(normalized_pair[0], normalized_pair[1])
+    stats = csv_handler.calculate_vocabulary_stats(translations_path)
+
+    default_pair = config_handler.get_default_language_pair()
+    is_default = False
+    if default_pair:
+        is_default = (
+            default_pair.get("language_to_learn", "").casefold() == normalized_pair[0]
+            and default_pair.get("mother_tongue", "").casefold() == normalized_pair[1]
+        )
+
+    click.secho(
+        f"Language pair: {normalized_pair[0]}:{normalized_pair[1]}",
+        fg="blue",
+    )
+    click.echo(f"Default: {'Yes' if is_default else 'No'}")
+    click.echo(f"Vocabulary file: {translations_path}")
+    click.echo(f"Anki deck: {anki_path}")
+    click.echo(f"Total words: {stats['total']}")
+    click.echo(f"Translated: {stats['translated']}")
+    click.echo(f"Pending: {stats['pending']}")
+
+    estimate = compute_prompt_estimate(language_to_learn, mother_tongue, translations_path)
+    status = estimate["status"]
+    translation_model = estimate["model"]
+
+    if status == "error":
+        click.echo("Prompt tokens (input only): N/A (unable to evaluate next prompt).")
+        click.echo(f"Reason: {estimate['error']}")
+    elif status == "missing_file":
+        click.echo("Prompt tokens (input only): N/A (vocabulary file not found)")
+        click.echo(
+            f"Pricing data unavailable for {translation_model}; unable to estimate monetary cost."
+        )
+    elif status == "no_words":
+        click.echo("Prompt tokens (input only): 0")
+        click.echo(
+            f"Pricing data unavailable for {translation_model}; no words pending translation."
+        )
+    else:
+        tokens_count = estimate["tokens"]
+        cost_value = estimate["cost"]
+        click.echo(f"Prompt tokens (input only): {tokens_count}")
+        if cost_value is not None and estimate.get("price_available", False):
+            click.echo(
+                f"Estimated prompt cost (input tokens only, {translation_model}): ${cost_value}"
+            )
+        else:
+            click.echo(
+                f"Pricing data unavailable for {translation_model}; unable to estimate monetary cost."
+            )
+
+
+@vocabmaster.command()
+@click.option(
+    "--pair",
+    type=str,
+    help=(
+        "Estimate tokens for a specific language pair. Specify in the format "
+        "'language_to_learn:mother_tongue'."
+    ),
+    required=False,
+)
+def tokens(pair):
+    """
+    Estimate input-token usage for the next translation run (output tokens are not included).
+    """
+    try:
+        language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
+    except Exception as error:
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(error, err=True)
+        if pair is None:
+            click.echo(
+                f"Run '{click.style('vocabmaster pairs add', bold=True)}' to create a language pair.",
+                err=True,
+            )
+        sys.exit(1)
     translations_filepath, anki_file = setup_files(setup_dir(), language_to_learn, mother_tongue)
 
     if csv_handler.vocabulary_list_is_empty(translations_filepath):
@@ -689,17 +782,44 @@ def tokens():
         click.echo("Please add words to the list before running this command.", err=True)
         sys.exit(0)
 
-    try:
-        words_to_translate = csv_handler.get_words_to_translate(translations_filepath)
-    except Exception as error:
+    estimate = compute_prompt_estimate(language_to_learn, mother_tongue, translations_filepath)
+
+    status = estimate["status"]
+    translation_model = estimate["model"]
+
+    if status == "error":
         click.secho("Status: ", fg="blue", nl=False, err=True)
-        click.echo(error, err=True)
-        click.echo("Therefore, the cost of the next prompt cannot be estimated.", err=True)
-    else:
-        prompt = gpt_integration.format_prompt(language_to_learn, mother_tongue, words_to_translate)
-        estimated_cost = gpt_integration.estimate_prompt_cost(prompt)["gpt-3.5-turbo"]
+        click.echo(estimate["error"], err=True)
+        click.echo("Therefore, the next prompt cannot be evaluated.", err=True)
+        return
+
+    if status == "missing_file":
+        click.echo("Prompt tokens (input only): N/A (vocabulary file not found)")
         click.echo(
-            f"The estimated cost of the next prompt is {click.style(f'${estimated_cost}', fg='blue')}."
+            f"Pricing data unavailable for {translation_model}; unable to estimate monetary cost."
+        )
+        return
+
+    if status == "no_words":
+        click.echo("Prompt tokens (input only): 0")
+        click.echo(
+            f"Pricing data unavailable for {translation_model}; no words pending translation."
+        )
+        return
+
+    tokens_count = estimate["tokens"]
+    cost_value = estimate["cost"]
+    price_available = estimate.get("price_available", False)
+
+    click.echo(f"Prompt tokens (input only): {click.style(str(tokens_count), fg='blue')}")
+    if cost_value is not None and price_available:
+        click.echo(
+            "Estimated prompt cost (input tokens only, "
+            f"{translation_model}): {click.style(f'${cost_value}', fg='blue')}"
+        )
+    else:
+        click.echo(
+            f"Pricing data unavailable for {translation_model}; unable to estimate monetary cost."
         )
 
 
@@ -723,7 +843,7 @@ def print_default_language_pair():
     return default_pair
 
 
-def print_all_language_pairs():
+def print_all_language_pairs(empty_hint: str | None = None):
     """
     Print all the language pairs that have been set up.
     """
@@ -731,7 +851,11 @@ def print_all_language_pairs():
     language_pairs = config_handler.get_all_language_pairs()
     if not language_pairs:
         click.secho("No language pairs found yet.", fg="yellow")
-        click.echo(f"Use {click.style('vocabmaster setup', bold=True)} to add a new language pair.")
+        hint = (
+            empty_hint
+            or f"Use {click.style('vocabmaster pairs add', bold=True)} to add a new language pair."
+        )
+        click.echo(hint)
         click.echo()
         return []
 
@@ -739,6 +863,249 @@ def print_all_language_pairs():
         click.echo(f"{idx}. {language_pair['language_to_learn']}:{language_pair['mother_tongue']}")
     click.echo()
     return language_pairs
+
+
+def resolve_language_pair_choice(choice: str, language_pairs):
+    """
+    Resolve a user-provided selection (number or pair string) into a language pair tuple.
+
+    Args:
+        choice (str): Selection provided by the user.
+        language_pairs (list[dict]): Available language pairs.
+
+    Returns:
+        tuple[str, str]: Normalized (language_to_learn, mother_tongue) tuple.
+
+    Raises:
+        ValueError: If the selection is invalid or the pair does not exist.
+    """
+    choice = choice.strip()
+    if not choice:
+        raise ValueError("No language pair selected.")
+
+    if choice.isdigit():
+        idx = int(choice) - 1
+        if 0 <= idx < len(language_pairs):
+            pair = language_pairs[idx]
+            return pair["language_to_learn"], pair["mother_tongue"]
+        raise ValueError("Invalid choice")
+
+    try:
+        language_to_learn, mother_tongue = config_handler.get_language_pair(choice)
+    except ValueError as error:
+        raise ValueError(str(error)) from error
+
+    language_to_learn = language_to_learn.casefold()
+    mother_tongue = mother_tongue.casefold()
+
+    for pair in language_pairs:
+        if (
+            pair["language_to_learn"].casefold() == language_to_learn
+            and pair["mother_tongue"].casefold() == mother_tongue
+        ):
+            return pair["language_to_learn"], pair["mother_tongue"]
+
+    raise ValueError(f"The language pair {language_to_learn}:{mother_tongue} was not found.")
+
+
+def get_language_pairs_or_abort(empty_hint: str, no_pairs_message: str):
+    """
+    Retrieve all configured language pairs or exit with an error message.
+    """
+    language_pairs = print_all_language_pairs(empty_hint=empty_hint)
+    if not language_pairs:
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(no_pairs_message, err=True)
+        sys.exit(1)
+    return language_pairs
+
+
+def parse_multiple_language_pair_choices(raw_choices, language_pairs):
+    """
+    Parse a comma-separated list of language pair selections.
+
+    Args:
+        raw_choices (list[str]): Raw user selections.
+        language_pairs (list[dict]): Available language pairs.
+
+    Returns:
+        list[tuple[str, str]]: Unique language pairs selected by the user.
+
+    Raises:
+        ValueError: When a selection is invalid or duplicates are found.
+    """
+    selections = []
+    seen_pairs = set()
+
+    for choice in raw_choices:
+        if not choice:
+            continue
+        try:
+            language_to_learn, mother_tongue = resolve_language_pair_choice(choice, language_pairs)
+        except ValueError as error:
+            raise ValueError(str(error)) from error
+
+        pair_key = (language_to_learn.casefold(), mother_tongue.casefold())
+        if pair_key not in seen_pairs:
+            selections.append((language_to_learn, mother_tongue))
+            seen_pairs.add(pair_key)
+
+    return selections
+
+
+def select_default_language_pair(language_pairs):
+    """
+    Prompt the user to select a default language pair from the provided list.
+    """
+    choice = click.prompt(
+        "Type the language pair or its number to set it as the new default",
+        type=str,
+    )
+
+    try:
+        language_to_learn, mother_tongue = resolve_language_pair_choice(choice, language_pairs)
+    except ValueError as error:
+        message = str(error)
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        if message == "Invalid choice":
+            click.echo(message, err=True)
+            click.echo(
+                f"Please enter a number between 1 and {len(language_pairs)}",
+                err=True,
+            )
+        elif "Invalid language pair." in message:
+            click.echo(message, err=True)
+            click.echo(
+                f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}",
+                err=True,
+            )
+        else:
+            click.echo(message, err=True)
+        sys.exit(1)
+
+    config_handler.set_default_language_pair(language_to_learn, mother_tongue)
+    click.echo(
+        f"{click.style(f'{language_to_learn}:{mother_tongue}', bold=True)} "
+        f"{click.style('has been set as the default language pair', fg='green')} ✅"
+    )
+
+
+def compute_prompt_estimate(language_to_learn, mother_tongue, translations_path):
+    """Evaluate the prompt tokens and cost for the next translation."""
+
+    cost_model = "gpt-3.5-turbo"
+
+    if not translations_path.exists():
+        return {"status": "missing_file", "model": cost_model}
+
+    try:
+        words_to_translate = csv_handler.get_words_to_translate(translations_path)
+    except Exception as error:
+        message = str(error)
+        if "All the words in the vocabulary list" in message:
+            return {"status": "no_words", "model": cost_model}
+        return {"status": "error", "model": cost_model, "error": message}
+
+    if not words_to_translate:
+        return {"status": "no_words", "model": cost_model}
+
+    prompt = gpt_integration.format_prompt(language_to_learn, mother_tongue, words_to_translate)
+
+    try:
+        tokens_count = gpt_integration.num_tokens_from_messages(prompt)
+    except NotImplementedError as error:
+        return {"status": "error", "model": cost_model, "error": str(error)}
+
+    cost_map = gpt_integration.estimate_prompt_cost(prompt)
+    cost_value = None
+    if isinstance(cost_map, dict):
+        cost_value = cost_map.get(cost_model)
+
+    return {
+        "status": "ok",
+        "model": cost_model,
+        "tokens": tokens_count,
+        "cost": cost_value,
+        "price_available": cost_value is not None,
+    }
+
+
+def remove_language_pairs(language_pairs, default_hint, add_hint):
+    """
+    Interactive workflow to remove one or multiple language pairs.
+    """
+    choices_input = click.prompt(
+        "Type the language pair(s) or number(s) to remove (comma-separated)",
+        type=str,
+    ).strip()
+
+    raw_choices = [item.strip() for item in choices_input.split(",") if item.strip()]
+    if not raw_choices:
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo("No language pairs selected for removal.", err=True)
+        sys.exit(1)
+
+    try:
+        selections = parse_multiple_language_pair_choices(raw_choices, language_pairs)
+    except ValueError as error:
+        message = str(error)
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        if message == "Invalid choice":
+            click.echo(message, err=True)
+            click.echo(
+                f"Please enter a number between 1 and {len(language_pairs)}",
+                err=True,
+            )
+        elif "Invalid language pair." in message:
+            click.echo(message, err=True)
+            click.echo(
+                f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}",
+                err=True,
+            )
+        else:
+            click.echo(message, err=True)
+        sys.exit(1)
+
+    display_pairs = [f"{lang}:{mother}" for lang, mother in selections]
+    if len(display_pairs) == 1:
+        confirm_prompt = f"Remove {display_pairs[0]} from your configured language pairs?"
+    else:
+        confirm_prompt = (
+            "Remove the following language pairs from your configuration?\n"
+            + ", ".join(display_pairs)
+        )
+
+    if not click.confirm(confirm_prompt, default=False):
+        click.echo("No changes made.")
+        return
+
+    removed_default = False
+    for language_to_learn, mother_tongue in selections:
+        try:
+            removed_default = (
+                config_handler.remove_language_pair(language_to_learn, mother_tongue)
+                or removed_default
+            )
+        except ValueError as error:
+            click.secho("Error: ", fg="red", nl=False, err=True)
+            click.echo(error, err=True)
+            sys.exit(1)
+
+        click.echo(
+            f"{click.style(f'{language_to_learn}:{mother_tongue}', bold=True)} "
+            f"{click.style('has been removed', fg='green')} ✅"
+        )
+
+    remaining_pairs = config_handler.get_all_language_pairs()
+
+    if removed_default:
+        click.secho("Heads-up: the default language pair was removed.", fg="yellow")
+        if remaining_pairs:
+            click.secho(default_hint, fg="blue")
+
+    if not remaining_pairs:
+        click.secho("There are no language pairs configured now.", fg="yellow")
+        click.secho(add_hint, fg="blue")
 
 
 def print_current_storage_directory(current_dir: Path | None = None) -> Path:
