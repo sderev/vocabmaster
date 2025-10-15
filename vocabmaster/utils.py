@@ -44,6 +44,41 @@ def setup_files(app_data_dir, language_to_learn, mother_tongue):
     return file_paths
 
 
+def get_pair_file_paths(language_to_learn, mother_tongue):
+    """
+    Return the expected vocabulary and Anki file paths for the given language pair.
+
+    Args:
+        language_to_learn (str): Target language.
+        mother_tongue (str): User's mother tongue.
+
+    Returns:
+        tuple[pathlib.Path, pathlib.Path]: Paths to the vocabulary CSV and Anki deck CSV.
+    """
+    language_to_learn = language_to_learn.casefold()
+    mother_tongue = mother_tongue.casefold()
+    data_dir = config_handler.get_data_directory()
+    return (
+        data_dir / f"vocab_list_{language_to_learn}-{mother_tongue}.csv",
+        data_dir / f"anki_deck_{language_to_learn}-{mother_tongue}.csv",
+    )
+
+
+def backup_language_pair_files(language_to_learn, mother_tongue):
+    """
+    Create backups for both the vocabulary and Anki files of the provided language pair.
+
+    Missing files are ignored silently.
+    """
+    translations_path, anki_path = get_pair_file_paths(language_to_learn, mother_tongue)
+    backup_dir = get_backup_dir(language_to_learn, mother_tongue)
+
+    if translations_path.exists():
+        backup_file(backup_dir, translations_path)
+    if anki_path.exists():
+        backup_file(backup_dir, anki_path)
+
+
 def setup_backup_dir(language_to_learn, mother_tongue):
     """
     Ensure the backup directory for a language pair exists and return its path.
