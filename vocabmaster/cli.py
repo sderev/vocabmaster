@@ -724,25 +724,28 @@ def pairs_inspect_command(pair):
     translation_model = estimate["model"]
 
     if status == "error":
-        click.echo("Prompt tokens (input only): N/A (unable to evaluate next prompt).")
+        click.echo("Number of tokens in the prompt: N/A (unable to evaluate next prompt).")
         click.echo(f"Reason: {estimate['error']}")
     elif status == "missing_file":
-        click.echo("Prompt tokens (input only): N/A (vocabulary file not found)")
+        click.echo("Number of tokens in the prompt: N/A (vocabulary file not found)")
         click.echo(
             f"Pricing data unavailable for {translation_model}; unable to estimate monetary cost."
         )
     elif status == "no_words":
-        click.echo("Prompt tokens (input only): 0")
+        click.echo("Number of tokens in the prompt: 0")
         click.echo(
             f"Pricing data unavailable for {translation_model}; no words pending translation."
         )
     else:
         tokens_count = estimate["tokens"]
         cost_value = estimate["cost"]
-        click.echo(f"Prompt tokens (input only): {tokens_count}")
+        click.echo(
+            f"Number of tokens in the prompt: {click.style(str(tokens_count), fg='yellow')}."
+        )
         if cost_value is not None and estimate.get("price_available", False):
             click.echo(
-                f"Estimated prompt cost (input tokens only, {translation_model}): ${cost_value}"
+                f"Cost estimate for {click.style(translation_model, fg='blue')} model:"
+                f" {click.style(f'${cost_value}', fg='yellow')} (input tokens only)."
             )
         else:
             click.echo(
@@ -811,11 +814,13 @@ def tokens(pair):
     cost_value = estimate["cost"]
     price_available = estimate.get("price_available", False)
 
-    click.echo(f"Prompt tokens (input only): {click.style(str(tokens_count), fg='blue')}")
+    click.echo(
+        f"Number of tokens in the prompt: {click.style(str(tokens_count), fg='yellow')}."
+    )
     if cost_value is not None and price_available:
         click.echo(
-            "Estimated prompt cost (input tokens only, "
-            f"{translation_model}): {click.style(f'${cost_value}', fg='blue')}"
+            f"Cost estimate for {click.style(translation_model, fg='blue')} model:"
+            f" {click.style(f'${cost_value}', fg='yellow')} (input tokens only)."
         )
     else:
         click.echo(
@@ -993,37 +998,30 @@ def select_default_language_pair(language_pairs):
 def compute_prompt_estimate(language_to_learn, mother_tongue, translations_path):
     """Evaluate the prompt tokens and cost for the next translation."""
 
-    cost_model = "gpt-3.5-turbo"
+    translation_model = "gpt-4.1"
 
     if not translations_path.exists():
-        return {"status": "missing_file", "model": cost_model}
+        return {"status": "missing_file", "model": translation_model}
 
     try:
         words_to_translate = csv_handler.get_words_to_translate(translations_path)
     except Exception as error:
         message = str(error)
         if "All the words in the vocabulary list" in message:
-            return {"status": "no_words", "model": cost_model}
-        return {"status": "error", "model": cost_model, "error": message}
+            return {"status": "no_words", "model": translation_model}
+        return {"status": "error", "model": translation_model, "error": message}
 
     if not words_to_translate:
-        return {"status": "no_words", "model": cost_model}
+        return {"status": "no_words", "model": translation_model}
 
     prompt = gpt_integration.format_prompt(language_to_learn, mother_tongue, words_to_translate)
 
-    try:
-        tokens_count = gpt_integration.num_tokens_from_messages(prompt)
-    except NotImplementedError as error:
-        return {"status": "error", "model": cost_model, "error": str(error)}
-
-    cost_map = gpt_integration.estimate_prompt_cost(prompt)
-    cost_value = None
-    if isinstance(cost_map, dict):
-        cost_value = cost_map.get(cost_model)
+    tokens_count = gpt_integration.num_tokens_from_messages(prompt, translation_model)
+    cost_value = gpt_integration.estimate_prompt_cost(prompt, translation_model)
 
     return {
         "status": "ok",
-        "model": cost_model,
+        "model": translation_model,
         "tokens": tokens_count,
         "cost": cost_value,
         "price_available": cost_value is not None,
