@@ -28,14 +28,25 @@ def validate_data_directory(path_str: str) -> Path:
 
     # Disallow system directories on Unix-like systems
     if platform.system() != "Windows":
-        forbidden_prefixes = ['/etc', '/bin', '/sbin', '/usr', '/var', '/sys', '/proc', '/dev', '/boot', '/root']
+        forbidden_prefixes = [
+            "/etc",
+            "/bin",
+            "/sbin",
+            "/usr",
+            "/var",
+            "/sys",
+            "/proc",
+            "/dev",
+            "/boot",
+            "/root",
+        ]
         for prefix in forbidden_prefixes:
             if str(path).startswith(prefix):
                 raise ValueError(f"Cannot use system directory: {path}")
 
     # On all systems, require path to be under home directory or explicit /opt location
     home = Path.home()
-    allowed_prefixes = [str(home), '/opt', '/tmp']
+    allowed_prefixes = [str(home), "/opt", "/tmp"]
 
     if not any(str(path).startswith(prefix) for prefix in allowed_prefixes):
         raise ValueError(f"Directory must be under home directory, /opt, or /tmp. Got: {path}")
@@ -67,18 +78,18 @@ def validate_word(word: str) -> str:
         raise ValueError("Word too long (maximum 500 characters)")
 
     # Check for null bytes (can corrupt files)
-    if '\0' in word:
+    if "\0" in word:
         raise ValueError("Word contains invalid null byte")
 
     # Check for dangerous newlines/carriage returns (break CSV format)
-    if '\n' in word or '\r' in word:
+    if "\n" in word or "\r" in word:
         raise ValueError("Word cannot contain newlines")
 
     # Warn about CSV injection risks (formulas)
-    if word.startswith(('=', '+', '-', '@')):
+    if word.startswith(("=", "+", "-", "@")):
         click.secho(
             f"Warning: Word starts with '{word[0]}' which may be interpreted as a formula in spreadsheets.",
-            fg="yellow"
+            fg="yellow",
         )
         if not click.confirm("Continue anyway?", default=False):
             raise click.Abort()
@@ -916,9 +927,7 @@ def tokens(pair):
     cost_value = estimate["cost"]
     price_available = estimate.get("price_available", False)
 
-    click.echo(
-        f"Number of tokens in the prompt: {click.style(str(tokens_count), fg='yellow')}."
-    )
+    click.echo(f"Number of tokens in the prompt: {click.style(str(tokens_count), fg='yellow')}.")
     if cost_value is not None and price_available:
         click.echo(
             f"Cost estimate for {click.style(translation_model, fg='blue')} model:"
@@ -1118,7 +1127,9 @@ def compute_prompt_estimate(language_to_learn, mother_tongue, translations_path)
 
     # Determine the mode based on whether languages match
     mode = utils.get_pair_mode(language_to_learn, mother_tongue)
-    prompt = gpt_integration.format_prompt(language_to_learn, mother_tongue, words_to_translate, mode)
+    prompt = gpt_integration.format_prompt(
+        language_to_learn, mother_tongue, words_to_translate, mode
+    )
 
     tokens_count = gpt_integration.num_tokens_from_messages(prompt, translation_model)
     cost_value = gpt_integration.estimate_prompt_cost(prompt, translation_model)

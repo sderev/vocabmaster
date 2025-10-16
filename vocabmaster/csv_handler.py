@@ -29,7 +29,7 @@ def sanitize_csv_value(value: str) -> str:
 
     # Prefix dangerous characters with single quote to prevent formula injection
     # Excel/LibreOffice interpret =, +, -, @ at start as formulas
-    if value and value[0] in ('=', '+', '-', '@', '\t', '\r', '\n'):
+    if value and value[0] in ("=", "+", "-", "@", "\t", "\r", "\n"):
         return "'" + value
 
     return value
@@ -197,7 +197,9 @@ def generate_translations_and_examples(language_to_learn, mother_tongue, transla
 
     # Determine the mode based on whether languages match
     mode = utils.get_pair_mode(language_to_learn, mother_tongue)
-    prompt = gpt_integration.format_prompt(language_to_learn, mother_tongue, words_to_translate, mode)
+    prompt = gpt_integration.format_prompt(
+        language_to_learn, mother_tongue, words_to_translate, mode
+    )
 
     # Send a request to the LM and extract the generated text
     gpt_response = gpt_integration.chatgpt_request(prompt=prompt, stream=True, temperature=0.6)

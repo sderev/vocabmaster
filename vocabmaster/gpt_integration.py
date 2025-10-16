@@ -5,9 +5,7 @@ import openai
 import tiktoken
 
 
-def format_prompt(
-    language_to_learn, mother_tongue, words_to_translate, mode="translation"
-):
+def format_prompt(language_to_learn, mother_tongue, words_to_translate, mode="translation"):
     """
     Generate a prompt for translation or definition mode.
 
