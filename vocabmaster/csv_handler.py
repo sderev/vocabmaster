@@ -128,6 +128,9 @@ def get_words_to_translate(translations_filepath):
     Returns:
         list: A list of words that need translations.
     """
+    # Ensure the file has the correct fieldnames before reading
+    ensure_csv_has_fieldnames(translations_filepath)
+
     words_to_translate = []
 
     with open(translations_filepath, encoding="UTF-8") as translations_file:
