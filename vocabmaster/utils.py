@@ -1,10 +1,46 @@
 import os
 import shutil
+import string
 from datetime import datetime
 
 import click
 
 from vocabmaster import config_handler
+
+
+# Allowed characters for language names (whitelist approach)
+ALLOWED_CHARS = set(string.ascii_letters + string.digits + '_-')
+
+
+def validate_language_name(name: str) -> str:
+    """
+    Validate and normalize a language name.
+
+    Uses a whitelist approach to prevent path traversal attacks by only
+    allowing safe characters.
+
+    Args:
+        name: The language name to validate
+
+    Returns:
+        The normalized (casefolded) language name
+
+    Raises:
+        ValueError: If the language name is invalid
+    """
+    if not isinstance(name, str):
+        raise ValueError("Language name must be a string")
+
+    if not name:
+        raise ValueError("Language name cannot be empty")
+
+    if len(name) > 64:
+        raise ValueError("Language name is too long (maximum 64 characters)")
+
+    if not all(c in ALLOWED_CHARS for c in name):
+        raise ValueError("Language names can only contain letters, numbers, underscores, and hyphens")
+
+    return name.casefold()
 
 
 def setup_dir():
@@ -34,6 +70,10 @@ def setup_files(app_data_dir, language_to_learn, mother_tongue):
     Returns:
         tuple[pathlib.Path, pathlib.Path]: Paths for the vocabulary and Anki files.
     """
+    # Validate language names to prevent path traversal
+    language_to_learn = validate_language_name(language_to_learn)
+    mother_tongue = validate_language_name(mother_tongue)
+
     file_paths = (
         app_data_dir / f"vocab_list_{language_to_learn}-{mother_tongue}.csv",
         app_data_dir / f"anki_deck_{language_to_learn}-{mother_tongue}.csv",
@@ -55,8 +95,9 @@ def get_pair_file_paths(language_to_learn, mother_tongue):
     Returns:
         tuple[pathlib.Path, pathlib.Path]: Paths to the vocabulary CSV and Anki deck CSV.
     """
-    language_to_learn = language_to_learn.casefold()
-    mother_tongue = mother_tongue.casefold()
+    # Validate language names to prevent path traversal
+    language_to_learn = validate_language_name(language_to_learn)
+    mother_tongue = validate_language_name(mother_tongue)
     data_dir = config_handler.get_data_directory()
     return (
         data_dir / f"vocab_list_{language_to_learn}-{mother_tongue}.csv",
@@ -109,6 +150,9 @@ def get_backup_dir(language_to_learn=None, mother_tongue=None):
     base_dir = setup_dir() / ".backup"
     base_dir.mkdir(parents=True, exist_ok=True)
     if language_to_learn and mother_tongue:
+        # Validate language names to prevent path traversal
+        language_to_learn = validate_language_name(language_to_learn)
+        mother_tongue = validate_language_name(mother_tongue)
         backup_path = base_dir / f"{language_to_learn}-{mother_tongue}"
     else:
         backup_path = base_dir

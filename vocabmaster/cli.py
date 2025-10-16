@@ -282,6 +282,15 @@ def create_language_pair_interactively():
     language_to_learn = click.prompt("Please enter the language you want to learn")
     mother_tongue = click.prompt("Please enter your mother tongue")
 
+    # Validate language names early to prevent path traversal
+    try:
+        language_to_learn = utils.validate_language_name(language_to_learn)
+        mother_tongue = utils.validate_language_name(mother_tongue)
+    except ValueError as error:
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(str(error), err=True)
+        sys.exit(1)
+
     click.echo()
     click.echo(
         f"Setting up VocabMaster for learning {click.style(language_to_learn.capitalize(), bold=True)}, "
@@ -291,8 +300,6 @@ def create_language_pair_interactively():
     if click.confirm("Do you want to proceed?"):
         # Create the necessary folders and files
         app_data_dir = setup_dir()
-        language_to_learn = language_to_learn.casefold()
-        mother_tongue = mother_tongue.casefold()
 
         translations_filepath, anki_filepath = setup_files(
             app_data_dir, language_to_learn, mother_tongue
@@ -571,17 +578,18 @@ def pairs_rename_command():
 
     try:
         new_language, new_mother_tongue = config_handler.get_language_pair(new_pair_input)
+        # Validate the new names to prevent path traversal
+        new_language = utils.validate_language_name(new_language)
+        new_mother_tongue = utils.validate_language_name(new_mother_tongue)
     except ValueError as error:
         click.secho("Error: ", fg="red", nl=False, err=True)
         click.echo(str(error), err=True)
-        click.echo(
-            f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}",
-            err=True,
-        )
+        if "Invalid language pair" in str(error):
+            click.echo(
+                f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}",
+                err=True,
+            )
         sys.exit(1)
-
-    new_language = new_language.casefold()
-    new_mother_tongue = new_mother_tongue.casefold()
 
     old_key = (old_language.casefold(), old_mother_tongue.casefold())
     new_key = (new_language, new_mother_tongue)

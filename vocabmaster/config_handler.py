@@ -122,6 +122,13 @@ def set_language_pair(language_to_learn, mother_tongue):
     """
     Append a language pair to the configuration file.
     """
+    # Import here to avoid circular dependency
+    from vocabmaster.utils import validate_language_name
+
+    # Validate language names to prevent path traversal
+    language_to_learn = validate_language_name(language_to_learn)
+    mother_tongue = validate_language_name(mother_tongue)
+
     config = read_config() or {}
     language_pairs = config.setdefault("language_pairs", [])
     language_pairs.append({"language_to_learn": language_to_learn, "mother_tongue": mother_tongue})
@@ -197,6 +204,13 @@ def rename_language_pair(old_language, old_mother_tongue, new_language, new_moth
         ValueError: If the source pair does not exist, the destination already exists,
             or if both pairs are identical.
     """
+    # Import here to avoid circular dependency
+    from vocabmaster.utils import validate_language_name
+
+    # Validate new names to prevent path traversal
+    new_language = validate_language_name(new_language)
+    new_mother_tongue = validate_language_name(new_mother_tongue)
+
     config = read_config() or {}
     language_pairs = config.get("language_pairs", [])
     if not language_pairs:
@@ -260,10 +274,19 @@ def get_language_pair(language_pair):
     """
     Get a language pair from the configuration file, falling back to the default.
     """
+    # Import here to avoid circular dependency
+    from vocabmaster.utils import validate_language_name
+
     if language_pair:
         try:
             language_to_learn, mother_tongue = language_pair.split(":")
+            # Validate parsed names to prevent path traversal
+            language_to_learn = validate_language_name(language_to_learn)
+            mother_tongue = validate_language_name(mother_tongue)
         except ValueError as exc:
+            # Re-raise ValueError with original message if it's from validation
+            if "can only contain" in str(exc) or "too long" in str(exc) or "cannot be empty" in str(exc):
+                raise
             raise ValueError("Invalid language pair.") from exc
     else:
         default_pair = get_default_language_pair()
