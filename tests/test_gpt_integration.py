@@ -38,8 +38,8 @@ def test_format_prompt_definition_mode():
 
     # Verify content mentions definitions
     user_content = prompt[1]["content"]
-    assert "Provide concise definitions for the following french words" in user_content
-    assert "a concise definition (2-3 words)" in user_content
+    assert "Provide definitions for the following french words" in user_content
+    assert "a brief, clear definition" in user_content
     assert "example sentence in french" in user_content
 
     # Verify it does NOT mention translations
@@ -51,7 +51,7 @@ def test_format_prompt_definition_mode():
     assert "monde" in user_content
 
     # Verify format specification (check for the pattern without escaping)
-    assert "word\tconcise definition\texample sentence in french" in user_content
+    assert "word\tdefinition\texample sentence in french" in user_content
 
 
 def test_format_prompt_default_mode_is_translation():
