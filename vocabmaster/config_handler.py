@@ -1,6 +1,7 @@
 import json
 import os
 import platform
+import tempfile
 from copy import deepcopy
 from pathlib import Path
 from typing import Optional
@@ -93,7 +94,10 @@ def read_config():
 
 def write_config(config):
     """
-    Write the configuration data to the configuration file.
+    Write config with atomic rename to prevent corruption.
+
+    Uses write-to-temp-then-rename pattern to ensure config file is never
+    left in a corrupted state if the process is killed during write.
     """
     config_filepath = get_config_filepath()
     _ensure_parent_dir(config_filepath)
@@ -102,8 +106,27 @@ def write_config(config):
     if "data_dir" in serializable_config and isinstance(serializable_config["data_dir"], Path):
         serializable_config["data_dir"] = str(serializable_config["data_dir"])
 
-    with open(config_filepath, "w", encoding="utf-8") as file:
-        json.dump(serializable_config, file, indent=4)
+    # Atomic write: write to temp file in same directory, then rename
+    temp_fd, temp_path = tempfile.mkstemp(
+        dir=config_filepath.parent,
+        prefix='.config_',
+        suffix='.tmp',
+        text=True
+    )
+
+    try:
+        with os.fdopen(temp_fd, 'w', encoding='utf-8') as file:
+            json.dump(serializable_config, file, indent=4)
+
+        # Atomic rename (os.replace works on all platforms)
+        os.replace(temp_path, str(config_filepath))
+    except Exception:
+        # Clean up temp file on error
+        try:
+            os.unlink(temp_path)
+        except OSError:
+            pass
+        raise
 
 
 def set_default_language_pair(language_to_learn, mother_tongue):
