@@ -108,14 +108,11 @@ def write_config(config):
 
     # Atomic write: write to temp file in same directory, then rename
     temp_fd, temp_path = tempfile.mkstemp(
-        dir=config_filepath.parent,
-        prefix='.config_',
-        suffix='.tmp',
-        text=True
+        dir=config_filepath.parent, prefix=".config_", suffix=".tmp", text=True
     )
 
     try:
-        with os.fdopen(temp_fd, 'w', encoding='utf-8') as file:
+        with os.fdopen(temp_fd, "w", encoding="utf-8") as file:
             json.dump(serializable_config, file, indent=4)
 
         # Atomic rename (os.replace works on all platforms)

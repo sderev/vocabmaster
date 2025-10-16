@@ -1,5 +1,5 @@
 """Integration tests for same-language definition mode workflow."""
-from pathlib import Path
+
 
 from vocabmaster import config_handler, csv_handler
 
@@ -24,7 +24,7 @@ def test_same_language_workflow_generates_definitions(tmp_path, monkeypatch):
         assert mother_tongue == "french"
 
         # Return definitions in the expected format
-        return "bonjour\tsalutation, salut\t\"Bonjour, comment allez-vous ?\"\nmonde\tunivers, terre\t\"Le monde est vaste.\"\n"
+        return 'bonjour\tsalutation, salut\t"Bonjour, comment allez-vous ?"\nmonde\tunivers, terre\t"Le monde est vaste."\n'
 
     monkeypatch.setattr(
         csv_handler,
@@ -61,9 +61,7 @@ monde,univers,Le monde est grand
 
     # Generate Anki output
     anki_file = tmp_path / "anki_french-french.tsv"
-    csv_handler.generate_anki_output_file(
-        str(vocab_file), str(anki_file), "french", "french"
-    )
+    csv_handler.generate_anki_output_file(str(vocab_file), str(anki_file), "french", "french")
 
     # Verify the deck name is for definitions
     content = anki_file.read_text()
@@ -91,7 +89,7 @@ def test_same_language_case_variations_work(tmp_path, monkeypatch):
     def fake_generate(language_to_learn, mother_tongue, filepath):
         # Verify both languages are treated as same despite case
         assert language_to_learn.casefold() == mother_tongue.casefold()
-        return "hello\tgreeting\t\"Hello, how are you?\"\n"
+        return 'hello\tgreeting\t"Hello, how are you?"\n'
 
     monkeypatch.setattr(
         csv_handler,
@@ -126,7 +124,7 @@ def test_different_language_still_generates_translations(tmp_path, monkeypatch):
     def fake_generate(language_to_learn, mother_tongue, filepath):
         # Verify languages are different (translation mode)
         assert language_to_learn != mother_tongue
-        return "bonjour\thello, hi, good morning\t\"Bonjour, comment allez-vous ?\"\n"
+        return 'bonjour\thello, hi, good morning\t"Bonjour, comment allez-vous ?"\n'
 
     monkeypatch.setattr(
         csv_handler,
@@ -158,9 +156,7 @@ monde,world,Le monde est grand
 
     # Generate Anki output
     anki_file = tmp_path / "anki_french-english.tsv"
-    csv_handler.generate_anki_output_file(
-        str(vocab_file), str(anki_file), "french", "english"
-    )
+    csv_handler.generate_anki_output_file(str(vocab_file), str(anki_file), "french", "english")
 
     # Verify the deck name is for vocabulary
     content = anki_file.read_text()
@@ -190,6 +186,7 @@ def test_prompt_generation_detects_mode_correctly(monkeypatch):
 
     # Test same-language pair
     from vocabmaster import utils
+
     mode = utils.get_pair_mode("french", "french")
     prompt = gpt_integration.format_prompt("french", "french", ["test"], mode)
 
