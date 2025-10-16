@@ -12,6 +12,29 @@ ALL_WORDS_TRANSLATED_MESSAGE = (
 )
 
 
+def sanitize_csv_value(value: str) -> str:
+    """
+    Sanitize value for safe CSV storage.
+
+    Prevents CSV injection by prefixing dangerous characters with single quote.
+
+    Args:
+        value: Value to sanitize
+
+    Returns:
+        Sanitized value safe for CSV
+    """
+    if not value:
+        return value
+
+    # Prefix dangerous characters with single quote to prevent formula injection
+    # Excel/LibreOffice interpret =, +, -, @ at start as formulas
+    if value and value[0] in ('=', '+', '-', '@', '\t', '\r', '\n'):
+        return "'" + value
+
+    return value
+
+
 class AllWordsTranslatedError(Exception):
     """Raised when the vocabulary file has no pending translations."""
 
@@ -110,9 +133,12 @@ def append_word(word, translations_filepath):
         word (str): The word to be appended to the file.
         translations_filepath (str): The path to the file containing the list of words.
     """
+    # Sanitize word before appending to prevent CSV injection
+    safe_word = sanitize_csv_value(word)
+
     with open(translations_filepath, "a", encoding="UTF-8") as file:
         dict_writer = DictWriter(file, fieldnames=CSV_FIELDNAMES)
-        dict_writer.writerow({"word": word, "translation": "", "example": ""})
+        dict_writer.writerow({"word": safe_word, "translation": "", "example": ""})
 
 
 def get_words_to_translate(translations_filepath):
