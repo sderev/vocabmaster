@@ -1,0 +1,86 @@
+name: Dependency Check
+
+on:
+  schedule:
+    # Run every Monday at 9:00 UTC
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+jobs:
+  check-dependencies:
+    name: Check for outdated dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Check for outdated dependencies
+        id: outdated
+        run: |
+          uv pip list --outdated > /tmp/outdated.txt || true
+          if [ -s /tmp/outdated.txt ]; then
+            echo "outdated=true" >> $GITHUB_OUTPUT
+            echo "## Outdated Dependencies" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            cat /tmp/outdated.txt >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "outdated=false" >> $GITHUB_OUTPUT
+            echo "All dependencies are up to date!" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Create issue for outdated dependencies
+        if: steps.outdated.outputs.outdated == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const outdated = fs.readFileSync('/tmp/outdated.txt', 'utf8');
+
+            const title = '📦 Outdated dependencies detected';
+            const body = `## Outdated Dependencies
+
+            The following dependencies are outdated:
+
+            \`\`\`
+            ${outdated}
+            \`\`\`
+
+            Please review and update as needed.
+
+            ---
+            *This issue was automatically created by the [Dependency Check workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).*`;
+
+            // Check if an issue already exists
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: ['dependencies', 'automated']
+            });
+
+            const existingIssue = issues.data.find(issue => issue.title === title);
+
+            if (existingIssue) {
+              // Update existing issue
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssue.number,
+                body: `## Updated Dependency Check\n\n${body}`
+              });
+            } else {
+              // Create new issue
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['dependencies', 'automated']
+              });
+            }
