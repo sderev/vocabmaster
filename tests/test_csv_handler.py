@@ -218,6 +218,26 @@ def test_generate_anki_headers_capitalization():
     assert "#deck:German vocabulary" in headers
 
 
+def test_generate_anki_headers_same_language_definition_mode():
+    """Test header generation for same-language pairs uses 'definitions' deck name."""
+    headers = csv_handler.generate_anki_headers("french", "french")
+
+    assert "#deck:French definitions" in headers
+    assert "#separator:tab" in headers
+    assert "#html:true" in headers
+    assert "#notetype:Basic (and reversed card)" in headers
+    assert "#tags:vocabmaster" in headers
+
+
+def test_generate_anki_headers_same_language_case_insensitive():
+    """Test definition mode works with case variations."""
+    headers_lower = csv_handler.generate_anki_headers("english", "english")
+    headers_mixed = csv_handler.generate_anki_headers("English", "ENGLISH")
+
+    assert "#deck:English definitions" in headers_lower
+    assert "#deck:English definitions" in headers_mixed
+
+
 def test_generate_anki_output_file_with_headers(tmp_path):
     """Test complete Anki output file generation with headers and tab separator."""
     # Create a test translations file
