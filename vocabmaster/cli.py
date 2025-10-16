@@ -11,6 +11,81 @@ from . import utils
 from .utils import openai_api_key_exists, setup_backup_dir, setup_dir, setup_files
 
 
+def validate_data_directory(path_str: str) -> Path:
+    """
+    Validate user-specified data directory for security.
+
+    Args:
+        path_str: User-provided directory path
+
+    Returns:
+        Validated and resolved Path object
+
+    Raises:
+        ValueError: If path is unsafe
+    """
+    path = Path(path_str).expanduser().resolve()
+
+    # Disallow system directories on Unix-like systems
+    if platform.system() != "Windows":
+        forbidden_prefixes = ['/etc', '/bin', '/sbin', '/usr', '/var', '/sys', '/proc', '/dev', '/boot', '/root']
+        for prefix in forbidden_prefixes:
+            if str(path).startswith(prefix):
+                raise ValueError(f"Cannot use system directory: {path}")
+
+    # On all systems, require path to be under home directory or explicit /opt location
+    home = Path.home()
+    allowed_prefixes = [str(home), '/opt', '/tmp']
+
+    if not any(str(path).startswith(prefix) for prefix in allowed_prefixes):
+        raise ValueError(f"Directory must be under home directory, /opt, or /tmp. Got: {path}")
+
+    return path
+
+
+def validate_word(word: str) -> str:
+    """
+    Validate word input for safety and sanity.
+
+    Args:
+        word: User-provided word or phrase
+
+    Returns:
+        Validated word
+
+    Raises:
+        ValueError: If word is invalid
+    """
+    word = word.strip()
+
+    # Reject empty words
+    if not word:
+        raise ValueError("Word cannot be empty")
+
+    # Limit length (prevent disk exhaustion)
+    if len(word) > 500:
+        raise ValueError("Word too long (maximum 500 characters)")
+
+    # Check for null bytes (can corrupt files)
+    if '\0' in word:
+        raise ValueError("Word contains invalid null byte")
+
+    # Check for dangerous newlines/carriage returns (break CSV format)
+    if '\n' in word or '\r' in word:
+        raise ValueError("Word cannot contain newlines")
+
+    # Warn about CSV injection risks (formulas)
+    if word.startswith(('=', '+', '-', '@')):
+        click.secho(
+            f"Warning: Word starts with '{word[0]}' which may be interpreted as a formula in spreadsheets.",
+            fg="yellow"
+        )
+        if not click.confirm("Continue anyway?", default=False):
+            raise click.Abort()
+
+    return word
+
+
 class AliasedGroup(click.Group):
     """
     Click group with support for hidden command aliases.
@@ -101,11 +176,23 @@ def add(pair, word):
         )
         sys.exit(0)
 
-    word = " ".join(word)
-    if csv_handler.word_exists(word, translations_filepath):
+    word_str = " ".join(word)
+
+    # Validate word for security
+    try:
+        validated_word = validate_word(word_str)
+    except ValueError as e:
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(str(e), err=True)
+        sys.exit(1)
+    except click.Abort:
+        click.echo("Word not added.")
+        sys.exit(0)
+
+    if csv_handler.word_exists(validated_word, translations_filepath):
         click.echo("That word is already in your list 📒")
     else:
-        csv_handler.append_word(word, translations_filepath)
+        csv_handler.append_word(validated_word, translations_filepath)
         click.echo("Added to your list! 📝✅")
 
 
@@ -406,7 +493,14 @@ def config_dir(show_only, directory):
     else:
         directory_input = directory
 
-    target_path = Path(directory_input).expanduser()
+    # Validate directory for security
+    try:
+        target_path = validate_data_directory(directory_input)
+    except ValueError as e:
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(str(e), err=True)
+        sys.exit(1)
+
     if target_path.exists() and not target_path.is_dir():
         click.secho("Error: ", fg="red", nl=False, err=True)
         click.echo(f"{target_path} exists and is not a directory.", err=True)
