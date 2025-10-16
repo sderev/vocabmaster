@@ -263,7 +263,9 @@ def get_pair_mode(language_to_learn, mother_tongue):
     Returns:
         str: "definition" if the languages match, "translation" otherwise.
     """
-    return "definition" if is_same_language_pair(language_to_learn, mother_tongue) else "translation"
+    return (
+        "definition" if is_same_language_pair(language_to_learn, mother_tongue) else "translation"
+    )
 
 
 def openai_api_key_exists():
