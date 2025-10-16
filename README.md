@@ -16,6 +16,7 @@ Master new languages with this CLI tool, designed to help you record vocabulary 
     1. [Shell Completion](#shell-completion)
 1. [Usage](#usage)
     1. [Add a new language pair](#add-a-new-language-pair)
+        1. [Definition mode for same-language pairs](#definition-mode-for-same-language-pairs)
     1. [Add words to your vocabulary list](#add-words-to-your-vocabulary-list)
     1. [Manage language pairs](#manage-language-pairs)
     1. [Generate an Anki deck from your vocabulary list](#generate-an-anki-deck-from-your-vocabulary-list)
@@ -29,6 +30,7 @@ Master new languages with this CLI tool, designed to help you record vocabulary 
 
 * Record vocabulary words with ease
 * Automatic translation and usage examples via OpenAI GPT
+* Definition mode: use same-language pairs (e.g., french:french) to get concise definitions instead of translations
 * Anki integration for seamless language learning
 * Supports multiple languages
 
@@ -110,6 +112,22 @@ vocabmaster pairs add
 ```
 
 ![vocabmaster_setup](https://github.com/sderev/vocabmaster/assets/24412384/88742afa-fdc4-4808-b106-493b3c0afa8d)
+
+#### Definition mode for same-language pairs
+
+VocabMaster supports same-language pairs for getting definitions instead of translations. This is useful when you want to learn more advanced vocabulary in a language you're already studying.
+
+For example, to create a French vocabulary list with definitions in French:
+
+```
+vocabmaster pairs add
+# When prompted, enter: french (language to learn) and french (mother tongue)
+```
+
+When using same-language pairs:
+* The LLM provides concise definitions (2-3 words) instead of translations
+* Example sentences are in the target language
+* Anki decks are named "{Language} definitions" instead of "{Language} vocabulary"
 
 ### Add words to your vocabulary list
 
