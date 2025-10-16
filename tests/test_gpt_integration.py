@@ -23,7 +23,9 @@ def test_format_prompt_translation_mode():
     assert "world" in user_content
 
     # Verify format specification (check for the pattern without escaping)
-    assert "word\ttranslation1, translation2, translation3\texample sentence in french" in user_content
+    assert (
+        "word\ttranslation1, translation2, translation3\texample sentence in french" in user_content
+    )
 
 
 def test_format_prompt_definition_mode():
@@ -81,7 +83,9 @@ def test_format_prompt_system_message_consistent():
     """Test that system message is consistent across modes."""
     words = ["test"]
 
-    prompt_translation = gpt_integration.format_prompt("french", "english", words, mode="translation")
+    prompt_translation = gpt_integration.format_prompt(
+        "french", "english", words, mode="translation"
+    )
     prompt_definition = gpt_integration.format_prompt("french", "french", words, mode="definition")
 
     # System messages should be identical
