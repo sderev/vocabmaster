@@ -5,7 +5,9 @@ import openai
 import tiktoken
 
 
-def format_prompt(language_to_learn, mother_tongue, words_to_translate, mode="translation"):
+def format_prompt(
+    language_to_learn, mother_tongue, words_to_translate, mode="translation"
+):
     """
     Generate a prompt for translation or definition mode.
 
@@ -31,17 +33,17 @@ def format_prompt(language_to_learn, mother_tongue, words_to_translate, mode="tr
             {
                 "role": "user",
                 "content": f"""
-                Provide concise definitions for the following {language_to_learn} words
+                Provide definitions for the following {language_to_learn} words
                 and create a TSV file with each row consisting of the {language_to_learn} word,
-                a concise definition (2-3 words), and an example sentence in {language_to_learn}.
+                a definition, and an example sentence in {language_to_learn}.
 
                 Always give ONLY ONE example! The example HAS TO BE in {language_to_learn}!
                 Separate each column with a tab character.
-                For the definition column, provide a brief, clear definition (2-3 words preferred).
+                For the definition column, provide a brief, clear definition.
 
                 When you start a new row, you HAVE TO add a newline character.
                 The format should look like this:
-                word\tconcise definition\texample sentence in {language_to_learn}
+                word\tdefinition\texample sentence in {language_to_learn}
 
                 Below is the list of words.
                 ---
