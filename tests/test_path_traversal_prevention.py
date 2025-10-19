@@ -10,7 +10,7 @@ from vocabmaster import config_handler, utils
 from vocabmaster.cli import vocabmaster
 
 
-def test_path_traversal_write_outside_data_dir(tmp_path, monkeypatch):
+def test_path_traversal_write_outside_data_dir(tmp_path, fake_home, monkeypatch):
     """
     Test that path traversal vulnerability exists and can write outside data dir.
     This test should FAIL initially, proving the vulnerability exists.
@@ -23,6 +23,11 @@ def test_path_traversal_write_outside_data_dir(tmp_path, monkeypatch):
     # Use a benign data directory
     safe = tmp_path / "safe"
     safe.mkdir()
+
+    # Isolate config file to tmp_path
+    config_file = tmp_path / "config.json"
+    monkeypatch.setattr(config_handler, "get_config_filepath", lambda: config_file)
+
     config_handler.set_data_directory(safe)
 
     runner = CliRunner()
