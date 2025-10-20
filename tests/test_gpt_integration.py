@@ -14,9 +14,9 @@ def test_format_prompt_translation_mode():
     # Verify content mentions translations
     user_content = prompt[1]["content"]
     assert "Translate the following french words into english" in user_content
-    assert "its english translations" in user_content
-    assert "if there are multiple translations possible" in user_content
-    assert "ALWAYS give at least two or three possible translations" in user_content
+    assert "provide a TSV file where each row contains exactly four columns" in user_content
+    assert "translations — list at least two or three" in user_content
+    assert "original_word\trecognized_word" in user_content
 
     # Verify words are included
     assert "hello" in user_content
@@ -24,7 +24,8 @@ def test_format_prompt_translation_mode():
 
     # Verify format specification (check for the pattern without escaping)
     assert (
-        "word\ttranslation1, translation2, translation3\texample sentence in french" in user_content
+        "original_word\trecognized_word\ttranslation1, translation2, ...\texample sentence in french"
+        in user_content
     )
 
 
@@ -40,8 +41,8 @@ def test_format_prompt_definition_mode():
 
     # Verify content mentions definitions
     user_content = prompt[1]["content"]
-    assert "Provide definitions for the following french words" in user_content
-    assert "a brief, clear definition" in user_content
+    assert "Provide concise definitions for the following french words" in user_content
+    assert "original_word\trecognized_word\tdefinition" in user_content
     assert "example sentence in french" in user_content
 
     # Verify it does NOT mention translations
