@@ -31,19 +31,21 @@ def format_prompt(language_to_learn, mother_tongue, words_to_translate, mode="tr
             {
                 "role": "user",
                 "content": f"""
-                Provide definitions for the following {language_to_learn} words
-                and create a TSV file with each row consisting of the {language_to_learn} word,
-                a definition, and an example sentence in {language_to_learn}.
+                Provide concise definitions for the following {language_to_learn} words
+                and create a TSV file where each row contains exactly four columns:
+                1) original_word — copy the word EXACTLY as it appears in the list below
+                2) recognized_word — the corrected or normalized spelling you believe is correct
+                   (if you are confident the original spelling is already correct, repeat it verbatim)
+                3) definition — a short, clear definition in {language_to_learn}
+                4) example — a single example sentence in {language_to_learn}
 
                 Always give ONLY ONE example! The example HAS TO BE in {language_to_learn}!
                 Separate each column with a tab character.
-                For the definition column, provide a brief, clear definition.
 
-                When you start a new row, you HAVE TO add a newline character.
-                The format should look like this:
-                word\tdefinition\texample sentence in {language_to_learn}
+                When you start a new row, you HAVE TO add a newline character and produce:
+                original_word\trecognized_word\tdefinition\texample sentence in {language_to_learn}
 
-                Below is the list of words.
+                Below is the list of words. DO NOT correct casing or spacing when copying original_word.
                 ---
                 {words_to_translate}""",
             },
@@ -60,19 +62,20 @@ def format_prompt(language_to_learn, mother_tongue, words_to_translate, mode="tr
                 "role": "user",
                 "content": f"""
                 Translate the following {language_to_learn} words into {mother_tongue}
-                and provide a TSV file with each row consisting of the {language_to_learn} word,
-                its {mother_tongue} translations (if there are multiple translations possible,
-                list them in the same column), and an example sentence in {language_to_learn}.
+                and provide a TSV file where each row contains exactly four columns:
+                1) original_word — copy the word EXACTLY as it appears in the list below
+                2) recognized_word — the corrected or normalized spelling you believe is correct
+                   (if you are confident the original spelling is already correct, repeat it verbatim)
+                3) translations — list at least two or three {mother_tongue} translations separated by commas
+                4) example — a single example sentence in {language_to_learn}
 
                 Always give ONLY ONE example! The example HAS TO BE in {language_to_learn}!
                 Separate each column with a tab character.
-                For the translation column, ALWAYS give at least two or three possible translations!
 
-                When you start a new row, you HAVE TO add a newline character.
-                The format should look like this:
-                word\ttranslation1, translation2, translation3\texample sentence in {language_to_learn}
+                When you start a new row, you HAVE TO add a newline character and produce:
+                original_word\trecognized_word\ttranslation1, translation2, ...\texample sentence in {language_to_learn}
 
-                Below is the list of words to translate.
+                Below is the list of words to translate. DO NOT correct casing or spacing when copying original_word.
                 ---
                 {words_to_translate}""",
             },

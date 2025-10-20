@@ -1,3 +1,4 @@
+import csv
 from pathlib import Path
 
 from vocabmaster import config_handler, csv_handler
@@ -5,10 +6,11 @@ from vocabmaster import config_handler, csv_handler
 
 def test_convert_text_to_dict_preserves_single_quotes():
     """Ensure apostrophes inside translations and examples are preserved."""
-    generated_text = "saluer\tl'amour, l'ami\t\"Je dis 'bonjour'\"\n"
+    generated_text = "saluer\tsaluer\t'l'amour, l'ami'\t\"Je dis 'bonjour'\"\n"
 
     result = csv_handler.convert_text_to_dict(generated_text)
 
+    assert result["saluer"]["recognized_word"] == "saluer"
     assert result["saluer"]["translation"] == "l'amour, l'ami"
     assert result["saluer"]["example"] == "Je dis 'bonjour'"
 
@@ -17,11 +19,18 @@ def test_detect_word_mismatches_finds_typo_corrections():
     """Test detecting when the LM corrects typos in word responses."""
     original_words = ["brethen", "hello"]
     gpt_response = {
-        "brethren": {"translation": "frères", "example": "The brethren gather"},
-        "hello": {"translation": "bonjour", "example": "Hello there"},
+        "brethen": {
+            "recognized_word": "brethren",
+            "translation": "frères",
+            "example": "The brethren gather",
+        },
+        "hello": {
+            "recognized_word": "hello",
+            "translation": "bonjour",
+            "example": "Hello there",
+        },
     }
 
-    # This function doesn't exist yet - we'll implement it
     mismatches = csv_handler.detect_word_mismatches(original_words, gpt_response)
 
     expected = [("brethen", ["brethren"])]
@@ -32,8 +41,16 @@ def test_detect_word_mismatches_returns_empty_when_all_match():
     """Test no mismatches detected when all words match exactly."""
     original_words = ["hello", "world"]
     gpt_response = {
-        "hello": {"translation": "bonjour", "example": "Hello there"},
-        "world": {"translation": "monde", "example": "The world is big"},
+        "hello": {
+            "recognized_word": "hello",
+            "translation": "bonjour",
+            "example": "Hello there",
+        },
+        "world": {
+            "recognized_word": "world",
+            "translation": "monde",
+            "example": "The world is big",
+        },
     }
 
     mismatches = csv_handler.detect_word_mismatches(original_words, gpt_response)
@@ -44,24 +61,34 @@ def test_detect_word_mismatches_handles_multiple_corrections():
     """Test detecting multiple typo corrections in one batch."""
     original_words = ["brethen", "seperate", "definately"]
     gpt_response = {
-        "brethren": {"translation": "frères", "example": "The brethren gather"},
-        "separate": {"translation": "séparer", "example": "Separate items"},
-        "definitely": {"translation": "définitivement", "example": "Definitely yes"},
+        "brethen": {
+            "recognized_word": "brethren",
+            "translation": "frères",
+            "example": "The brethren gather",
+        },
+        "seperate": {
+            "recognized_word": "separate",
+            "translation": "séparer",
+            "example": "Separate items",
+        },
+        "definately": {
+            "recognized_word": "definitely",
+            "translation": "définitivement",
+            "example": "Definitely yes",
+        },
     }
 
     mismatches = csv_handler.detect_word_mismatches(original_words, gpt_response)
 
-    # Current simple logic: all missing words get all potential corrections
-    # We can improve this later with similarity matching
-    expected_corrections = ["brethren", "separate", "definitely"]
+    expected = {
+        "brethen": ["brethren"],
+        "seperate": ["separate"],
+        "definately": ["definitely"],
+    }
 
     assert len(mismatches) == 3
-    # Check that all original words are detected as mismatches
-    original_words_in_mismatches = [mismatch[0] for mismatch in mismatches]
-    assert set(original_words_in_mismatches) == set(original_words)
-    # Check that all corrections are provided (order doesn't matter)
-    for _, corrections in mismatches:
-        assert set(corrections) == set(expected_corrections)
+    for original_word, corrections in mismatches:
+        assert expected[original_word] == corrections
 
 
 def test_ask_user_about_word_correction_accepts_change(monkeypatch):
@@ -117,8 +144,16 @@ def test_word_correction_applies_translation_immediately():
     }
 
     new_entries = {
-        "brethren": {"translation": "frères", "example": "The brethren gather"},
-        "hello": {"translation": "bonjour", "example": "Hello there"},
+        "brethen": {
+            "recognized_word": "brethren",
+            "translation": "frères",
+            "example": "The brethren gather",
+        },
+        "hello": {
+            "recognized_word": "hello",
+            "translation": "bonjour",
+            "example": "Hello there",
+        },
     }
 
     # Test the logic that should apply translations immediately after word correction
@@ -132,13 +167,12 @@ def test_word_correction_applies_translation_immediately():
 
     # Simulate user accepting the correction
     corrected_word = "brethren"
-    current_entries = csv_handler.update_word_in_entries(
-        current_entries, original_word, corrected_word
-    )
+    current_entries = csv_handler.update_word_in_entries(current_entries, original_word, corrected_word)
 
     # Apply translation immediately (this is what the bug fix does)
-    current_entries[corrected_word]["translation"] = new_entries[corrected_word]["translation"]
-    current_entries[corrected_word]["example"] = new_entries[corrected_word]["example"]
+    entry_data = new_entries[original_word]
+    current_entries[corrected_word]["translation"] = entry_data["translation"]
+    current_entries[corrected_word]["example"] = entry_data["example"]
 
     # Verify the correction is properly applied including the internal word field
     assert "brethen" not in current_entries
@@ -166,7 +200,7 @@ def test_backup_occurs_before_chat_request(tmp_path, fake_home, monkeypatch):
 
     def fake_generate(language_to_learn, mother_tongue, filepath):
         call_order.append(("generate_translations_and_examples", None))
-        return "hello\tbonjour\t'Salut !'\n"
+        return "hello\thello\t'bonjour'\t\"Salut !\"\n"
 
     monkeypatch.setattr(
         csv_handler,
@@ -184,6 +218,36 @@ def test_backup_occurs_before_chat_request(tmp_path, fake_home, monkeypatch):
     assert sum(1 for name, _ in call_order if name == "backup_file") == 2
     assert "bonjour" in translations_file.read_text(encoding="utf-8")
 
+
+
+def test_declined_correction_keeps_original_translation_empty(tmp_path, fake_home, monkeypatch):
+    """Ensure we do not apply translations when a correction is rejected."""
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    config_handler.set_data_directory(data_dir)
+
+    translations_file = data_dir / "vocab_list_english-french.csv"
+    translations_file.write_text("word,translation,example\nconvertable,,\n", encoding="utf-8")
+
+    def fake_generate(language_to_learn, mother_tongue, filepath):
+        return (
+            "convertable\tconvertible\t'convertible, cabriolet'\t\"La voiture est convertible.\"\n"
+        )
+
+    monkeypatch.setattr(csv_handler, "generate_translations_and_examples", fake_generate)
+    monkeypatch.setattr(csv_handler, "ask_user_about_correction", lambda *_: False)
+
+    csv_handler.add_translations_and_examples_to_file(
+        str(translations_file),
+        "english:french",
+    )
+
+    with open(translations_file, encoding="utf-8") as file:
+        rows = list(csv.DictReader(file))
+
+    assert rows[0]["word"] == "convertable"
+    assert rows[0]["translation"] == ""
+    assert rows[0]["example"] == ""
 
 def test_generate_anki_headers():
     """Test generation of Anki file headers."""

@@ -24,7 +24,7 @@ def test_same_language_workflow_generates_definitions(tmp_path, monkeypatch):
         assert mother_tongue == "french"
 
         # Return definitions in the expected format
-        return 'bonjour\tsalutation, salut\t"Bonjour, comment allez-vous ?"\nmonde\tunivers, terre\t"Le monde est vaste."\n'
+        return 'bonjour\tbonjour\tsalutation, salut\t"Bonjour, comment allez-vous ?"\nmonde\tmonde\tunivers, terre\t"Le monde est vaste."\n'
 
     monkeypatch.setattr(
         csv_handler,
@@ -89,7 +89,7 @@ def test_same_language_case_variations_work(tmp_path, monkeypatch):
     def fake_generate(language_to_learn, mother_tongue, filepath):
         # Verify both languages are treated as same despite case
         assert language_to_learn.casefold() == mother_tongue.casefold()
-        return 'hello\tgreeting\t"Hello, how are you?"\n'
+        return 'hello\thello\tgreeting\t"Hello, how are you?"\n'
 
     monkeypatch.setattr(
         csv_handler,
@@ -124,7 +124,7 @@ def test_different_language_still_generates_translations(tmp_path, monkeypatch):
     def fake_generate(language_to_learn, mother_tongue, filepath):
         # Verify languages are different (translation mode)
         assert language_to_learn != mother_tongue
-        return 'bonjour\thello, hi, good morning\t"Bonjour, comment allez-vous ?"\n'
+        return 'bonjour\tbonjour\thello, hi, good morning\t"Bonjour, comment allez-vous ?"\n'
 
     monkeypatch.setattr(
         csv_handler,

@@ -46,25 +46,41 @@ def detect_word_mismatches(original_words, gpt_response):
     """
     Detect words that don't match between original words and LM response.
 
+    A mismatch occurs when the LM reports a different "recognized" spelling for a given
+    original word, or when a response is entirely missing for one of the requested words.
+
     Args:
-        original_words (list): List of original words sent to the LM
-        gpt_response (dict): Dictionary of LM responses with word as key
+        original_words (list): List of original words sent to the LM.
+        gpt_response (dict): Dictionary keyed by original words with LM metadata.
 
     Returns:
         list: List of tuples (original_word, [possible_corrections])
     """
     mismatches = []
 
-    # Find words in LM response that aren't in original words (potential corrections)
-    original_words_set = set(original_words)
-    gpt_words_set = set(gpt_response.keys())
-    potential_corrections = gpt_words_set - original_words_set
+    recognized_candidates = {
+        data.get("recognized_word")
+        for data in gpt_response.values()
+        if isinstance(data, dict) and data.get("recognized_word")
+    }
 
     for original_word in original_words:
-        if original_word not in gpt_response:
-            # Only report as mismatch if there are potential corrections available
-            if potential_corrections:
-                mismatches.append((original_word, list(potential_corrections)))
+        entry = gpt_response.get(original_word)
+
+        if not entry:
+            # Missing entry: offer any recognized candidates as possibilities
+            if recognized_candidates:
+                mismatches.append((original_word, sorted(recognized_candidates)))
+            continue
+
+        recognized_word = entry.get("recognized_word")
+        if recognized_word and recognized_word != original_word:
+            mismatches.append((original_word, [recognized_word]))
+        elif recognized_word is None:
+            # Fallback: LM did not return the recognized column, reuse candidate set
+            alternative_corrections = recognized_candidates - {original_word}
+            if alternative_corrections:
+                mismatches.append((original_word, sorted(alternative_corrections)))
 
     return mismatches
 
@@ -106,9 +122,9 @@ def update_word_in_entries(current_entries, old_word, new_word):
     return current_entries
 
 
-def word_exists(word, translations_filepath):
+def word_exists(word, translations_path):
     """
-    Checks if the word is already present in the `translations_filepath`.
+    Checks if the word is already present in the `translations_path`.
 
     Args:
         word (str): The word to check for its presence in the file.
@@ -117,7 +133,7 @@ def word_exists(word, translations_filepath):
     Returns:
         bool: True if the word is found in the file, False otherwise.
     """
-    with open(translations_filepath, encoding="UTF-8") as file:
+    with open(translations_path, encoding="UTF-8") as file:
         dict_reader = DictReader(file, fieldnames=CSV_FIELDNAMES)
         for row in dict_reader:
             if word == row["word"]:
@@ -141,7 +157,7 @@ def append_word(word, translations_filepath):
         dict_writer.writerow({"word": safe_word, "translation": "", "example": ""})
 
 
-def get_words_to_translate(translations_filepath):
+def get_words_to_translate(translations_path):
     """
     Reads a CSV file containing words, translations, and examples, and returns a list of words that need translations.
 
@@ -149,17 +165,17 @@ def get_words_to_translate(translations_filepath):
     If a row is missing either the 'translation' or 'example' column, the 'word' from that row will be added to the list.
 
     Args:
-        translations_filepath (str): The path to the input CSV file containing words, translations, and examples.
+        translations_path (pathlib.Path | str): The path to the input CSV file containing words, translations, and examples.
 
     Returns:
         list: A list of words that need translations.
     """
     # Ensure the file has the correct fieldnames before reading
-    ensure_csv_has_fieldnames(translations_filepath)
+    ensure_csv_has_fieldnames(translations_path)
 
     words_to_translate = []
 
-    with open(translations_filepath, encoding="UTF-8") as translations_file:
+    with open(translations_path, encoding="UTF-8") as translations_file:
         dict_reader = DictReader(translations_file)
         # fieldnames = ["word", "translation", "example"]
 
@@ -174,26 +190,26 @@ def get_words_to_translate(translations_filepath):
         return words_to_translate
 
 
-def generate_translations_and_examples(language_to_learn, mother_tongue, translations_filepath):
+def generate_translations_and_examples(language_to_learn, mother_tongue, translations_path):
     """
     Generates translations and examples for a list of words using the LM.
 
     This function calls `get_words_to_translate` to obtain a list of words that need translations,
-    using the provided `translations_filepath`. It then formats the prompt using
+    using the provided `translations_path`. It then formats the prompt using
     `gpt_integration.format_prompt` and sends a request to the LM. The generated text from
     the LM is returned.
 
     Args:
         language_to_learn (str): The language to learn.
         mother_tongue (str): The user's mother tongue.
-        translations_filepath (str): The path to the input CSV file containing words,
+        translations_path (str): The path to the input CSV file containing words,
                                        translations, and examples.
 
     Returns:
         str: The generated text containing translations and examples.
     """
     # Get the list of words that need translations and generate the LM prompt
-    words_to_translate = get_words_to_translate(translations_filepath)
+    words_to_translate = get_words_to_translate(translations_path)
 
     # Determine the mode based on whether languages match
     mode = utils.get_pair_mode(language_to_learn, mother_tongue)
@@ -214,45 +230,58 @@ def generate_translations_and_examples(language_to_learn, mother_tongue, transla
 
 def convert_text_to_dict(generated_text):
     """
-    Clean and convert the given text into a dictionary.
+    Clean and convert the given TSV text into a dictionary.
 
-    The text should be in the format:
-    "'word1',"translation1","example1"\n'word2',"translation2","example2"'
+    Expected format per line:
+        original_word\trecognized_word\ttranslation_or_definition\texample
+
+    The "recognized_word" column allows the LM to report spelling corrections. The function
+    returns a dictionary keyed by the original words supplied by the user, preserving both the
+    LM's recognized spelling and the generated content.
 
     Args:
         generated_text (str): The text to be cleaned and converted.
 
     Returns:
-        dict: A dictionary with words as keys and a dictionary of translations and examples as values.
+        dict: A dictionary keyed by original words with translation data.
     """
     # Clean input text and split it into lines
-    cleaned_text = generated_text.replace("\n\n", "\n").replace("```csv", "").replace("```", "")
+    cleaned_text = generated_text.replace("\\n\\n", "\\n").replace("```csv", "").replace("```", "")
     lines = cleaned_text.strip().splitlines()
 
-    # Create a dictionary of words with translations and examples
+    def _strip_wrapping(value: str, quote_char: str) -> str:
+        """Remove matching wrapping quote characters while preserving inner content."""
+        if value.startswith(quote_char) and value.endswith(quote_char) and len(value) >= 2:
+            return value[1:-1]
+        return value
+
     result = {}
     for line in lines:
         line = line.strip()
         if not line:
             continue
 
-        try:
-            word, translation_quoted, example_quoted = line.split("\t")
+        columns = line.split("\t")
 
-            translation = translation_quoted.strip("'")
-            example = example_quoted.strip('"')
-
-            result[word] = {
-                "translation": translation,
-                "example": example,
-            }
-        except ValueError:
+        if len(columns) < 4:
             click.echo(f"{click.style('Warning: ', fg='yellow')} Could not parse line:\n{line}")
             continue
+
+        original_word, recognized_word, translation_quoted, example_quoted = columns[:4]
+
+        translation = _strip_wrapping(translation_quoted, "'")
+        example = _strip_wrapping(example_quoted, '"')
+
+        result[original_word] = {
+            "recognized_word": recognized_word,
+            "translation": translation,
+            "example": example,
+        }
+
     return result
 
 
-def add_translations_and_examples_to_file(translations_filepath, pair):
+def add_translations_and_examples_to_file(translations_path, pair):
     """
     Updates the translations file with new translations and examples.
 
@@ -261,7 +290,7 @@ def add_translations_and_examples_to_file(translations_filepath, pair):
     the CSV file with the new translations and examples.
 
     Args:
-        translations_filepath (str): The path to the CSV file containing the translations and examples.
+        translations_path (str): The path to the CSV file containing the translations and examples.
     Returns:
         pair (str): The language pair in the format: 'language_to_learn:mother_tongue'.
 
@@ -269,22 +298,37 @@ def add_translations_and_examples_to_file(translations_filepath, pair):
     """
     # Generate new translations and examples, then convert the results to a dictionary
     language_to_learn, mother_tongue = utils.get_language_pair_from_option(pair)
+    translations_path = Path(translations_path)
     backup_dir = utils.get_backup_dir(language_to_learn, mother_tongue)
 
     # Preserve the current vocabulary file before making external requests.
-    utils.backup_file(backup_dir, translations_filepath)
+    utils.backup_file(backup_dir, translations_path)
 
     # Get the original words that were sent to the LM for mismatch detection
-    original_words = get_words_to_translate(translations_filepath)
+    original_words = get_words_to_translate(translations_path)
 
     new_entries = convert_text_to_dict(
-        generate_translations_and_examples(language_to_learn, mother_tongue, translations_filepath)
+        generate_translations_and_examples(language_to_learn, mother_tongue, translations_path)
     )
 
     # Read the current entries from the input file and store them in a dictionary
-    with open(translations_filepath, "r", encoding="UTF-8") as input_file:
+    with open(translations_path, "r", encoding="UTF-8") as input_file:
         translations_reader = DictReader(input_file)
         current_entries = {row["word"]: row for row in translations_reader}
+
+    skip_translation_for = set()
+
+    def _entry_for_correction(original_word, corrected_word):
+        """Return LM data for a correction suggestion."""
+        entry = new_entries.get(original_word)
+        if entry and entry.get("recognized_word") == corrected_word:
+            return entry
+
+        for data in new_entries.values():
+            if data.get("recognized_word") == corrected_word:
+                return data
+
+        return entry
 
     # Detect and handle word mismatches (e.g., typo corrections by the LM)
     mismatches = detect_word_mismatches(original_words, new_entries)
@@ -300,15 +344,14 @@ def add_translations_and_examples_to_file(translations_filepath, pair):
                         current_entries, original_word, corrected_word
                     )
                     # Apply the translation and example immediately
-                    current_entries[corrected_word]["translation"] = new_entries[corrected_word][
-                        "translation"
-                    ]
-                    current_entries[corrected_word]["example"] = new_entries[corrected_word][
-                        "example"
-                    ]
+                    entry_data = _entry_for_correction(original_word, corrected_word)
+                    if entry_data:
+                        current_entries[corrected_word]["translation"] = entry_data["translation"]
+                        current_entries[corrected_word]["example"] = entry_data["example"]
                     click.echo(f"Updated '{original_word}' → '{corrected_word}' ✓")
                 else:
                     click.echo(f"Kept original word '{original_word}'")
+                    skip_translation_for.add(original_word)
             else:
                 click.echo(f"\nThe LM didn't return a translation for '{original_word}'.")
                 click.echo(f"Available translations: {', '.join(potential_corrections)}")
@@ -325,34 +368,44 @@ def add_translations_and_examples_to_file(translations_filepath, pair):
                         current_entries, original_word, corrected_word
                     )
                     # Apply the translation and example immediately
-                    current_entries[corrected_word]["translation"] = new_entries[corrected_word][
-                        "translation"
-                    ]
-                    current_entries[corrected_word]["example"] = new_entries[corrected_word][
-                        "example"
-                    ]
+                    entry_data = _entry_for_correction(original_word, corrected_word)
+                    if entry_data:
+                        current_entries[corrected_word]["translation"] = entry_data["translation"]
+                        current_entries[corrected_word]["example"] = entry_data["example"]
                     click.echo(f"Updated '{original_word}' → '{corrected_word}' ✓")
                 else:
                     click.echo(f"Skipped '{original_word}'")
+                    skip_translation_for.add(original_word)
 
         click.echo()
 
     # Write the updated translations and examples to the output file
-    with open(translations_filepath, "w", encoding="UTF-8") as output_file:
+    with open(translations_path, "w", encoding="UTF-8") as output_file:
         writer = DictWriter(output_file, fieldnames=CSV_FIELDNAMES)
         writer.writeheader()
 
         # Iterate through the current entries and update them with the new translations and examples
         for word, current_entry in current_entries.items():
-            if word in new_entries and not current_entry["translation"]:
-                current_entry["translation"] = new_entries[word]["translation"]
-                current_entry["example"] = new_entries[word]["example"]
+            if word in skip_translation_for:
+                writer.writerow(current_entry)
+                continue
+
+            entry_data = new_entries.get(word)
+            recognized_word = entry_data.get("recognized_word") if entry_data else None
+
+            if (
+                entry_data
+                and not current_entry["translation"]
+                and (recognized_word is None or recognized_word == word)
+            ):
+                current_entry["translation"] = entry_data["translation"]
+                current_entry["example"] = entry_data["example"]
 
             # Write the updated entry to the output file
             writer.writerow(current_entry)
 
     # Create a backup of the translations file
-    utils.backup_file(backup_dir, translations_filepath)
+    utils.backup_file(backup_dir, translations_path)
 
 
 def generate_anki_headers(language_to_learn, mother_tongue):
@@ -384,7 +437,7 @@ def generate_anki_headers(language_to_learn, mother_tongue):
 
 
 def generate_anki_output_file(
-    translations_filepath, anki_output_file, language_to_learn, mother_tongue
+    translations_path, anki_output_file, language_to_learn, mother_tongue
 ):
     """
     Converts a translations file to a CSV file formatted for Anki import.
@@ -394,7 +447,7 @@ def generate_anki_output_file(
     with the word on the front and the translation and example on the back.
 
     Args:
-        translations_filepath (str): The path to the CSV file containing the translations and examples.
+        translations_path (str): The path to the CSV file containing the translations and examples.
         anki_output_file (str): The path to the output TSV file formatted for Anki import.
         language_to_learn (str): The target language being learned.
         mother_tongue (str): The user's native language.
@@ -403,10 +456,10 @@ def generate_anki_output_file(
         None
     """
     # Ensure the source file contains the expected header so the DictReader can parse rows safely.
-    ensure_csv_has_fieldnames(translations_filepath)
+    ensure_csv_has_fieldnames(translations_path)
 
     with (
-        open(translations_filepath, encoding="UTF-8") as translations_file,
+        open(translations_path, encoding="UTF-8") as translations_file,
         open(anki_output_file, "w", encoding="UTF-8") as anki_file,
     ):
         # Write Anki headers first
@@ -438,20 +491,20 @@ def generate_anki_output_file(
                 anki_dict_writer.writerow(card)
 
 
-def ensure_csv_has_fieldnames(translations_filepath, fieldnames=None):
+def ensure_csv_has_fieldnames(translations_path, fieldnames=None):
     """
     Ensure the CSV file starts with the expected fieldnames.
 
     The header row is inserted only when it is missing.
 
     Args:
-        translations_filepath (str): The path to the CSV file.
+        translations_path (str): The path to the CSV file.
         fieldnames (list): A list of strings containing the column names.
     """
     if fieldnames is None:
         fieldnames = CSV_FIELDNAMES
 
-    with open(translations_filepath, "r+", encoding="UTF-8") as file:
+    with open(translations_path, "r+", encoding="UTF-8") as file:
         # Check if the fieldnames is already present in the first row of the content
         for line in file:
             if line.startswith(",".join(fieldnames)):
@@ -468,19 +521,19 @@ def ensure_csv_has_fieldnames(translations_filepath, fieldnames=None):
         file.write(content)  # Write the original content after the fieldnames
 
 
-def vocabulary_list_is_empty(translations_filepath):
+def vocabulary_list_is_empty(translations_path):
     """
     Checks if the vocabulary list is empty.
 
     Args:
-        translations_filepath (str): The path to the CSV file containing the translations and examples.
+        translations_path (str): The path to the CSV file containing the translations and examples.
 
     Returns:
         bool: True if the vocabulary list is empty, False otherwise.
     """
-    ensure_csv_has_fieldnames(translations_filepath, ["word", "translation", "example"])
+    ensure_csv_has_fieldnames(translations_path, ["word", "translation", "example"])
 
-    with open(translations_filepath, encoding="UTF-8") as file:
+    with open(translations_path, encoding="UTF-8") as file:
         dict_reader = DictReader(file)
 
         for row in dict_reader:
@@ -489,17 +542,17 @@ def vocabulary_list_is_empty(translations_filepath):
     return True
 
 
-def calculate_vocabulary_stats(translations_filepath):
+def calculate_vocabulary_stats(translations_path):
     """
     Compute statistics about a translations file.
 
     Args:
-        translations_filepath (pathlib.Path | str): Path to the vocabulary CSV file.
+        translations_path (pathlib.Path | str): Path to the vocabulary CSV file.
 
     Returns:
         dict[str, int]: Dictionary with total, translated, and pending counts.
     """
-    translations_path = Path(translations_filepath)
+    translations_path = Path(translations_path)
     if not translations_path.exists():
         return {"total": 0, "translated": 0, "pending": 0}
 
