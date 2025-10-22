@@ -130,4 +130,3 @@ dmypy.json
 
 *.swp
 worktrees/
-uv.lock
