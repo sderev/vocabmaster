@@ -45,6 +45,20 @@ This directory contains the CI/CD pipeline configuration for VocabMaster.
 * Checks for outdated dependencies
 * Creates or updates a GitHub issue with outdated packages
 
+### 4. Security Scan (`security.yml`)
+
+**Triggers:**
+* Push to `main`, Pull requests to `main`
+* Daily schedule (2:00 UTC)
+* Manual dispatch
+
+**Jobs:**
+* **Dependency Scan** - Uses `pip-audit` and `safety` to detect vulnerable dependencies
+* **Secret Scan** - Uses Gitleaks to detect leaked credentials
+* **CodeQL Analysis** - GitHub semantic security vulnerability analysis
+
+The standalone security workflow provides daily automated scans for newly disclosed vulnerabilities.
+
 ## Manual Workflow Triggers
 
 You can manually trigger workflows from the Actions tab:
@@ -53,6 +67,7 @@ You can manually trigger workflows from the Actions tab:
 # Using GitHub CLI
 gh workflow run ci.yml
 gh workflow run dependencies.yml
+gh workflow run security.yml
 ```
 
 ## Creating a Release
@@ -115,7 +130,10 @@ vocabmaster --help
 * Check the `pypi` environment is configured in repository settings
 * Ensure the tag format matches `v*` pattern
 
-### Security Audit Issues
-* The CI workflow includes `pip-audit` for dependency vulnerability scanning
-* Review the security scan results in the Actions tab
+### Security Scan Issues
+* Security scans run daily at 2:00 UTC to detect newly disclosed vulnerabilities
+* Review security scan results in the Actions tab under `security.yml`
+* Dependency scans use `pip-audit` and `safety` for vulnerability detection
+* Secret scanning uses Gitleaks to detect leaked credentials
+* CodeQL provides semantic analysis for security issues
 * Update dependencies if vulnerabilities are found
