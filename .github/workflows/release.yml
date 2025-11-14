@@ -1,0 +1,293 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  validate-tag:
+    name: Validate release tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version from tag
+        id: get-version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+
+          # Validate semver format
+          if [[ ! $TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$ ]]; then
+            echo "Error: Tag '$TAG' does not follow semantic versioning"
+            exit 1
+          fi
+
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Releasing version: $VERSION"
+
+      - name: Read version from pyproject.toml
+        id: project-version
+        run: |
+          PROJECT_VERSION=$(grep "^version" pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "project_version=$PROJECT_VERSION" >> $GITHUB_OUTPUT
+          echo "Project version: $PROJECT_VERSION"
+
+      - name: Verify version matches
+        run: |
+          if [ "${{ steps.get-version.outputs.version }}" != "${{ steps.project-version.outputs.project_version }}" ]; then
+            echo "Error: Tag version (${{ steps.get-version.outputs.version }}) does not match pyproject.toml version (${{ steps.project-version.outputs.project_version }})"
+            exit 1
+          fi
+          echo "✓ Version matches"
+
+  test:
+    name: Run full test suite
+    needs: validate-tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: uv sync --frozen --dev
+
+      - name: Run linter
+        run: uv run ruff check .
+
+      - name: Run formatter check
+        run: uv run ruff format --check .
+
+      - name: Run tests
+        run: uv run pytest -v --cov=vocabmaster --cov-report=term
+        env:
+          OPENAI_API_KEY: test-key-for-ci
+
+  build:
+    name: Build distribution
+    needs: [validate-tag, test]
+    runs-on: ubuntu-latest
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Build package
+        run: uv build
+
+      - name: Verify package metadata
+        run: |
+          uv pip install twine
+          uv run twine check dist/*
+
+      - name: Generate hashes for provenance
+        id: hash
+        working-directory: dist
+        run: |
+          echo "hashes=$(sha256sum * | base64 -w0)" >> $GITHUB_OUTPUT
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 90
+          if-no-files-found: error
+
+  generate-provenance:
+    name: Generate SLSA provenance
+    needs: build
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+      attestations: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+    with:
+      base64-subjects: ${{ needs.build.outputs.hashes }}
+      upload-assets: true
+      provenance-name: "provenance.intoto.jsonl"
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: [validate-tag, build, generate-provenance]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/vocabmaster
+    permissions:
+      id-token: write
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          print-hash: true
+          verbose: true
+
+  create-release:
+    name: Create GitHub Release
+    needs: [validate-tag, publish-pypi, generate-provenance]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Download provenance
+        uses: actions/download-artifact@v4
+        with:
+          name: provenance.intoto.jsonl
+          path: .
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION="${{ needs.validate-tag.outputs.version }}"
+          PREVIOUS_TAG=$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1) 2>/dev/null || echo "")
+
+          {
+            echo "## What's Changed"
+            echo ""
+
+            if [ -z "$PREVIOUS_TAG" ]; then
+              echo "First release of VocabMaster 🎉"
+              echo ""
+              echo "### Commits"
+              git log --pretty=format:"* %s (%h)" --no-merges --reverse
+            else
+              echo "Changes since [\`$PREVIOUS_TAG\`](https://github.com/${{ github.repository }}/releases/tag/$PREVIOUS_TAG):"
+              echo ""
+              echo "### Commits"
+              git log ${PREVIOUS_TAG}..HEAD --pretty=format:"* %s (%h)" --no-merges
+            fi
+
+            echo ""
+            echo "---"
+            echo ""
+            echo "## Installation"
+            echo ""
+            echo "\`\`\`bash"
+            echo "pip install vocabmaster==$VERSION"
+            echo "# or with uv"
+            echo "uv tool install vocabmaster==$VERSION"
+            echo "\`\`\`"
+            echo ""
+            echo "## Verification"
+            echo ""
+            echo "This release includes:"
+            echo "* **SLSA Level 3 provenance** - Verify the build integrity with \`slsa-verifier\`"
+            echo "* **Build artifacts** - Wheel and source distribution"
+            echo ""
+            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...v${VERSION}"
+          } > /tmp/changelog.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Release v${{ needs.validate-tag.outputs.version }}"
+          body_path: /tmp/changelog.md
+          files: |
+            dist/*
+            provenance.intoto.jsonl
+          draft: false
+          prerelease: ${{ contains(needs.validate-tag.outputs.version, '-') }}
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  announce:
+    name: Announce release
+    needs: [validate-tag, create-release]
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Create success summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          # 🚀 Release v${{ needs.validate-tag.outputs.version }} Published!
+
+          ## Artifacts
+          * ✅ Published to [PyPI](https://pypi.org/project/vocabmaster/${{ needs.validate-tag.outputs.version }}/)
+          * ✅ [GitHub Release](https://github.com/${{ github.repository }}/releases/tag/v${{ needs.validate-tag.outputs.version }})
+          * ✅ SLSA Level 3 Provenance generated
+
+          ## Next Steps
+          * Announce on social media
+          * Update documentation
+          * Monitor for issues
+
+          ---
+          *Automated release by GitHub Actions*
+          EOF
+
+  rollback:
+    name: Rollback on failure
+    needs: [validate-tag, create-release, publish-pypi]
+    runs-on: ubuntu-latest
+    if: failure()
+    steps:
+      - name: Create failure summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          # ⚠️ Release Failed
+
+          Version: v${{ needs.validate-tag.outputs.version }}
+
+          ## Required Actions
+          1. Review the failed job logs
+          2. If PyPI publish succeeded but GitHub release failed, manually create release
+          3. If build failed, fix issues and re-tag
+          4. Delete the git tag if needed: \`git push --delete origin v${{ needs.validate-tag.outputs.version }}\`
+
+          EOF
