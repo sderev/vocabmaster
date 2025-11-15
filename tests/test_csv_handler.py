@@ -416,3 +416,120 @@ def test_vocabulary_list_is_empty_detects_existing_entries(tmp_path):
     translations_file.write_text("word,translation,example\nbonjour,,\n")
 
     assert csv_handler.vocabulary_list_is_empty(translations_file) is False
+def test_is_missing_or_blank_helper():
+    """Test the _is_missing_or_blank helper function with various inputs."""
+    # None should be considered missing
+    assert csv_handler._is_missing_or_blank(None) is True
+
+    # Empty string should be considered missing
+    assert csv_handler._is_missing_or_blank("") is True
+
+    # Whitespace-only strings should be considered missing
+    assert csv_handler._is_missing_or_blank(" ") is True
+    assert csv_handler._is_missing_or_blank("  ") is True
+    assert csv_handler._is_missing_or_blank("\t") is True
+    assert csv_handler._is_missing_or_blank("\n") is True
+    assert csv_handler._is_missing_or_blank(" \t\n ") is True
+
+    # Valid non-empty strings should not be considered missing
+    assert csv_handler._is_missing_or_blank("hello") is False
+    assert csv_handler._is_missing_or_blank(" hello ") is False  # Has content after stripping
+    assert csv_handler._is_missing_or_blank("0") is False  # "0" is a valid value
+
+    # Non-string values (edge case)
+    assert csv_handler._is_missing_or_blank(0) is False
+    assert csv_handler._is_missing_or_blank(False) is False
+    assert csv_handler._is_missing_or_blank([]) is False
+
+
+def test_csv_injection_prevention():
+    """Test that CSV injection attacks are prevented by sanitizing LM responses."""
+    # Test that the sanitize function works correctly
+    assert csv_handler.sanitize_csv_value("=SUM(A:A)") == "'=SUM(A:A)"
+    assert csv_handler.sanitize_csv_value("+1234567890") == "'+1234567890"
+    assert csv_handler.sanitize_csv_value("-1234567890") == "'-1234567890"
+    assert csv_handler.sanitize_csv_value("@SUM(A:A)") == "'@SUM(A:A)"
+    assert csv_handler.sanitize_csv_value("\t=EVIL()") == "'\t=EVIL()"
+    assert csv_handler.sanitize_csv_value("normal text") == "normal text"
+
+
+def test_lm_responses_are_sanitized(tmp_path, monkeypatch):
+    """Test that LM responses containing formulas are sanitized before writing to CSV."""
+    import click
+    from pathlib import Path
+
+    # Create a test CSV file
+    translations_file = tmp_path / "vocab_list_en-fr.csv"
+    translations_file.write_text("word,translation,example\nhello,,\nworld,,\n")
+
+    # Mock the LM response with CSV injection attempts
+    mock_lm_response = """hello\thello\t'=SUM(A:A)'\t"=HYPERLINK('http://evil.com')"
+world\tworld\t'+1234567890'\t"@SUM(1:1)"
+"""
+
+    # Mock the generate_translations_and_examples function
+    def mock_generate(*args):
+        return mock_lm_response
+
+    monkeypatch.setattr(
+        "vocabmaster.csv_handler.generate_translations_and_examples",
+        mock_generate
+    )
+
+    # Mock utils functions for backup operations
+    monkeypatch.setattr(csv_handler.utils, "backup_file", lambda *args: None)
+    monkeypatch.setattr(csv_handler.utils, "get_backup_dir", lambda *args: tmp_path / "backup")
+
+    # Mock click.echo to suppress output
+    monkeypatch.setattr("click.echo", lambda *args, **kwargs: None)
+
+    # Mock the pair extraction
+    monkeypatch.setattr(
+        csv_handler.utils,
+        "get_language_pair_from_option",
+        lambda pair: ("en", "fr")
+    )
+
+    # Call the function
+    csv_handler.add_translations_and_examples_to_file(translations_file, "en:fr")
+
+    # Read the CSV file back and verify formulas were sanitized
+    import csv
+    with open(translations_file, "r") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+
+    # Verify that formulas were prefixed with single quote for safety
+    assert rows[0]["word"] == "hello"
+    assert rows[0]["translation"] == "'=SUM(A:A)"
+    assert rows[0]["example"] == "'=HYPERLINK('http://evil.com')"
+
+    assert rows[1]["word"] == "world"
+    assert rows[1]["translation"] == "'+1234567890"
+    assert rows[1]["example"] == "'@SUM(1:1)"
+
+
+def test_tab_character_handling_in_content(monkeypatch):
+    """Test that lines with tab characters in content are rejected to prevent corruption."""
+    # Mock click.echo to capture warnings
+    warnings = []
+    def mock_echo(msg, **kwargs):
+        warnings.append(str(msg))
+    monkeypatch.setattr("click.echo", mock_echo)
+
+    # Test TSV with tabs embedded in the content (should be rejected)
+    tsv_with_tabs = """word1\tword1\t'trans\tlation with tab'\t"example\twith\ttabs"
+word2\tword2\t'normal translation'\t"normal example"
+"""
+
+    result = csv_handler.convert_text_to_dict(tsv_with_tabs)
+
+    # Lines with tabs in content should be rejected to prevent data corruption
+    # Only word2 should be parsed successfully
+    assert len(result) == 1
+    assert "word1" not in result  # Rejected due to tabs in content
+    assert result["word2"]["translation"] == "normal translation"
+    assert result["word2"]["example"] == "normal example"
+
+    # Check that a warning was issued
+    assert any("corrupted" in w for w in warnings)
