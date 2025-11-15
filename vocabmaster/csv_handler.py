@@ -71,35 +71,45 @@ def detect_word_mismatches(original_words, gpt_response):
         gpt_response (dict): Dictionary keyed by original words with LM metadata.
 
     Returns:
-        list: List of tuples (original_word, [possible_corrections])
+        tuple: (mismatches, missing_words) where:
+            - mismatches: List of tuples (original_word, [possible_corrections])
+            - missing_words: List of words that LM failed to return
     """
     mismatches = []
-
-    recognized_candidates = {
-        data.get("recognized_word")
-        for data in gpt_response.values()
-        if isinstance(data, dict) and data.get("recognized_word")
-    }
+    missing_words = []
 
     for original_word in original_words:
         entry = gpt_response.get(original_word)
 
         if not entry:
-            # Missing entry: offer any recognized candidates as possibilities
-            if recognized_candidates:
-                mismatches.append((original_word, sorted(recognized_candidates)))
+            # Word might be missing, or might be a typo correction in legacy format
+            # Check if any other entries could be corrections for this word
+            possible_corrections = []
+            for key, data in gpt_response.items():
+                if isinstance(data, dict) and data.get("recognized_word"):
+                    # In legacy 3-column format, key == recognized_word
+                    # If key != original_word, this could be a typo correction
+                    if key != original_word and key not in original_words:
+                        possible_corrections.append(key)
+
+            if possible_corrections:
+                # Offer these as potential corrections (legacy format compatibility)
+                mismatches.append((original_word, sorted(possible_corrections)))
+            else:
+                # Word is completely missing from LM response
+                missing_words.append(original_word)
             continue
 
         recognized_word = entry.get("recognized_word")
-        if recognized_word and recognized_word != original_word:
+        if _is_missing_or_blank(recognized_word):
+            # LM didn't provide a valid recognized_word (empty, whitespace, or None)
+            # Treat as missing rather than offering unrelated corrections
+            missing_words.append(original_word)
+        elif recognized_word != original_word:
+            # LM corrected the spelling
             mismatches.append((original_word, [recognized_word]))
-        elif recognized_word is None:
-            # Fallback: LM did not return the recognized column, reuse candidate set
-            alternative_corrections = recognized_candidates - {original_word}
-            if alternative_corrections:
-                mismatches.append((original_word, sorted(alternative_corrections)))
 
-    return mismatches
+    return mismatches, missing_words
 
 
 def ask_user_about_correction(original_word, corrected_word):
@@ -286,11 +296,19 @@ def convert_text_to_dict(generated_text):
             click.echo("Skipping line to prevent data corruption. Consider removing tabs from content.")
             continue
 
-        if len(columns) < 4:
+        # Handle both 3-column (legacy) and 4-column (new) formats
+        if len(columns) == 3:
+            # Legacy format: word\ttranslation\texample
+            word, translation_quoted, example_quoted = columns
+            original_word = word
+            recognized_word = word  # Default to same spelling for legacy format
+        elif len(columns) >= 4:
+            # New format: original_word\trecognized_word\ttranslation\texample
+            original_word, recognized_word, translation_quoted, example_quoted = columns[:4]
+        else:
+            # Neither 3 nor 4+ columns - cannot parse
             click.echo(f"{click.style('Warning: ', fg='yellow')} Could not parse line:\n{line}")
             continue
-
-        original_word, recognized_word, translation_quoted, example_quoted = columns[:4]
 
         translation = _strip_wrapping(translation_quoted, "'")
         example = _strip_wrapping(example_quoted, '"')
@@ -354,7 +372,14 @@ def add_translations_and_examples_to_file(translations_path, pair):
         return entry
 
     # Detect and handle word mismatches (e.g., typo corrections by the LM)
-    mismatches = detect_word_mismatches(original_words, new_entries)
+    mismatches, missing_words = detect_word_mismatches(original_words, new_entries)
+
+    # Report missing words
+    if missing_words:
+        click.echo(f"\n{click.style('Error:', fg='red')} LM failed to return translations for {len(missing_words)} word(s):")
+        for word in missing_words:
+            click.echo(f"  - {word}")
+        click.echo("Please retry or add them manually.\n")
 
     if mismatches:
         click.echo(f"\n{click.style('Word corrections detected:', fg='yellow')}")
@@ -376,11 +401,12 @@ def add_translations_and_examples_to_file(translations_path, pair):
                     click.echo(f"Kept original word '{original_word}'")
                     skip_translation_for.add(original_word)
             else:
-                click.echo(f"\nThe LM didn't return a translation for '{original_word}'.")
-                click.echo(f"Available translations: {', '.join(potential_corrections)}")
+                # Multiple possible corrections (rare case)
+                click.echo(f"\nMultiple corrections found for '{original_word}':")
+                click.echo(f"Suggestions: {', '.join(potential_corrections)}")
 
                 corrected_word = click.prompt(
-                    f"Enter the correct word for '{original_word}' (or press Enter to skip)",
+                    f"Choose the correct word for '{original_word}' (or press Enter to skip)",
                     type=str,
                     default="",
                     show_default=False,

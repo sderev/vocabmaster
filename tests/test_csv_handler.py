@@ -31,10 +31,11 @@ def test_detect_word_mismatches_finds_typo_corrections():
         },
     }
 
-    mismatches = csv_handler.detect_word_mismatches(original_words, gpt_response)
+    mismatches, missing_words = csv_handler.detect_word_mismatches(original_words, gpt_response)
 
     expected = [("brethen", ["brethren"])]
     assert mismatches == expected
+    assert missing_words == []
 
 
 def test_detect_word_mismatches_returns_empty_when_all_match():
@@ -53,8 +54,9 @@ def test_detect_word_mismatches_returns_empty_when_all_match():
         },
     }
 
-    mismatches = csv_handler.detect_word_mismatches(original_words, gpt_response)
+    mismatches, missing_words = csv_handler.detect_word_mismatches(original_words, gpt_response)
     assert mismatches == []
+    assert missing_words == []
 
 
 def test_detect_word_mismatches_handles_multiple_corrections():
@@ -78,7 +80,7 @@ def test_detect_word_mismatches_handles_multiple_corrections():
         },
     }
 
-    mismatches = csv_handler.detect_word_mismatches(original_words, gpt_response)
+    mismatches, missing_words = csv_handler.detect_word_mismatches(original_words, gpt_response)
 
     expected = {
         "brethen": ["brethren"],
@@ -87,6 +89,7 @@ def test_detect_word_mismatches_handles_multiple_corrections():
     }
 
     assert len(mismatches) == 3
+    assert missing_words == []
     for original_word, corrections in mismatches:
         assert expected[original_word] == corrections
 
@@ -158,9 +161,10 @@ def test_word_correction_applies_translation_immediately():
 
     # Test the logic that should apply translations immediately after word correction
     original_words = ["brethen", "hello"]
-    mismatches = csv_handler.detect_word_mismatches(original_words, new_entries)
+    mismatches, missing_words = csv_handler.detect_word_mismatches(original_words, new_entries)
 
     assert len(mismatches) == 1
+    assert missing_words == []
     original_word, potential_corrections = mismatches[0]
     assert original_word == "brethen"
     assert "brethren" in potential_corrections
@@ -533,3 +537,143 @@ word2\tword2\t'normal translation'\t"normal example"
 
     # Check that a warning was issued
     assert any("corrupted" in w for w in warnings)
+def test_convert_text_to_dict_legacy_3column_format():
+    """Test backward compatibility with 3-column TSV format."""
+    # Legacy format: word\ttranslation\texample
+    generated_text = """hello\t'bonjour'\t"Hello, world!"
+world\t'monde'\t"The world is big"
+test\t'test'\t"This is a test"
+"""
+
+    result = csv_handler.convert_text_to_dict(generated_text)
+
+    assert len(result) == 3
+    # For legacy format, recognized_word should default to original_word
+    assert result["hello"]["recognized_word"] == "hello"
+    assert result["hello"]["translation"] == "bonjour"
+    assert result["hello"]["example"] == "Hello, world!"
+
+    assert result["world"]["recognized_word"] == "world"
+    assert result["world"]["translation"] == "monde"
+
+    assert result["test"]["recognized_word"] == "test"
+
+
+def test_convert_text_to_dict_legacy_3column_with_quotes():
+    """Test 3-column format with apostrophes and quotes in content."""
+    generated_text = """l'ami\t'l'amour, l'ami'\t"C'est l'ami de Jean"
+aujourd'hui\t'today'\t"Aujourd'hui c'est lundi"
+"""
+
+    result = csv_handler.convert_text_to_dict(generated_text)
+
+    assert len(result) == 2
+    assert result["l'ami"]["recognized_word"] == "l'ami"
+    assert result["l'ami"]["translation"] == "l'amour, l'ami"
+    assert result["l'ami"]["example"] == "C'est l'ami de Jean"
+
+    assert result["aujourd'hui"]["recognized_word"] == "aujourd'hui"
+    assert result["aujourd'hui"]["translation"] == "today"
+
+
+def test_convert_text_to_dict_handles_both_formats():
+    """Test that both 3-column and 4-column formats can be parsed."""
+    # Mix of legacy and new formats (though unlikely in practice)
+    generated_text = """hello\t'bonjour'\t"Hello!"
+brethen\tbrethren\t'brothers'\t"The brethren gather"
+world\t'monde'\t"World peace"
+seperate\tseparate\t'séparer'\t"Separate items"
+"""
+
+    result = csv_handler.convert_text_to_dict(generated_text)
+
+    assert len(result) == 4
+
+    # 3-column entries
+    assert result["hello"]["recognized_word"] == "hello"
+    assert result["hello"]["translation"] == "bonjour"
+    assert result["world"]["recognized_word"] == "world"
+
+    # 4-column entries
+    assert result["brethen"]["recognized_word"] == "brethren"
+    assert result["brethen"]["translation"] == "brothers"
+    assert result["seperate"]["recognized_word"] == "separate"
+    assert result["seperate"]["translation"] == "séparer"
+
+
+def test_convert_text_to_dict_unicode_in_3column():
+    """Test 3-column format with unicode/emoji characters."""
+    generated_text = """café\t'coffee ☕'\t"Un café, s'il vous plaît"
+naïve\t'naïf'\t"Don't be naïve 🙄"
+"""
+
+    result = csv_handler.convert_text_to_dict(generated_text)
+
+    assert result["café"]["recognized_word"] == "café"
+    assert result["café"]["translation"] == "coffee ☕"
+    assert result["naïve"]["recognized_word"] == "naïve"
+    assert result["naïve"]["example"] == "Don't be naïve 🙄"
+
+
+def test_legacy_3column_typo_correction_detection():
+    """Test that typo corrections in legacy 3-column format are properly detected."""
+    # Simulate a legacy 3-column response where LM corrected "brethen" to "brethren"
+    legacy_lm_response = """brethren\t'brothers'\t"The brethren gather"
+hello\t'bonjour'\t"Hello, world!"
+"""
+
+    # Parse the legacy response
+    result = csv_handler.convert_text_to_dict(legacy_lm_response)
+
+    # The result will have "brethren" as key (the corrected spelling)
+    assert "brethren" in result
+    assert "brethen" not in result
+
+    # Now test mismatch detection with original words including the typo
+    original_words = ["brethen", "hello"]
+    mismatches, missing_words = csv_handler.detect_word_mismatches(original_words, result)
+
+    # "brethen" should be offered "brethren" as a correction (not marked as missing)
+    assert len(mismatches) == 1
+    assert mismatches[0][0] == "brethen"
+    assert "brethren" in mismatches[0][1]
+
+    # Nothing should be marked as completely missing
+    assert missing_words == []
+
+
+def test_end_to_end_legacy_3column_backup_compatibility():
+    """Integration test: complete workflow with cached 3-column LM response."""
+    # Simulate a cached 3-column response (old format)
+    legacy_lm_response = """hello\t'bonjour'\t"Hello, world!"
+café\t'coffee'\t"Un café, s'il vous plaît"
+world\t'monde'\t"The world is big"
+"""
+
+    # Parse the legacy response
+    result = csv_handler.convert_text_to_dict(legacy_lm_response)
+
+    # Should parse all 3 entries with recognized_word defaulting to original_word
+    assert len(result) == 3
+    assert result["hello"]["recognized_word"] == "hello"
+    assert result["hello"]["translation"] == "bonjour"
+    assert result["café"]["recognized_word"] == "café"
+    assert result["café"]["translation"] == "coffee"
+    assert result["world"]["recognized_word"] == "world"
+
+    # Verify no mismatches detected (since recognized_word == original_word)
+    original_words = ["hello", "café", "world"]
+    mismatches, missing_words = csv_handler.detect_word_mismatches(original_words, result)
+
+    assert mismatches == []
+    assert missing_words == []
+
+    # Verify translations would apply correctly
+    for word in original_words:
+        entry = result[word]
+        # In the actual flow, these would apply since recognized_word == word
+        assert entry["recognized_word"] == word
+        assert entry["translation"] is not None
+        assert entry["example"] is not None
+
+
