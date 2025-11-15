@@ -78,6 +78,9 @@ def detect_word_mismatches(original_words, gpt_response):
     mismatches = []
     missing_words = []
 
+    # Convert to set for O(1) lookup performance (optimization for large vocabularies)
+    original_words_set = set(original_words)
+
     for original_word in original_words:
         entry = gpt_response.get(original_word)
 
@@ -89,7 +92,7 @@ def detect_word_mismatches(original_words, gpt_response):
                 if isinstance(data, dict) and data.get("recognized_word"):
                     # In legacy 3-column format, key == recognized_word
                     # If key != original_word, this could be a typo correction
-                    if key != original_word and key not in original_words:
+                    if key != original_word and key not in original_words_set:
                         possible_corrections.append(key)
 
             if possible_corrections:
