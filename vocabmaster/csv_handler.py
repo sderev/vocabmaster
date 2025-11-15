@@ -445,7 +445,8 @@ def add_translations_and_examples_to_file(translations_path, pair):
             if (
                 entry_data
                 and not current_entry["translation"]
-                and (recognized_word is None or recognized_word == word)
+                and not _is_missing_or_blank(recognized_word)
+                and recognized_word == word
             ):
                 current_entry["translation"] = sanitize_csv_value(entry_data["translation"])
                 current_entry["example"] = sanitize_csv_value(entry_data["example"])
