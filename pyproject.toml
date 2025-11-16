@@ -48,3 +48,9 @@ Issues = "https://github.com/sderev/vocabmaster/issues"
 
 [tool.setuptools]
 packages = ["vocabmaster"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+extend-select = ["I001"]
