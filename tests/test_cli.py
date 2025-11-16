@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+
 from vocabmaster import cli, config_handler, utils
 
 

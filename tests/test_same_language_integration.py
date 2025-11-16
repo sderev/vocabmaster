@@ -1,6 +1,5 @@
 """Integration tests for same-language definition mode workflow."""
 
-
 from vocabmaster import config_handler, csv_handler
 
 

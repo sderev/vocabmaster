@@ -1,6 +1,7 @@
 import json
 
 import pytest
+
 from vocabmaster import config_handler
 
 

@@ -305,7 +305,11 @@ def get_language_pair(language_pair):
             mother_tongue = validate_language_name(mother_tongue)
         except ValueError as exc:
             # Re-raise ValueError with original message if it's from validation
-            if "can only contain" in str(exc) or "too long" in str(exc) or "cannot be empty" in str(exc):
+            if (
+                "can only contain" in str(exc)
+                or "too long" in str(exc)
+                or "cannot be empty" in str(exc)
+            ):
                 raise
             raise ValueError("Invalid language pair.") from exc
     else:

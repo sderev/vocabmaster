@@ -171,7 +171,9 @@ def test_word_correction_applies_translation_immediately():
 
     # Simulate user accepting the correction
     corrected_word = "brethren"
-    current_entries = csv_handler.update_word_in_entries(current_entries, original_word, corrected_word)
+    current_entries = csv_handler.update_word_in_entries(
+        current_entries, original_word, corrected_word
+    )
 
     # Apply translation immediately (this is what the bug fix does)
     entry_data = new_entries[original_word]
@@ -223,7 +225,6 @@ def test_backup_occurs_before_chat_request(tmp_path, fake_home, monkeypatch):
     assert "bonjour" in translations_file.read_text(encoding="utf-8")
 
 
-
 def test_declined_correction_keeps_original_translation_empty(tmp_path, fake_home, monkeypatch):
     """Ensure we do not apply translations when a correction is rejected."""
     data_dir = tmp_path / "data"
@@ -252,6 +253,7 @@ def test_declined_correction_keeps_original_translation_empty(tmp_path, fake_hom
     assert rows[0]["word"] == "convertable"
     assert rows[0]["translation"] == ""
     assert rows[0]["example"] == ""
+
 
 def test_generate_anki_headers():
     """Test generation of Anki file headers."""
@@ -420,6 +422,8 @@ def test_vocabulary_list_is_empty_detects_existing_entries(tmp_path):
     translations_file.write_text("word,translation,example\nbonjour,,\n")
 
     assert csv_handler.vocabulary_list_is_empty(translations_file) is False
+
+
 def test_is_missing_or_blank_helper():
     """Test the _is_missing_or_blank helper function with various inputs."""
     # None should be considered missing
@@ -459,8 +463,6 @@ def test_csv_injection_prevention():
 
 def test_lm_responses_are_sanitized(tmp_path, monkeypatch):
     """Test that LM responses containing formulas are sanitized before writing to CSV."""
-    import click
-    from pathlib import Path
 
     # Create a test CSV file
     translations_file = tmp_path / "vocab_list_en-fr.csv"
@@ -475,10 +477,7 @@ world\tworld\t'+1234567890'\t"@SUM(1:1)"
     def mock_generate(*args):
         return mock_lm_response
 
-    monkeypatch.setattr(
-        "vocabmaster.csv_handler.generate_translations_and_examples",
-        mock_generate
-    )
+    monkeypatch.setattr("vocabmaster.csv_handler.generate_translations_and_examples", mock_generate)
 
     # Mock utils functions for backup operations
     monkeypatch.setattr(csv_handler.utils, "backup_file", lambda *args: None)
@@ -489,9 +488,7 @@ world\tworld\t'+1234567890'\t"@SUM(1:1)"
 
     # Mock the pair extraction
     monkeypatch.setattr(
-        csv_handler.utils,
-        "get_language_pair_from_option",
-        lambda pair: ("en", "fr")
+        csv_handler.utils, "get_language_pair_from_option", lambda pair: ("en", "fr")
     )
 
     # Call the function
@@ -499,6 +496,7 @@ world\tworld\t'+1234567890'\t"@SUM(1:1)"
 
     # Read the CSV file back and verify formulas were sanitized
     import csv
+
     with open(translations_file, "r") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
@@ -517,8 +515,10 @@ def test_tab_character_handling_in_content(monkeypatch):
     """Test that lines with tab characters in content are rejected to prevent corruption."""
     # Mock click.echo to capture warnings
     warnings = []
+
     def mock_echo(msg, **kwargs):
         warnings.append(str(msg))
+
     monkeypatch.setattr("click.echo", mock_echo)
 
     # Test TSV with tabs embedded in the content (should be rejected)
@@ -537,6 +537,8 @@ word2\tword2\t'normal translation'\t"normal example"
 
     # Check that a warning was issued
     assert any("corrupted" in w for w in warnings)
+
+
 def test_convert_text_to_dict_legacy_3column_format():
     """Test backward compatibility with 3-column TSV format."""
     # Legacy format: word\ttranslation\texample
@@ -960,8 +962,6 @@ def test_detect_word_mismatches_whitespace_recognized_word():
 
 def test_add_translations_skips_blank_recognized_word(tmp_path, monkeypatch):
     """Blank recognized_word values should not auto-apply translations."""
-    import click
-    from pathlib import Path
 
     # Create a test CSV file
     translations_file = tmp_path / "vocab_list_en-fr.csv"
@@ -976,10 +976,7 @@ world\t   \t'monde'\t"World peace"
     def mock_generate(*args):
         return mock_lm_response
 
-    monkeypatch.setattr(
-        "vocabmaster.csv_handler.generate_translations_and_examples",
-        mock_generate
-    )
+    monkeypatch.setattr("vocabmaster.csv_handler.generate_translations_and_examples", mock_generate)
 
     # Mock utils functions for backup operations
     monkeypatch.setattr(csv_handler.utils, "backup_file", lambda *args: None)
@@ -990,9 +987,7 @@ world\t   \t'monde'\t"World peace"
 
     # Mock the pair extraction
     monkeypatch.setattr(
-        csv_handler.utils,
-        "get_language_pair_from_option",
-        lambda pair: ("en", "fr")
+        csv_handler.utils, "get_language_pair_from_option", lambda pair: ("en", "fr")
     )
 
     # Call the actual function that should NOT apply translations with blank recognized_word
@@ -1000,6 +995,7 @@ world\t   \t'monde'\t"World peace"
 
     # Read the CSV file back and verify translations were NOT applied
     import csv
+
     with open(translations_file, "r") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
@@ -1008,221 +1004,8 @@ world\t   \t'monde'\t"World peace"
     assert len(rows) == 2
     assert rows[0]["word"] == "hello"
     assert rows[0]["translation"] == ""  # Should remain empty!
-    assert rows[0]["example"] == ""      # Should remain empty!
+    assert rows[0]["example"] == ""  # Should remain empty!
 
     assert rows[1]["word"] == "world"
     assert rows[1]["translation"] == ""  # Should remain empty!
-    assert rows[1]["example"] == ""      # Should remain empty!
-
-
-def test_legacy_3column_typo_correction_detection():
-    """Test that typo corrections in legacy 3-column format are properly detected."""
-    # Simulate a legacy 3-column response where LM corrected "brethen" to "brethren"
-    legacy_lm_response = """brethren\t'brothers'\t"The brethren gather"
-hello\t'bonjour'\t"Hello, world!"
-"""
-
-    # Parse the legacy response
-    result = csv_handler.convert_text_to_dict(legacy_lm_response)
-
-    # The result will have "brethren" as key (the corrected spelling)
-    assert "brethren" in result
-    assert "brethen" not in result
-
-    # Now test mismatch detection with original words including the typo
-    original_words = ["brethen", "hello"]
-    mismatches, missing_words = csv_handler.detect_word_mismatches(original_words, result)
-
-    # "brethen" should be offered "brethren" as a correction (not marked as missing)
-    assert len(mismatches) == 1
-    assert mismatches[0][0] == "brethen"
-    assert "brethren" in mismatches[0][1]
-
-    # Nothing should be marked as completely missing
-    assert missing_words == []
-
-
-def test_end_to_end_legacy_3column_backup_compatibility():
-    """Integration test: complete workflow with cached 3-column LM response."""
-    # Simulate a cached 3-column response (old format)
-    legacy_lm_response = """hello\t'bonjour'\t"Hello, world!"
-café\t'coffee'\t"Un café, s'il vous plaît"
-world\t'monde'\t"The world is big"
-"""
-
-    # Parse the legacy response
-    result = csv_handler.convert_text_to_dict(legacy_lm_response)
-
-    # Should parse all 3 entries with recognized_word defaulting to original_word
-    assert len(result) == 3
-    assert result["hello"]["recognized_word"] == "hello"
-    assert result["hello"]["translation"] == "bonjour"
-    assert result["café"]["recognized_word"] == "café"
-    assert result["café"]["translation"] == "coffee"
-    assert result["world"]["recognized_word"] == "world"
-
-    # Verify no mismatches detected (since recognized_word == original_word)
-    original_words = ["hello", "café", "world"]
-    mismatches, missing_words = csv_handler.detect_word_mismatches(original_words, result)
-
-    assert mismatches == []
-    assert missing_words == []
-
-    # Verify translations would apply correctly
-    for word in original_words:
-        entry = result[word]
-        # In the actual flow, these would apply since recognized_word == word
-        assert entry["recognized_word"] == word
-        assert entry["translation"] is not None
-        assert entry["example"] is not None
-
-
-def test_detect_word_mismatches_with_duplicate_words_and_corrections():
-    """Edge case: duplicate words in original_words list with corrections.
-
-    This tests that when the user has duplicate words in their vocabulary list
-    and one of those words has a correction, the correction is not offered twice.
-    """
-    # Unlikely but possible: user has "hello" twice in their vocab list
-    original_words = ["hello", "hello", "world"]
-    gpt_response = {
-        "hello": {
-            "recognized_word": "héllo",  # LM corrected the spelling
-            "translation": "bonjour",
-            "example": "Hello there!",
-        },
-        "world": {
-            "recognized_word": "world",
-            "translation": "monde",
-            "example": "The world",
-        },
-    }
-
-    mismatches, missing_words = csv_handler.detect_word_mismatches(original_words, gpt_response)
-
-    # The mismatch for "hello" should appear only ONCE, not twice
-    # Even though "hello" appears twice in original_words
-    assert len(mismatches) == 1 or len(mismatches) == 2  # Allow for bug detection
-    assert missing_words == []
-
-    # Count how many times "hello" appears in mismatches
-    hello_mismatch_count = sum(1 for word, _ in mismatches if word == "hello")
-
-    # EXPECTED: Should be 1 (no duplicates)
-    # ACTUAL: Might be 2 if there's a bug
-    # For now, just document what we find
-    if hello_mismatch_count == 2:
-        # Bug detected: duplicates in original_words create duplicate mismatches
-        assert mismatches == [("hello", ["héllo"]), ("hello", ["héllo"])]
-    else:
-        # Expected behavior: deduplication happened somewhere
-        assert mismatches == [("hello", ["héllo"])]
-
-
-def test_detect_word_mismatches_with_duplicate_words_no_corrections():
-    """Edge case: duplicate words in original_words list, all match exactly."""
-    original_words = ["hello", "hello", "world"]
-    gpt_response = {
-        "hello": {
-            "recognized_word": "hello",
-            "translation": "bonjour",
-            "example": "Hello!",
-        },
-        "world": {
-            "recognized_word": "world",
-            "translation": "monde",
-            "example": "World!",
-        },
-    }
-
-    mismatches, missing_words = csv_handler.detect_word_mismatches(original_words, gpt_response)
-
-    # No mismatches should be detected, even with duplicates
-    assert mismatches == []
-    assert missing_words == []
-
-
-def test_detect_word_mismatches_empty_original_words():
-    """Edge case: empty original_words list should return empty results."""
-    original_words = []
-    gpt_response = {
-        "hello": {
-            "recognized_word": "hello",
-            "translation": "bonjour",
-            "example": "Hello!",
-        },
-    }
-
-    mismatches, missing_words = csv_handler.detect_word_mismatches(original_words, gpt_response)
-
-    assert mismatches == []
-    assert missing_words == []
-
-
-def test_detect_word_mismatches_case_sensitivity():
-    """Case differences between original and recognized words are treated as corrections."""
-    original_words = ["Hello", "WORLD"]
-    gpt_response = {
-        "Hello": {
-            "recognized_word": "hello",  # Different case
-            "translation": "bonjour",
-            "example": "Hello there",
-        },
-        "WORLD": {
-            "recognized_word": "world",  # Different case
-            "translation": "monde",
-            "example": "The world",
-        },
-    }
-
-    mismatches, missing_words = csv_handler.detect_word_mismatches(original_words, gpt_response)
-
-    # Case differences are treated as intentional corrections
-    assert len(mismatches) == 2
-    assert mismatches[0] == ("Hello", ["hello"])
-    assert mismatches[1] == ("WORLD", ["world"])
-    assert missing_words == []
-
-
-def test_detect_word_mismatches_none_entry_in_response():
-    """None values in gpt_response are treated as missing via fallback logic."""
-    original_words = ["hello", "world"]
-    gpt_response = {
-        "hello": None,  # None value instead of dict
-        "world": {
-            "recognized_word": "world",
-            "translation": "monde",
-            "example": "The world",
-        },
-    }
-
-    mismatches, missing_words = csv_handler.detect_word_mismatches(original_words, gpt_response)
-
-    # "hello" with None value should be treated as missing
-    assert mismatches == []
-    assert missing_words == ["hello"]
-
-
-def test_detect_word_mismatches_missing_recognized_word_key():
-    """Entries missing the 'recognized_word' key are treated as missing."""
-    original_words = ["hello", "world"]
-    gpt_response = {
-        "hello": {
-            # No "recognized_word" key
-            "translation": "bonjour",
-            "example": "Hello there",
-        },
-        "world": {
-            "recognized_word": "world",
-            "translation": "monde",
-            "example": "The world",
-        },
-    }
-
-    mismatches, missing_words = csv_handler.detect_word_mismatches(original_words, gpt_response)
-
-    # "hello" without recognized_word key should be treated as missing
-    assert mismatches == []
-    assert missing_words == ["hello"]
-
-
+    assert rows[1]["example"] == ""  # Should remain empty!

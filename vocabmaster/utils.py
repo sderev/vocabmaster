@@ -7,9 +7,8 @@ import click
 
 from vocabmaster import config_handler
 
-
 # Allowed characters for language names (whitelist approach)
-ALLOWED_CHARS = set(string.ascii_letters + string.digits + '_-')
+ALLOWED_CHARS = set(string.ascii_letters + string.digits + "_-")
 
 
 def validate_language_name(name: str) -> str:
@@ -38,7 +37,9 @@ def validate_language_name(name: str) -> str:
         raise ValueError("Language name is too long (maximum 64 characters)")
 
     if not all(c in ALLOWED_CHARS for c in name):
-        raise ValueError("Language names can only contain letters, numbers, underscores, and hyphens")
+        raise ValueError(
+            "Language names can only contain letters, numbers, underscores, and hyphens"
+        )
 
     return name.casefold()
 

@@ -1,12 +1,11 @@
 """Test path traversal vulnerability prevention."""
 
-import os
-from pathlib import Path, PureWindowsPath
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
 
-from vocabmaster import config_handler, utils
+from vocabmaster import config_handler
 from vocabmaster.cli import vocabmaster
 
 
@@ -17,8 +16,6 @@ def test_path_traversal_write_outside_data_dir(tmp_path, fake_home, monkeypatch)
     After the fix, this test should PASS.
     """
     from vocabmaster import config_handler
-    from vocabmaster.cli import vocabmaster
-    from click.testing import CliRunner
 
     # Use a benign data directory
     safe = tmp_path / "safe"
@@ -40,7 +37,9 @@ def test_path_traversal_write_outside_data_dir(tmp_path, fake_home, monkeypatch)
 
     p = Path("/tmp/vm_pwn_t-en.csv")
     # File should NOT exist (vulnerability prevented)
-    assert not p.exists(), "Path traversal vulnerability not fixed - file created outside data directory!"
+    assert not p.exists(), (
+        "Path traversal vulnerability not fixed - file created outside data directory!"
+    )
 
 
 def test_validate_language_name_blocks_path_traversal():
@@ -134,8 +133,6 @@ def test_get_pair_file_paths_validates_language_names(tmp_path, monkeypatch):
 
 def test_cli_pairs_add_validates_input(monkeypatch):
     """Test that CLI pairs add command validates user input."""
-    from vocabmaster.cli import vocabmaster
-    from click.testing import CliRunner
 
     runner = CliRunner()
 
@@ -146,11 +143,7 @@ def test_cli_pairs_add_validates_input(monkeypatch):
         "y",  # confirm
     ]
 
-    result = runner.invoke(
-        vocabmaster,
-        ["pairs", "add"],
-        input="\n".join(malicious_inputs)
-    )
+    result = runner.invoke(vocabmaster, ["pairs", "add"], input="\n".join(malicious_inputs))
 
     # Should fail with validation error
     assert result.exit_code != 0
