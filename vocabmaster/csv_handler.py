@@ -295,8 +295,12 @@ def convert_text_to_dict(generated_text):
         columns = line.split("\t")
         if len(columns) > 4:
             # Likely has tabs within content - warn and skip to prevent data corruption
-            click.echo(f"{click.style('Warning: ', fg='yellow')} Line appears corrupted (tabs in content?):\n{line}")
-            click.echo("Skipping line to prevent data corruption. Consider removing tabs from content.")
+            click.echo(
+                f"{click.style('Warning: ', fg='yellow')} Line appears corrupted (tabs in content?):\n{line}"
+            )
+            click.echo(
+                "Skipping line to prevent data corruption. Consider removing tabs from content."
+            )
             continue
 
         # Handle both 3-column (legacy) and 4-column (new) formats
@@ -379,7 +383,9 @@ def add_translations_and_examples_to_file(translations_path, pair):
 
     # Report missing words
     if missing_words:
-        click.echo(f"\n{click.style('Error:', fg='red')} LM failed to return translations for {len(missing_words)} word(s):")
+        click.echo(
+            f"\n{click.style('Error:', fg='red')} LM failed to return translations for {len(missing_words)} word(s):"
+        )
         for word in missing_words:
             click.echo(f"  - {word}")
         click.echo("Please retry or add them manually.\n")
@@ -397,8 +403,12 @@ def add_translations_and_examples_to_file(translations_path, pair):
                     # Apply the translation and example immediately
                     entry_data = _entry_for_correction(original_word, corrected_word)
                     if entry_data:
-                        current_entries[corrected_word]["translation"] = sanitize_csv_value(entry_data["translation"])
-                        current_entries[corrected_word]["example"] = sanitize_csv_value(entry_data["example"])
+                        current_entries[corrected_word]["translation"] = sanitize_csv_value(
+                            entry_data["translation"]
+                        )
+                        current_entries[corrected_word]["example"] = sanitize_csv_value(
+                            entry_data["example"]
+                        )
                     click.echo(f"Updated '{original_word}' → '{corrected_word}' ✓")
                 else:
                     click.echo(f"Kept original word '{original_word}'")
@@ -422,8 +432,12 @@ def add_translations_and_examples_to_file(translations_path, pair):
                     # Apply the translation and example immediately
                     entry_data = _entry_for_correction(original_word, corrected_word)
                     if entry_data:
-                        current_entries[corrected_word]["translation"] = sanitize_csv_value(entry_data["translation"])
-                        current_entries[corrected_word]["example"] = sanitize_csv_value(entry_data["example"])
+                        current_entries[corrected_word]["translation"] = sanitize_csv_value(
+                            entry_data["translation"]
+                        )
+                        current_entries[corrected_word]["example"] = sanitize_csv_value(
+                            entry_data["example"]
+                        )
                     click.echo(f"Updated '{original_word}' → '{corrected_word}' ✓")
                 else:
                     click.echo(f"Skipped '{original_word}'")
