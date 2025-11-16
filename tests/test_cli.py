@@ -376,7 +376,7 @@ class TestGenerateAnkiDeck:
         cli.generate_anki_deck(translations, anki, "english", "french")
 
         out = capsys.readouterr().out
-        assert "Generating the Anki deck" in out
+        assert "Generating Anki deck" in out
         assert captured["args"] == (translations, anki, "english", "french")
 
 

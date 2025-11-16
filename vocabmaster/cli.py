@@ -276,7 +276,7 @@ def translate(pair, count):
         sys.exit(0)
 
     # Add translations and examples to the CSV file
-    click.echo("Adding translations and examples to the file... 🔎📝")
+    click.echo("Adding translations and examples...")
     click.secho("This may take a while...", fg="blue")
     click.echo()
 
@@ -290,7 +290,7 @@ def translate(pair, count):
     except csv_handler.AllWordsTranslatedError as error:
         click.secho("Actually...", fg="blue")
         click.secho("No action needed: ", fg="green", nl=False)
-        click.echo(f"{error} 🤓")
+        click.echo(f"{error}")
         click.echo(
             f"If you only want to generate the Anki deck, you can run '{click.style('vocabmaster anki', bold=True)}'."
         )
@@ -300,7 +300,7 @@ def translate(pair, count):
         click.echo(error, err=True)
         sys.exit(0)
     click.secho(
-        "The translations and examples have been added to the vocabulary list 💡✅", fg="blue"
+        "Translations and examples added. ✅", fg="blue"
     )
 
     # Generate the Anki deck
@@ -325,14 +325,14 @@ def generate_anki_deck(translations_filepath, anki_filepath, language_to_learn, 
         None
     """
     click.echo()
-    click.echo("Generating the Anki deck... 📜")
+    click.echo("Generating Anki deck...")
     click.echo()
     csv_handler.generate_anki_output_file(
         translations_filepath, anki_filepath, language_to_learn, mother_tongue
     )
-    click.echo("The Anki deck has been generated 🤓✅")
+    click.echo("Anki deck generated. ✅")
     click.echo()
-    click.secho("You can now import the deck into Anki 📚", fg="green")
+    click.secho("You can now import the deck into Anki.", fg="green")
 
     click.secho("The deck is located at:", bold=True)
     click.echo(f"{anki_filepath}")
@@ -411,7 +411,7 @@ def create_language_pair_interactively():
         click.echo(f"Anki deck file: {anki_filepath}")
         click.echo(f"Backup directory: {backup_lang}")
         click.echo()
-        click.echo(f"Language pair {language_to_learn}:{mother_tongue} is ready 🤓✅")
+        click.echo(f"Language pair {language_to_learn}:{mother_tongue} ready. ✅")
         click.echo()
 
         # Set the default language pair
