@@ -44,6 +44,68 @@ def validate_language_name(name: str) -> str:
     return name.casefold()
 
 
+def validate_deck_name(name: str) -> str:
+    """
+    Validate a custom Anki deck name.
+
+    Uses a blacklist approach to prevent Anki import format breakage and path
+    traversal attacks while allowing user-friendly names with spaces and unicode.
+
+    Args:
+        name: The deck name to validate
+
+    Returns:
+        The validated deck name (stripped of leading/trailing whitespace)
+
+    Raises:
+        ValueError: If the deck name is invalid
+    """
+    if not isinstance(name, str):
+        raise ValueError("Deck name must be a string")
+
+    # Strip whitespace early to allow tabs/newlines at edges (common copy-paste errors)
+    # but still catch them if they're in the middle of the name
+    name = name.strip()
+
+    if not name:
+        raise ValueError("Deck name cannot be empty")
+
+    if len(name) > 100:
+        raise ValueError("Deck name is too long (maximum 100 characters)")
+
+    # Block absolute paths FIRST (before checking for colons in unsafe_chars)
+    # Unix absolute paths start with /
+    # Windows absolute paths: single letter + : + \ or / (e.g., C:\, D:/)
+    # Don't trigger on :: for nested Anki deck names
+    if name.startswith("/"):
+        raise ValueError("Deck name cannot be an absolute path")
+    if len(name) > 2 and name[0].isalpha() and name[1] == ":" and name[2] in ("\\/"):
+        raise ValueError("Deck name cannot be an absolute path")
+
+    # Prevent path traversal patterns
+    dangerous_patterns = ["../", "./", "..\\", ".\\"]
+    for pattern in dangerous_patterns:
+        if pattern in name:
+            raise ValueError(f"Deck name cannot contain path traversal pattern: {pattern}")
+
+    # Check for unsafe characters
+    # Single colons break the #deck: directive format, but :: is allowed for nested decks
+    # Newlines/tabs would break the file format or cause display issues
+    unsafe_chars = {"\n", "\r", "\t"}
+    found_unsafe = [c for c in unsafe_chars if c in name]
+    if found_unsafe:
+        chars_repr = ", ".join(repr(c) for c in found_unsafe)
+        raise ValueError(f"Deck name contains invalid characters: {chars_repr}")
+
+    # Check for single colons (but allow :: for nested Anki deck names)
+    # Replace :: with placeholder to detect single colons
+    name_without_double_colons = name.replace("::", "\x00")
+    if ":" in name_without_double_colons:
+        raise ValueError("Deck name cannot contain single colons (use :: for nested decks)")
+
+    return name
+
+
 def setup_dir():
     """
     Ensure the data directory exists and return its path.

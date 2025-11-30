@@ -475,23 +475,27 @@ def add_translations_and_examples_to_file(translations_path, pair):
     utils.backup_file(backup_dir, translations_path)
 
 
-def generate_anki_headers(language_to_learn, mother_tongue):
+def generate_anki_headers(language_to_learn, mother_tongue, custom_deck_name=None):
     """
     Generate Anki file headers for proper import configuration.
 
     Args:
         language_to_learn (str): The target language being learned
         mother_tongue (str): The user's native language
+        custom_deck_name (str, optional): Custom deck name. If None, auto-generates based on language pair mode.
 
     Returns:
         str: Formatted header lines for Anki import
     """
-    # Determine deck name based on mode
-    mode = utils.get_pair_mode(language_to_learn, mother_tongue)
-    if mode == "definition":
-        deck_name = f"{language_to_learn.capitalize()} definitions"
+    # Use custom deck name if provided, otherwise auto-generate based on mode
+    if custom_deck_name:
+        deck_name = custom_deck_name
     else:
-        deck_name = f"{language_to_learn.capitalize()} vocabulary"
+        mode = utils.get_pair_mode(language_to_learn, mother_tongue)
+        if mode == "definition":
+            deck_name = f"{language_to_learn.capitalize()} definitions"
+        else:
+            deck_name = f"{language_to_learn.capitalize()} vocabulary"
 
     headers = [
         "#separator:tab",
@@ -504,7 +508,7 @@ def generate_anki_headers(language_to_learn, mother_tongue):
 
 
 def generate_anki_output_file(
-    translations_path, anki_output_file, language_to_learn, mother_tongue
+    translations_path, anki_output_file, language_to_learn, mother_tongue, custom_deck_name=None
 ):
     """
     Converts a translations file to a CSV file formatted for Anki import.
@@ -518,6 +522,7 @@ def generate_anki_output_file(
         anki_output_file (str): The path to the output TSV file formatted for Anki import.
         language_to_learn (str): The target language being learned.
         mother_tongue (str): The user's native language.
+        custom_deck_name (str, optional): Custom deck name. If None, auto-generates based on language pair mode.
 
     Returns:
         None
@@ -530,7 +535,7 @@ def generate_anki_output_file(
         open(anki_output_file, "w", encoding="UTF-8") as anki_file,
     ):
         # Write Anki headers first
-        headers = generate_anki_headers(language_to_learn, mother_tongue)
+        headers = generate_anki_headers(language_to_learn, mother_tongue, custom_deck_name)
         anki_file.write(headers + "\n")
 
         translations_dict_reader = DictReader(translations_file)

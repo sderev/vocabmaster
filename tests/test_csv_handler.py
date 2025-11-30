@@ -308,6 +308,56 @@ def test_generate_anki_headers_same_language_case_insensitive():
     assert "#deck:English definitions" in headers_mixed
 
 
+def test_generate_anki_headers_with_custom_deck_name():
+    """Test header generation with custom deck name overrides auto-generation."""
+    headers = csv_handler.generate_anki_headers("english", "french", "My Custom Deck")
+
+    assert "#deck:My Custom Deck" in headers
+    assert "#deck:English vocabulary" not in headers
+
+
+def test_generate_anki_headers_custom_name_overrides_definition_mode():
+    """Test custom deck name overrides definition mode auto-generation."""
+    headers = csv_handler.generate_anki_headers("french", "french", "French Basics")
+
+    assert "#deck:French Basics" in headers
+    assert "#deck:French definitions" not in headers
+
+
+def test_generate_anki_headers_custom_name_with_special_chars():
+    """Test custom deck names can contain special characters."""
+    headers = csv_handler.generate_anki_headers("english", "french", "Business English (Advanced)")
+
+    assert "#deck:Business English (Advanced)" in headers
+
+
+def test_generate_anki_headers_none_falls_back_to_auto_generation():
+    """Test None as custom_deck_name falls back to auto-generation."""
+    headers_auto = csv_handler.generate_anki_headers("english", "french")
+    headers_none = csv_handler.generate_anki_headers("english", "french", None)
+
+    assert headers_auto == headers_none
+    assert "#deck:English vocabulary" in headers_none
+
+
+def test_generate_anki_output_file_with_custom_deck_name(tmp_path):
+    """Test complete Anki output file generation with custom deck name."""
+    translations_file = tmp_path / "translations.csv"
+    translations_content = """word,translation,example
+test,essai,This is a test.
+"""
+    translations_file.write_text(translations_content)
+
+    anki_file = tmp_path / "anki.csv"
+    csv_handler.generate_anki_output_file(
+        translations_file, anki_file, "english", "french", "My Custom Deck"
+    )
+
+    content = anki_file.read_text()
+    assert "#deck:My Custom Deck" in content
+    assert "#deck:English vocabulary" not in content
+
+
 def test_generate_anki_output_file_with_headers(tmp_path):
     """Test complete Anki output file generation with headers and tab separator."""
     # Create a test translations file

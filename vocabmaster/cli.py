@@ -223,7 +223,13 @@ def add(pair, word):
     help="Show the number of words remaining to be translated in the vocabulary list.",
     required=False,
 )
-def translate(pair, count):
+@click.option(
+    "--deck-name",
+    type=str,
+    help="Custom deck name (overrides config setting).",
+    required=False,
+)
+def translate(pair, count, deck_name):
     """
     Translate, Add examples, and Generate an Anki deck.
 
@@ -238,6 +244,24 @@ def translate(pair, count):
         click.secho("Error: ", fg="red", nl=False, err=True)
         click.echo(error, err=True)
         sys.exit(1)
+
+    # Validate deck name early to avoid mutating files on validation failure
+    if deck_name is not None:
+        try:
+            deck_name = utils.validate_deck_name(deck_name)
+        except ValueError as error:
+            click.secho("Error: ", fg="red", nl=False, err=True)
+            click.echo(str(error), err=True)
+            sys.exit(1)
+
+    custom_deck_name = deck_name
+    if custom_deck_name is None:
+        try:
+            custom_deck_name = config_handler.get_deck_name(language_to_learn, mother_tongue)
+        except ValueError as error:
+            click.secho("Error: ", fg="red", nl=False, err=True)
+            click.echo(str(error), err=True)
+            sys.exit(1)
 
     translations_filepath, anki_filepath = setup_files(
         setup_dir(), language_to_learn, mother_tongue
@@ -299,15 +323,18 @@ def translate(pair, count):
         click.secho("Status: ", fg="red", nl=False, err=True)
         click.echo(error, err=True)
         sys.exit(0)
-    click.secho(
-        "Translations and examples added. ✅", fg="blue"
-    )
+
+    click.secho("Translations and examples added. ✅", fg="blue")
 
     # Generate the Anki deck
-    generate_anki_deck(translations_filepath, anki_filepath, language_to_learn, mother_tongue)
+    generate_anki_deck(
+        translations_filepath, anki_filepath, language_to_learn, mother_tongue, custom_deck_name
+    )
 
 
-def generate_anki_deck(translations_filepath, anki_filepath, language_to_learn, mother_tongue):
+def generate_anki_deck(
+    translations_filepath, anki_filepath, language_to_learn, mother_tongue, custom_deck_name=None
+):
     """
     Generates an Anki deck file from a translations file and saves it to the specified path.
 
@@ -320,6 +347,7 @@ def generate_anki_deck(translations_filepath, anki_filepath, language_to_learn, 
         anki_filepath (pathlib.Path): Path to save the generated Anki deck file.
         language_to_learn (str): The target language being learned.
         mother_tongue (str): The user's native language.
+        custom_deck_name (str, optional): Custom deck name. If None, auto-generates or uses config value.
 
     Returns:
         None
@@ -328,7 +356,7 @@ def generate_anki_deck(translations_filepath, anki_filepath, language_to_learn, 
     click.echo("Generating Anki deck...")
     click.echo()
     csv_handler.generate_anki_output_file(
-        translations_filepath, anki_filepath, language_to_learn, mother_tongue
+        translations_filepath, anki_filepath, language_to_learn, mother_tongue, custom_deck_name
     )
     click.echo("Anki deck generated. ✅")
     click.echo()
@@ -348,7 +376,13 @@ def generate_anki_deck(translations_filepath, anki_filepath, language_to_learn, 
     ),
     required=False,
 )
-def anki(pair):
+@click.option(
+    "--deck-name",
+    type=str,
+    help="Custom deck name (overrides config setting).",
+    required=False,
+)
+def anki(pair, deck_name):
     """
     Generate an Anki deck from your vocabulary list.
 
@@ -366,11 +400,31 @@ def anki(pair):
             )
         sys.exit(1)
 
+    # Determine custom deck name: CLI option > config > None (auto-generate)
+    custom_deck_name = deck_name
+    if custom_deck_name is not None:
+        try:
+            custom_deck_name = utils.validate_deck_name(custom_deck_name)
+        except ValueError as error:
+            click.secho("Error: ", fg="red", nl=False, err=True)
+            click.echo(str(error), err=True)
+            sys.exit(1)
+
+    if custom_deck_name is None:
+        try:
+            custom_deck_name = config_handler.get_deck_name(language_to_learn, mother_tongue)
+        except ValueError as error:
+            click.secho("Error: ", fg="red", nl=False, err=True)
+            click.echo(str(error), err=True)
+            sys.exit(1)
+
     translations_filepath, anki_filepath = setup_files(
         setup_dir(), language_to_learn, mother_tongue
     )
 
-    generate_anki_deck(translations_filepath, anki_filepath, language_to_learn, mother_tongue)
+    generate_anki_deck(
+        translations_filepath, anki_filepath, language_to_learn, mother_tongue, custom_deck_name
+    )
 
 
 def create_language_pair_interactively():
@@ -756,6 +810,153 @@ def pairs_rename_command():
             f"{new_language}:{new_mother_tongue} is now your default language pair.",
             fg="blue",
         )
+
+
+@pairs.command("set-deck-name")
+@click.option(
+    "--pair",
+    type=str,
+    help=("Language pair to configure. Specify in the format 'language_to_learn:mother_tongue'."),
+    required=False,
+)
+@click.option(
+    "--name",
+    type=str,
+    help="Custom deck name to set. Omit to be prompted interactively.",
+    required=False,
+)
+@click.option(
+    "--remove",
+    is_flag=True,
+    help="Remove the custom deck name (revert to auto-generation).",
+)
+def pairs_set_deck_name_command(pair, name, remove):
+    """
+    Set or remove a custom deck name for a language pair.
+    """
+    # Get language pair (either from option or by prompting)
+    if pair:
+        try:
+            language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
+        except ValueError as error:
+            click.secho("Error: ", fg="red", nl=False, err=True)
+            click.echo(str(error), err=True)
+            sys.exit(1)
+    else:
+        language_pairs = get_language_pairs_or_abort(
+            f"Use {click.style('vocabmaster pairs add', bold=True)} to add a new language pair.",
+            "No language pairs found. Run 'vocabmaster pairs add' to add one before setting a deck name.",
+        )
+
+        choice = click.prompt(
+            "Type the language pair or its number to configure",
+            type=str,
+        )
+
+        try:
+            language_to_learn, mother_tongue = resolve_language_pair_choice(choice, language_pairs)
+        except ValueError as error:
+            message = str(error)
+            click.secho("Error: ", fg="red", nl=False, err=True)
+            if message == "Invalid choice":
+                click.echo(message, err=True)
+                click.echo(
+                    f"Please enter a number between 1 and {len(language_pairs)}",
+                    err=True,
+                )
+            elif "Invalid language pair." in message:
+                click.echo(message, err=True)
+                click.echo(
+                    f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}",
+                    err=True,
+                )
+            else:
+                click.echo(message, err=True)
+            sys.exit(1)
+
+    # Validate that pair exists in config (especially important for --remove)
+    all_pairs = config_handler.get_all_language_pairs()
+    pair_exists = any(
+        pair.get("language_to_learn", "").casefold() == language_to_learn
+        and pair.get("mother_tongue", "").casefold() == mother_tongue
+        for pair in all_pairs
+    )
+    if not pair_exists:
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(f"Language pair {language_to_learn}:{mother_tongue} not found.", err=True)
+        click.echo(
+            f"Run '{click.style('vocabmaster pairs list', bold=True)}' to see configured pairs.",
+            err=True,
+        )
+        sys.exit(1)
+
+    # Show current deck name if any (warn if stored value is invalid)
+    current_name = None
+    current_name_error = None
+    try:
+        current_name = config_handler.get_deck_name(language_to_learn, mother_tongue)
+    except ValueError as error:
+        current_name_error = str(error)
+
+    if current_name_error:
+        click.secho("Warning: ", fg="yellow", nl=False)
+        click.echo(current_name_error)
+        click.echo("Stored deck name is invalid. You can remove it or set a new name.")
+    elif current_name:
+        click.echo(f"Current custom deck name: {click.style(current_name, bold=True)}")
+    else:
+        mode = utils.get_pair_mode(language_to_learn, mother_tongue)
+        auto_name = (
+            f"{language_to_learn.capitalize()} definitions"
+            if mode == "definition"
+            else f"{language_to_learn.capitalize()} vocabulary"
+        )
+        click.echo(f"Currently using auto-generated name: {click.style(auto_name, dim=True)}")
+
+    # Handle removal
+    if remove:
+        if not current_name and not current_name_error:
+            click.echo("No custom deck name set. Nothing to remove.")
+            return
+
+        if click.confirm(
+            f"Remove custom deck name for {language_to_learn}:{mother_tongue}?", default=False
+        ):
+            config_handler.remove_deck_name(language_to_learn, mother_tongue)
+            click.secho(
+                f"✓ Custom deck name removed for {language_to_learn}:{mother_tongue}", fg="green"
+            )
+            click.echo("Deck names will now be auto-generated.")
+        else:
+            click.echo("No changes made.")
+        return
+
+    # Get deck name (either from option or by prompting)
+    if name is None:
+        name = click.prompt(
+            "Enter custom deck name (leave blank to cancel)",
+            type=str,
+            default="",
+        ).strip()
+
+        if not name:
+            click.echo("No changes made.")
+            return
+
+    # Validate and set deck name
+    try:
+        # Validate to get normalized name (stripped, etc.) for accurate confirmation
+        normalized_name = utils.validate_deck_name(name)
+        config_handler.set_deck_name(language_to_learn, mother_tongue, normalized_name)
+        click.secho(
+            f"✓ Custom deck name set for {language_to_learn}:{mother_tongue}: {normalized_name}",
+            fg="green",
+        )
+        click.echo(f"Future Anki decks will use: {click.style(normalized_name, bold=True)}")
+    except ValueError as error:
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(str(error), err=True)
+        sys.exit(1)
 
 
 @pairs.command("inspect")
