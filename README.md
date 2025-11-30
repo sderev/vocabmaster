@@ -31,6 +31,7 @@ Master new languages with this CLI tool, designed to help you record vocabulary 
 * Record vocabulary words with ease
 * Automatic translation and usage examples via OpenAI GPT
 * Definition mode: use same-language pairs (e.g., french:french) to get concise definitions instead of translations
+* Custom Anki deck names: personalize your deck names instead of using auto-generated names
 * Anki integration for seamless language learning
 * Supports multiple languages
 
@@ -148,6 +149,33 @@ vocabmaster pairs inspect --pair english:french
 ```
 
 `inspect` shows file locations, translation counts, and the estimated input-token cost (input tokens only) for a specific pair.
+
+#### Custom deck names
+
+Set a custom name for your Anki deck instead of using auto-generated names:
+
+```
+# Set a custom deck name
+vocabmaster pairs set-deck-name --pair english:french --name "Business English"
+
+# Interactive mode (prompts for pair selection and name)
+vocabmaster pairs set-deck-name
+
+# Remove custom name (revert to auto-generation)
+vocabmaster pairs set-deck-name --pair english:french --remove
+```
+
+Once set, the custom deck name will be used automatically when generating Anki decks. You can also override it temporarily:
+
+```
+# Use custom name from config
+vocabmaster anki --pair english:french
+
+# Override with a different name for this generation only
+vocabmaster anki --pair english:french --deck-name "Temporary Name"
+```
+
+The same `--deck-name` option works with the `translate` command.
 
 ### Generate an Anki deck from your vocabulary list
 

@@ -253,6 +253,7 @@ def rename_language_pair(old_language, old_mother_tongue, new_language, new_moth
     for index, pair in enumerate(language_pairs):
         if pair_key(pair) == old_key:
             language_pairs[index] = {
+                **pair,  # Preserve all existing fields (e.g., deck_name)
                 "language_to_learn": new_key[0],
                 "mother_tongue": new_key[1],
             }
@@ -334,6 +335,121 @@ def get_all_language_pairs():
     if config is None:
         return []
     return config.get("language_pairs", [])
+
+
+def get_deck_name(language_to_learn: str, mother_tongue: str) -> Optional[str]:
+    """
+    Get the custom deck name for a language pair, if configured.
+
+    Args:
+        language_to_learn: Target language.
+        mother_tongue: User's mother tongue.
+
+    Returns:
+        The custom deck name, or None if not configured.
+    """
+    # Import here to avoid circular dependency
+    from vocabmaster.utils import validate_deck_name, validate_language_name
+
+    language_to_learn = validate_language_name(language_to_learn)
+    mother_tongue = validate_language_name(mother_tongue)
+
+    config = read_config()
+    if not config:
+        return None
+
+    language_pairs = config.get("language_pairs", [])
+    for pair in language_pairs:
+        if (
+            pair.get("language_to_learn", "").casefold() == language_to_learn
+            and pair.get("mother_tongue", "").casefold() == mother_tongue
+        ):
+            deck_name = pair.get("deck_name")
+            if deck_name is None:
+                return None
+            try:
+                return validate_deck_name(deck_name)
+            except ValueError as error:
+                raise ValueError(
+                    f"Invalid deck name for {language_to_learn}:{mother_tongue}: {error}"
+                ) from error
+
+    return None
+
+
+def set_deck_name(language_to_learn: str, mother_tongue: str, deck_name: str) -> None:
+    """
+    Set a custom deck name for a language pair.
+
+    Args:
+        language_to_learn: Target language.
+        mother_tongue: User's mother tongue.
+        deck_name: Custom deck name to set.
+
+    Raises:
+        ValueError: If the language pair is not configured or deck name is invalid.
+    """
+    # Import here to avoid circular dependency
+    from vocabmaster.utils import validate_deck_name, validate_language_name
+
+    language_to_learn = validate_language_name(language_to_learn)
+    mother_tongue = validate_language_name(mother_tongue)
+    deck_name = validate_deck_name(deck_name)
+
+    config = read_config() or {}
+    language_pairs = config.get("language_pairs", [])
+
+    if not language_pairs:
+        raise ValueError("No language pairs configured.")
+
+    for pair in language_pairs:
+        if (
+            pair.get("language_to_learn", "").casefold() == language_to_learn
+            and pair.get("mother_tongue", "").casefold() == mother_tongue
+        ):
+            pair["deck_name"] = deck_name
+            write_config(config)
+            return
+
+    raise ValueError(
+        f"Language pair {language_to_learn}:{mother_tongue} not found. "
+        "Use 'vocabmaster pairs add' to create it first."
+    )
+
+
+def remove_deck_name(language_to_learn: str, mother_tongue: str) -> None:
+    """
+    Remove the custom deck name for a language pair, reverting to auto-generation.
+
+    Args:
+        language_to_learn: Target language.
+        mother_tongue: User's mother tongue.
+
+    Raises:
+        ValueError: If the language pair is not configured.
+    """
+    # Import here to avoid circular dependency
+    from vocabmaster.utils import validate_language_name
+
+    language_to_learn = validate_language_name(language_to_learn)
+    mother_tongue = validate_language_name(mother_tongue)
+
+    config = read_config() or {}
+    language_pairs = config.get("language_pairs", [])
+
+    if not language_pairs:
+        raise ValueError("No language pairs configured.")
+
+    for pair in language_pairs:
+        if (
+            pair.get("language_to_learn", "").casefold() == language_to_learn
+            and pair.get("mother_tongue", "").casefold() == mother_tongue
+        ):
+            pair.pop("deck_name", None)
+            write_config(config)
+            return
+
+    raise ValueError(f"Language pair {language_to_learn}:{mother_tongue} not found.")
 
 
 def get_default_data_directory() -> Path:

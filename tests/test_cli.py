@@ -365,8 +365,8 @@ class TestGenerateAnkiDeck:
     def test_generate_anki_deck_invokes_csv_handler(self, capsys, monkeypatch):
         captured = {}
 
-        def record_generate(translations, anki, language, mother):
-            captured["args"] = (translations, anki, language, mother)
+        def record_generate(translations, anki, language, mother, custom_deck_name=None):
+            captured["args"] = (translations, anki, language, mother, custom_deck_name)
 
         monkeypatch.setattr(cli.csv_handler, "generate_anki_output_file", record_generate)
 
@@ -377,7 +377,7 @@ class TestGenerateAnkiDeck:
 
         out = capsys.readouterr().out
         assert "Generating Anki deck" in out
-        assert captured["args"] == (translations, anki, "english", "french")
+        assert captured["args"] == (translations, anki, "english", "french", None)
 
 
 class TestAnkiCommand:
@@ -399,6 +399,11 @@ class TestAnkiCommand:
             "get_language_pair",
             lambda option: ("english", "french"),
         )
+        monkeypatch.setattr(
+            cli.config_handler,
+            "get_deck_name",
+            lambda *args: None,
+        )
 
         translations = isolated_app_dir / "vocab.csv"
         anki = isolated_app_dir / "anki.csv"
@@ -417,7 +422,7 @@ class TestAnkiCommand:
         assert result.exit_code == 0
         assert called["deck"][0] == translations
         assert called["deck"][1] == anki
-        assert called["deck"][2:] == ("english", "french")
+        assert called["deck"][2:] == ("english", "french", None)
 
     def test_anki_generates_with_pair_option(self, isolated_app_dir, monkeypatch):
         def capture_pair(option):
@@ -425,6 +430,11 @@ class TestAnkiCommand:
             return "spanish", "english"
 
         monkeypatch.setattr(cli.config_handler, "get_language_pair", capture_pair)
+        monkeypatch.setattr(
+            cli.config_handler,
+            "get_deck_name",
+            lambda *args: None,
+        )
 
         translations = isolated_app_dir / "vocab.csv"
         anki = isolated_app_dir / "anki.csv"
@@ -432,7 +442,7 @@ class TestAnkiCommand:
 
         called = {}
 
-        def record_generate(translations_path, anki_path, language, mother):
+        def record_generate(translations_path, anki_path, language, mother, custom_deck_name=None):
             called["translations"] = translations_path
             called["anki"] = anki_path
             called["language"] = language
@@ -540,6 +550,7 @@ class TestTokensCommand:
             "format_prompt",
             lambda *_: [{"role": "system", "content": "prompt"}],
         )
+        monkeypatch.setattr(cli.gpt_integration, "num_tokens_from_messages", lambda *_, **__: 100)
 
         def fake_estimate(prompt, model):
             assert model == "gpt-4.1"
@@ -572,6 +583,7 @@ class TestTokensCommand:
             "format_prompt",
             lambda *_: [{"role": "system", "content": "prompt"}],
         )
+        monkeypatch.setattr(cli.gpt_integration, "num_tokens_from_messages", lambda *_, **__: 210)
         monkeypatch.setattr(
             cli.gpt_integration,
             "estimate_prompt_cost",
@@ -740,8 +752,9 @@ class TestPairsGroup:
 
         assert result.exit_code == 0
         assert "Manage language pairs" in result.output
-        assert "add          Create a new language pair." in result.output
-        assert "list         List all configured language pairs." in result.output
+        assert "add" in result.output and "Create a new language pair." in result.output
+        assert "list" in result.output and "List all configured language pairs." in result.output
+        assert "set-deck-name" in result.output
 
     def test_pair_alias_help(self):
         result = invoke_cli(["pair"])
@@ -1274,6 +1287,7 @@ class TestPairsInspectCommand:
             "format_prompt",
             lambda *args: [{"role": "system", "content": "prompt"}],
         )
+        monkeypatch.setattr(cli.gpt_integration, "num_tokens_from_messages", lambda *_, **__: 100)
         monkeypatch.setattr(
             cli.gpt_integration,
             "estimate_prompt_cost",
@@ -1307,6 +1321,7 @@ class TestPairsInspectCommand:
             "format_prompt",
             lambda *args: [{"role": "system", "content": "prompt"}],
         )
+        monkeypatch.setattr(cli.gpt_integration, "num_tokens_from_messages", lambda *_, **__: 100)
         monkeypatch.setattr(
             cli.gpt_integration,
             "estimate_prompt_cost",
@@ -1335,6 +1350,7 @@ class TestPairsInspectCommand:
             "format_prompt",
             lambda *args: [{"role": "system", "content": "prompt"}],
         )
+        monkeypatch.setattr(cli.gpt_integration, "num_tokens_from_messages", lambda *_, **__: 100)
         monkeypatch.setattr(
             cli.gpt_integration,
             "estimate_prompt_cost",
@@ -1360,3 +1376,585 @@ class TestPairsInspectCommand:
         assert "Total words: 0" in result.output
         assert "Translated: 0" in result.output
         assert "Number of tokens in the prompt: N/A (vocabulary file not found)" in result.output
+
+
+class TestPairsSetDeckNameCommand:
+    def test_set_deck_name_requires_pairs(self, isolated_app_dir):
+        """Test command fails when no language pairs exist."""
+        result = invoke_cli(["pairs", "set-deck-name"])
+
+        assert result.exit_code == 1
+        assert "No language pairs found" in result.output
+
+    def test_set_deck_name_with_pair_and_name_options(self, isolated_app_dir):
+        """Test setting deck name using --pair and --name options."""
+        config_handler.set_language_pair("english", "french")
+
+        result = invoke_cli(
+            ["pairs", "set-deck-name", "--pair", "english:french", "--name", "My Custom Deck"]
+        )
+
+        assert result.exit_code == 0
+        assert "Custom deck name set" in result.output
+        assert "My Custom Deck" in result.output
+        assert config_handler.get_deck_name("english", "french") == "My Custom Deck"
+
+    def test_set_deck_name_interactively(self, isolated_app_dir, monkeypatch):
+        """Test setting deck name through interactive prompts."""
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_language_pair("spanish", "english")
+
+        prompts = iter(["1", "Business English"])
+        monkeypatch.setattr("click.prompt", lambda *_, **__: next(prompts))
+
+        result = invoke_cli(["pairs", "set-deck-name"])
+
+        assert result.exit_code == 0
+        assert "Business English" in result.output
+        assert config_handler.get_deck_name("english", "french") == "Business English"
+
+    def test_set_deck_name_shows_current_custom_name(self, isolated_app_dir, monkeypatch):
+        """Test command shows existing custom deck name."""
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_deck_name("english", "french", "Existing Name")
+
+        prompts = iter(["english:french", "New Name"])
+        monkeypatch.setattr("click.prompt", lambda *_, **__: next(prompts))
+
+        result = invoke_cli(["pairs", "set-deck-name"])
+
+        assert result.exit_code == 0
+        assert "Current custom deck name: Existing Name" in result.output
+        assert config_handler.get_deck_name("english", "french") == "New Name"
+
+    def test_set_deck_name_shows_auto_generated_name(self, isolated_app_dir, monkeypatch):
+        """Test command shows auto-generated name when no custom name set."""
+        config_handler.set_language_pair("english", "french")
+
+        prompts = iter(["1", "My Deck"])
+        monkeypatch.setattr("click.prompt", lambda *_, **__: next(prompts))
+
+        result = invoke_cli(["pairs", "set-deck-name"])
+
+        assert result.exit_code == 0
+        assert "Currently using auto-generated name:" in result.output
+        assert "English vocabulary" in result.output
+
+    def test_set_deck_name_cancel_with_blank_input(self, isolated_app_dir, monkeypatch):
+        """Test canceling deck name change with blank input."""
+        config_handler.set_language_pair("english", "french")
+
+        prompts = iter(["1", ""])
+        monkeypatch.setattr("click.prompt", lambda *_, **__: next(prompts))
+
+        result = invoke_cli(["pairs", "set-deck-name"])
+
+        assert result.exit_code == 0
+        assert "No changes made" in result.output
+        assert config_handler.get_deck_name("english", "french") is None
+
+    def test_set_deck_name_invalid_characters(self, isolated_app_dir):
+        """Test validation rejects invalid characters."""
+        config_handler.set_language_pair("english", "french")
+
+        result = invoke_cli(
+            ["pairs", "set-deck-name", "--pair", "english:french", "--name", "Invalid:Name"]
+        )
+
+        assert result.exit_code == 1
+        assert "Error:" in result.output
+        assert "single colons" in result.output
+
+    def test_set_deck_name_path_traversal(self, isolated_app_dir):
+        """Test validation blocks path traversal attempts."""
+        config_handler.set_language_pair("english", "french")
+
+        result = invoke_cli(
+            ["pairs", "set-deck-name", "--pair", "english:french", "--name", "../malicious"]
+        )
+
+        assert result.exit_code == 1
+        assert "Error:" in result.output
+        assert "path traversal" in result.output
+
+    def test_set_deck_name_invalid_pair(self, isolated_app_dir):
+        """Test error when specified pair doesn't exist."""
+        config_handler.set_language_pair("english", "french")
+
+        result = invoke_cli(
+            ["pairs", "set-deck-name", "--pair", "spanish:english", "--name", "My Deck"]
+        )
+
+        assert result.exit_code == 1
+        assert "Error:" in result.output
+
+    def test_set_deck_name_interactive_invalid_choice(self, isolated_app_dir, monkeypatch):
+        """Test error handling for invalid interactive selection."""
+        config_handler.set_language_pair("english", "french")
+
+        monkeypatch.setattr("click.prompt", lambda *_, **__: "5")
+
+        result = invoke_cli(["pairs", "set-deck-name"])
+
+        assert result.exit_code == 1
+        assert "Error:" in result.output
+        assert "Invalid choice" in result.output
+
+    def test_set_deck_name_remove_flag(self, isolated_app_dir, monkeypatch):
+        """Test removing custom deck name with --remove flag."""
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_deck_name("english", "french", "Custom Deck")
+
+        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
+
+        result = invoke_cli(["pairs", "set-deck-name", "--pair", "english:french", "--remove"])
+
+        assert result.exit_code == 0
+        assert "Custom deck name removed" in result.output
+        assert config_handler.get_deck_name("english", "french") is None
+
+    def test_set_deck_name_remove_when_none_set(self, isolated_app_dir):
+        """Test removing when no custom deck name is set."""
+        config_handler.set_language_pair("english", "french")
+
+        result = invoke_cli(["pairs", "set-deck-name", "--pair", "english:french", "--remove"])
+
+        assert result.exit_code == 0
+        assert "No custom deck name set" in result.output
+        assert "Nothing to remove" in result.output
+
+    def test_set_deck_name_remove_decline_confirmation(self, isolated_app_dir, monkeypatch):
+        """Test declining removal confirmation."""
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_deck_name("english", "french", "Custom Deck")
+
+        monkeypatch.setattr("click.confirm", lambda *_, **__: False)
+
+        result = invoke_cli(["pairs", "set-deck-name", "--pair", "english:french", "--remove"])
+
+        assert result.exit_code == 0
+        assert "No changes made" in result.output
+        assert config_handler.get_deck_name("english", "french") == "Custom Deck"
+
+    def test_set_deck_name_updates_existing(self, isolated_app_dir):
+        """Test updating an existing custom deck name."""
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_deck_name("english", "french", "Old Name")
+
+        result = invoke_cli(
+            ["pairs", "set-deck-name", "--pair", "english:french", "--name", "New Name"]
+        )
+
+        assert result.exit_code == 0
+        assert "New Name" in result.output
+        assert config_handler.get_deck_name("english", "french") == "New Name"
+
+    def test_set_deck_name_remove_nonexistent_pair_fails(self, isolated_app_dir):
+        """Test that --remove with non-existent pair raises error."""
+        config_handler.set_language_pair("english", "french")
+
+        result = invoke_cli(["pairs", "set-deck-name", "--pair", "nonexistent:pair", "--remove"])
+
+        assert result.exit_code == 1
+        assert "Error:" in result.output
+        assert "not found" in result.output
+
+    def test_set_deck_name_handles_invalid_stored_name_on_remove(self, isolated_app_dir, monkeypatch):
+        """Allow removing an invalid stored deck name instead of crashing."""
+        config_handler.set_language_pair("english", "french")
+        config = config_handler.read_config()
+        config["language_pairs"][0]["deck_name"] = "Bad:Name"
+        config_handler.write_config(config)
+        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
+
+        result = invoke_cli(["pairs", "set-deck-name", "--pair", "english:french", "--remove"])
+
+        assert result.exit_code == 0
+        assert "invalid" in result.output.lower()
+        assert "Custom deck name removed" in result.output
+        assert config_handler.get_deck_name("english", "french") is None
+
+    def test_set_deck_name_replaces_invalid_stored_name(self, isolated_app_dir):
+        """Allow setting a new name when config contains an invalid deck name."""
+        config_handler.set_language_pair("english", "french")
+        config = config_handler.read_config()
+        config["language_pairs"][0]["deck_name"] = "Bad\nName"
+        config_handler.write_config(config)
+
+        result = invoke_cli(
+            ["pairs", "set-deck-name", "--pair", "english:french", "--name", "Valid Name"]
+        )
+
+        assert result.exit_code == 0
+        assert "Stored deck name is invalid" in result.output
+        assert config_handler.get_deck_name("english", "french") == "Valid Name"
+
+
+class TestAnkiCommandWithDeckName:
+    def test_anki_with_deck_name_option(self, isolated_app_dir, monkeypatch):
+        """Test anki command with --deck-name option."""
+        config_handler.set_language_pair("english", "french")
+        vocab_path, anki_path = utils.setup_files(isolated_app_dir, "english", "french")
+        vocab_path.write_text(
+            "word,translation,example\nbonjour,hello,Hello world", encoding="utf-8"
+        )
+
+        monkeypatch.setattr(utils, "setup_files", lambda *_: (vocab_path, anki_path))
+
+        result = invoke_cli(["anki", "--pair", "english:french", "--deck-name", "Test Deck"])
+
+        assert result.exit_code == 0
+        content = anki_path.read_text()
+        assert "#deck:Test Deck" in content
+        assert "#deck:English vocabulary" not in content
+
+    def test_anki_uses_config_deck_name(self, isolated_app_dir, monkeypatch):
+        """Test anki command uses deck name from config when no --deck-name provided."""
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_deck_name("english", "french", "Config Deck")
+        vocab_path, anki_path = utils.setup_files(isolated_app_dir, "english", "french")
+        vocab_path.write_text(
+            "word,translation,example\nbonjour,hello,Hello world", encoding="utf-8"
+        )
+
+        monkeypatch.setattr(utils, "setup_files", lambda *_: (vocab_path, anki_path))
+
+        result = invoke_cli(["anki", "--pair", "english:french"])
+
+        assert result.exit_code == 0
+        content = anki_path.read_text()
+        assert "#deck:Config Deck" in content
+
+    def test_anki_deck_name_option_overrides_config(self, isolated_app_dir, monkeypatch):
+        """Test --deck-name option overrides config setting."""
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_deck_name("english", "french", "Config Deck")
+        vocab_path, anki_path = utils.setup_files(isolated_app_dir, "english", "french")
+        vocab_path.write_text(
+            "word,translation,example\nbonjour,hello,Hello world", encoding="utf-8"
+        )
+
+        monkeypatch.setattr(utils, "setup_files", lambda *_: (vocab_path, anki_path))
+
+        result = invoke_cli(["anki", "--pair", "english:french", "--deck-name", "CLI Override"])
+
+        assert result.exit_code == 0
+        content = anki_path.read_text()
+        assert "#deck:CLI Override" in content
+        assert "#deck:Config Deck" not in content
+
+    def test_anki_auto_generates_when_no_custom_name(self, isolated_app_dir, monkeypatch):
+        """Test anki command auto-generates deck name when no custom name set."""
+        config_handler.set_language_pair("english", "french")
+        vocab_path, anki_path = utils.setup_files(isolated_app_dir, "english", "french")
+        vocab_path.write_text(
+            "word,translation,example\nbonjour,hello,Hello world", encoding="utf-8"
+        )
+
+        monkeypatch.setattr(utils, "setup_files", lambda *_: (vocab_path, anki_path))
+
+        result = invoke_cli(["anki", "--pair", "english:french"])
+
+        assert result.exit_code == 0
+        content = anki_path.read_text()
+        assert "#deck:English vocabulary" in content
+
+    def test_anki_invalid_config_deck_name_exits(self, isolated_app_dir, monkeypatch):
+        """Test anki exits when config deck name is invalid."""
+        config_handler.set_language_pair("english", "french")
+        config = config_handler.read_config()
+        config["language_pairs"][0]["deck_name"] = "Bad:Name"
+        config_handler.write_config(config)
+
+        def fail_setup(*_args, **_kwargs):
+            raise AssertionError("setup_files should not be called when deck name is invalid")
+
+        monkeypatch.setattr(utils, "setup_files", fail_setup)
+
+        result = invoke_cli(["anki", "--pair", "english:french"])
+
+        assert result.exit_code == 1
+        assert "Invalid deck name for english:french" in result.output
+
+
+class TestTranslateCommandWithDeckName:
+    def test_translate_with_deck_name_option(self, isolated_app_dir, monkeypatch):
+        """Test translate command with --deck-name option."""
+        config_handler.set_language_pair("english", "french")
+        vocab_path, anki_path = utils.setup_files(isolated_app_dir, "english", "french")
+        vocab_path.write_text(
+            "word,translation,example\nbonjour,hello,Hello world", encoding="utf-8"
+        )
+
+        monkeypatch.setattr(utils, "setup_files", lambda *_: (vocab_path, anki_path))
+        monkeypatch.setattr(cli, "openai_api_key_exists", lambda: True)
+        monkeypatch.setattr(
+            "vocabmaster.csv_handler.add_translations_and_examples_to_file", lambda *_: None
+        )
+
+        result = invoke_cli(
+            ["translate", "--pair", "english:french", "--deck-name", "Custom Translate Deck"]
+        )
+
+        assert result.exit_code == 0
+        content = anki_path.read_text()
+        assert "#deck:Custom Translate Deck" in content
+
+    def test_translate_invalid_config_deck_name_exits(self, isolated_app_dir, monkeypatch):
+        """Test translate exits early when config deck name is invalid."""
+        config_handler.set_language_pair("english", "french")
+        config = config_handler.read_config()
+        config["language_pairs"][0]["deck_name"] = "Bad:Name"
+        config_handler.write_config(config)
+
+        def fail_setup(*_args, **_kwargs):
+            raise AssertionError("setup_files should not be called when deck name is invalid")
+
+        monkeypatch.setattr(utils, "setup_files", fail_setup)
+
+        result = invoke_cli(["translate", "--pair", "english:french"])
+
+        assert result.exit_code == 1
+        assert "Invalid deck name for english:french" in result.output
+
+    def test_translate_uses_config_deck_name(self, isolated_app_dir, monkeypatch):
+        """Test translate command uses deck name from config."""
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_deck_name("english", "french", "Translation Deck")
+        vocab_path, anki_path = utils.setup_files(isolated_app_dir, "english", "french")
+        vocab_path.write_text(
+            "word,translation,example\nbonjour,hello,Hello world", encoding="utf-8"
+        )
+
+        monkeypatch.setattr(utils, "setup_files", lambda *_: (vocab_path, anki_path))
+        monkeypatch.setattr(cli, "openai_api_key_exists", lambda: True)
+        monkeypatch.setattr(
+            "vocabmaster.csv_handler.add_translations_and_examples_to_file", lambda *_: None
+        )
+
+        result = invoke_cli(["translate", "--pair", "english:french"])
+
+        assert result.exit_code == 0
+        content = anki_path.read_text()
+        assert "#deck:Translation Deck" in content
+
+    def test_translate_deck_name_option_overrides_config(self, isolated_app_dir, monkeypatch):
+        """Test --deck-name option overrides config in translate command."""
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_deck_name("english", "french", "Config Name")
+        vocab_path, anki_path = utils.setup_files(isolated_app_dir, "english", "french")
+        vocab_path.write_text(
+            "word,translation,example\nbonjour,hello,Hello world", encoding="utf-8"
+        )
+
+        monkeypatch.setattr(utils, "setup_files", lambda *_: (vocab_path, anki_path))
+        monkeypatch.setattr(cli, "openai_api_key_exists", lambda: True)
+        monkeypatch.setattr(
+            "vocabmaster.csv_handler.add_translations_and_examples_to_file", lambda *_: None
+        )
+
+        result = invoke_cli(
+            ["translate", "--pair", "english:french", "--deck-name", "Override Name"]
+        )
+
+        assert result.exit_code == 0
+        content = anki_path.read_text()
+        assert "#deck:Override Name" in content
+        assert "#deck:Config Name" not in content
+
+    def test_translate_deck_name_rejects_newline(self, isolated_app_dir, monkeypatch):
+        """Test --deck-name rejects names with newline characters in translate command."""
+        config_handler.set_language_pair("english", "french")
+        vocab_path, anki_path = utils.setup_files(isolated_app_dir, "english", "french")
+        vocab_path.write_text(
+            "word,translation,example\nbonjour,hello,Hello world", encoding="utf-8"
+        )
+
+        monkeypatch.setattr(utils, "setup_files", lambda *_: (vocab_path, anki_path))
+        monkeypatch.setattr(cli, "openai_api_key_exists", lambda: True)
+        monkeypatch.setattr(
+            "vocabmaster.csv_handler.add_translations_and_examples_to_file", lambda *_: None
+        )
+
+        result = invoke_cli(["translate", "--pair", "english:french", "--deck-name", "Bad\nName"])
+
+        assert result.exit_code == 1
+        assert "Deck name contains invalid characters" in result.output
+        assert "'\\n'" in result.output
+
+    def test_translate_deck_name_rejects_colon(self, isolated_app_dir, monkeypatch):
+        """Test --deck-name rejects names with colon characters in translate command."""
+        config_handler.set_language_pair("english", "french")
+        vocab_path, anki_path = utils.setup_files(isolated_app_dir, "english", "french")
+        vocab_path.write_text(
+            "word,translation,example\nbonjour,hello,Hello world", encoding="utf-8"
+        )
+
+        monkeypatch.setattr(utils, "setup_files", lambda *_: (vocab_path, anki_path))
+        monkeypatch.setattr(cli, "openai_api_key_exists", lambda: True)
+        monkeypatch.setattr(
+            "vocabmaster.csv_handler.add_translations_and_examples_to_file", lambda *_: None
+        )
+
+        result = invoke_cli(["translate", "--pair", "english:french", "--deck-name", "Bad:Name"])
+
+        assert result.exit_code == 1
+        assert "single colons" in result.output
+
+    def test_translate_deck_name_rejects_tab(self, isolated_app_dir, monkeypatch):
+        """Test --deck-name rejects names with tab characters in translate command."""
+        config_handler.set_language_pair("english", "french")
+        vocab_path, anki_path = utils.setup_files(isolated_app_dir, "english", "french")
+        vocab_path.write_text(
+            "word,translation,example\nbonjour,hello,Hello world", encoding="utf-8"
+        )
+
+        monkeypatch.setattr(utils, "setup_files", lambda *_: (vocab_path, anki_path))
+        monkeypatch.setattr(cli, "openai_api_key_exists", lambda: True)
+        monkeypatch.setattr(
+            "vocabmaster.csv_handler.add_translations_and_examples_to_file", lambda *_: None
+        )
+
+        result = invoke_cli(["translate", "--pair", "english:french", "--deck-name", "Bad\tName"])
+
+        assert result.exit_code == 1
+        assert "Deck name contains invalid characters" in result.output
+        assert "'\\t'" in result.output
+
+    def test_translate_deck_name_rejects_path_traversal(self, isolated_app_dir, monkeypatch):
+        """Test --deck-name rejects path traversal patterns in translate command."""
+        config_handler.set_language_pair("english", "french")
+        vocab_path, anki_path = utils.setup_files(isolated_app_dir, "english", "french")
+        vocab_path.write_text(
+            "word,translation,example\nbonjour,hello,Hello world", encoding="utf-8"
+        )
+
+        monkeypatch.setattr(utils, "setup_files", lambda *_: (vocab_path, anki_path))
+        monkeypatch.setattr(cli, "openai_api_key_exists", lambda: True)
+        monkeypatch.setattr(
+            "vocabmaster.csv_handler.add_translations_and_examples_to_file", lambda *_: None
+        )
+
+        result = invoke_cli(["translate", "--pair", "english:french", "--deck-name", "../evil"])
+
+        assert result.exit_code == 1
+        assert "path traversal pattern" in result.output
+
+    def test_anki_deck_name_rejects_newline(self, isolated_app_dir, monkeypatch):
+        """Test --deck-name rejects names with newline characters in anki command."""
+        config_handler.set_language_pair("english", "french")
+        vocab_path, anki_path = utils.setup_files(isolated_app_dir, "english", "french")
+        vocab_path.write_text(
+            "word,translation,example\nbonjour,hello,Hello world", encoding="utf-8"
+        )
+
+        monkeypatch.setattr(utils, "setup_files", lambda *_: (vocab_path, anki_path))
+
+        result = invoke_cli(["anki", "--pair", "english:french", "--deck-name", "Bad\nName"])
+
+        assert result.exit_code == 1
+        assert "Deck name contains invalid characters" in result.output
+        assert "'\\n'" in result.output
+
+    def test_anki_deck_name_rejects_colon(self, isolated_app_dir, monkeypatch):
+        """Test --deck-name rejects names with colon characters in anki command."""
+        config_handler.set_language_pair("english", "french")
+        vocab_path, anki_path = utils.setup_files(isolated_app_dir, "english", "french")
+        vocab_path.write_text(
+            "word,translation,example\nbonjour,hello,Hello world", encoding="utf-8"
+        )
+
+        monkeypatch.setattr(utils, "setup_files", lambda *_: (vocab_path, anki_path))
+
+        result = invoke_cli(["anki", "--pair", "english:french", "--deck-name", "Bad:Name"])
+
+        assert result.exit_code == 1
+        assert "single colons" in result.output
+
+    def test_anki_deck_name_rejects_tab(self, isolated_app_dir, monkeypatch):
+        """Test --deck-name rejects names with tab characters in anki command."""
+        config_handler.set_language_pair("english", "french")
+        vocab_path, anki_path = utils.setup_files(isolated_app_dir, "english", "french")
+        vocab_path.write_text(
+            "word,translation,example\nbonjour,hello,Hello world", encoding="utf-8"
+        )
+
+        monkeypatch.setattr(utils, "setup_files", lambda *_: (vocab_path, anki_path))
+
+        result = invoke_cli(["anki", "--pair", "english:french", "--deck-name", "Bad\tName"])
+
+        assert result.exit_code == 1
+        assert "Deck name contains invalid characters" in result.output
+        assert "'\\t'" in result.output
+
+    def test_anki_deck_name_rejects_path_traversal(self, isolated_app_dir, monkeypatch):
+        """Test --deck-name rejects path traversal patterns in anki command."""
+        config_handler.set_language_pair("english", "french")
+        vocab_path, anki_path = utils.setup_files(isolated_app_dir, "english", "french")
+        vocab_path.write_text(
+            "word,translation,example\nbonjour,hello,Hello world", encoding="utf-8"
+        )
+
+        monkeypatch.setattr(utils, "setup_files", lambda *_: (vocab_path, anki_path))
+
+        result = invoke_cli(["anki", "--pair", "english:french", "--deck-name", "../evil"])
+
+        assert result.exit_code == 1
+        assert "path traversal pattern" in result.output
+
+
+class TestCustomDeckNameEndToEndWorkflow:
+    def test_full_workflow_set_name_then_generate_deck(self, isolated_app_dir, monkeypatch):
+        """End-to-end test: set custom deck name, then generate deck using it."""
+        # Step 1: Create language pair
+        config_handler.set_language_pair("english", "french")
+
+        # Step 2: Set custom deck name via CLI
+        result_set = invoke_cli(
+            ["pairs", "set-deck-name", "--pair", "english:french", "--name", "My Learning Deck"]
+        )
+        assert result_set.exit_code == 0
+        assert "Custom deck name set" in result_set.output
+
+        # Step 3: Verify config was updated
+        assert config_handler.get_deck_name("english", "french") == "My Learning Deck"
+
+        # Step 4: Generate Anki deck (should use custom name from config)
+        vocab_path, anki_path = utils.setup_files(isolated_app_dir, "english", "french")
+        vocab_path.write_text(
+            "word,translation,example\nbonjour,hello,Hello world", encoding="utf-8"
+        )
+        monkeypatch.setattr(utils, "setup_files", lambda *_: (vocab_path, anki_path))
+
+        result_anki = invoke_cli(["anki", "--pair", "english:french"])
+        assert result_anki.exit_code == 0
+
+        # Step 5: Verify deck uses custom name
+        content = anki_path.read_text()
+        assert "#deck:My Learning Deck" in content
+        assert "#deck:English vocabulary" not in content
+
+    def test_workflow_remove_custom_name_reverts_to_auto(self, isolated_app_dir, monkeypatch):
+        """Test removing custom name reverts to auto-generation."""
+        # Set up language pair with custom name
+        config_handler.set_language_pair("english", "french")
+        config_handler.set_deck_name("english", "french", "Custom Name")
+
+        # Remove custom name
+        monkeypatch.setattr("click.confirm", lambda *_, **__: True)
+        result_remove = invoke_cli(
+            ["pairs", "set-deck-name", "--pair", "english:french", "--remove"]
+        )
+        assert result_remove.exit_code == 0
+        assert config_handler.get_deck_name("english", "french") is None
+
+        # Generate deck should use auto-generated name
+        vocab_path, anki_path = utils.setup_files(isolated_app_dir, "english", "french")
+        vocab_path.write_text("word,translation,example\ntest,test,test", encoding="utf-8")
+        monkeypatch.setattr(utils, "setup_files", lambda *_: (vocab_path, anki_path))
+
+        result_anki = invoke_cli(["anki", "--pair", "english:french"])
+        assert result_anki.exit_code == 0
+
+        content = anki_path.read_text()
+        assert "#deck:English vocabulary" in content
