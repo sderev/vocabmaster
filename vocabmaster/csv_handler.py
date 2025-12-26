@@ -7,6 +7,10 @@ import click
 from vocabmaster import gpt_integration, utils
 
 CSV_FIELDNAMES = ["word", "translation", "example"]
+
+# CLI message prefixes (styled, user-facing)
+ERROR_PREFIX = click.style("Error:", fg="red")
+WARNING_PREFIX = click.style("Warning:", fg="yellow")
 ALL_WORDS_TRANSLATED_MESSAGE = (
     "All the words in the vocabulary list already have translations and examples"
 )
@@ -296,8 +300,7 @@ def convert_text_to_dict(generated_text):
         if len(columns) > 4:
             # Likely has tabs within content - warn and skip to prevent data corruption
             click.echo(
-                f"{click.style('Warning:', fg='yellow')} Line appears corrupted (tabs in content?):\n{line}",
-                err=True,
+                f"{WARNING_PREFIX} Line appears corrupted (tabs in content?):\n{line}", err=True
             )
             click.echo(
                 "Skipping line to prevent data corruption. Consider removing tabs from content.",
@@ -316,10 +319,7 @@ def convert_text_to_dict(generated_text):
             original_word, recognized_word, translation_quoted, example_quoted = columns[:4]
         else:
             # Neither 3 nor 4+ columns - cannot parse
-            click.echo(
-                f"{click.style('Warning:', fg='yellow')} Could not parse line:\n{line}",
-                err=True,
-            )
+            click.echo(f"{WARNING_PREFIX} Could not parse line:\n{line}", err=True)
             continue
 
         translation = _strip_wrapping(translation_quoted, "'")
@@ -389,7 +389,7 @@ def add_translations_and_examples_to_file(translations_path, pair):
     # Report missing words
     if missing_words:
         click.echo(
-            f"\n{click.style('Error:', fg='red')} LM failed to return translations for {len(missing_words)} word(s):",
+            f"\n{ERROR_PREFIX} LM failed to return translations for {len(missing_words)} word(s):",
             err=True,
         )
         for word in missing_words:
@@ -397,10 +397,7 @@ def add_translations_and_examples_to_file(translations_path, pair):
         click.echo("Please retry or add them manually.\n", err=True)
 
     if mismatches:
-        click.echo(
-            f"\n{click.style('Word corrections detected:', fg='yellow')}",
-            err=True,
-        )
+        click.echo(f"\n{WARNING_PREFIX} Word corrections detected:", err=True)
 
         for original_word, potential_corrections in mismatches:
             if len(potential_corrections) == 1:
