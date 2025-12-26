@@ -13,6 +13,82 @@ from pathlib import Path
 from vocabmaster import utils
 
 
+def _is_valid_headerless_backup(backup_path):
+    """
+    Check if a file is a valid headerless legacy backup.
+
+    Legacy backups were tab-separated files without headers, containing
+    3 columns (word, translation, example) or 4 columns (original_word,
+    recognized_word, translation, example).
+
+    Args:
+        backup_path (pathlib.Path): Path to the backup file.
+
+    Returns:
+        bool: True if the file is a valid headerless backup.
+    """
+    try:
+        content = backup_path.read_text(encoding="utf-8")
+        lines = [line for line in content.strip().split("\n") if line.strip()]
+
+        if not lines:
+            return False
+
+        for line in lines:
+            parts = line.split("\t")
+            if len(parts) not in (3, 4):
+                return False
+
+        return True
+    except OSError:
+        return False
+
+
+def _migrate_headerless_to_csv(backup_path, output_path):
+    """
+    Migrate a headerless TSV backup to proper CSV format with headers.
+
+    Args:
+        backup_path (pathlib.Path): Path to the headerless backup.
+        output_path (pathlib.Path): Path to write the migrated CSV.
+
+    Returns:
+        bool: True if migration succeeded.
+    """
+    try:
+        content = backup_path.read_text(encoding="utf-8")
+        lines = [line for line in content.strip().split("\n") if line.strip()]
+
+        with open(output_path, "w", encoding="utf-8", newline="") as outfile:
+            writer = csv.DictWriter(outfile, fieldnames=["word", "translation", "example"])
+            writer.writeheader()
+
+            for line in lines:
+                parts = line.split("\t")
+                if len(parts) == 3:
+                    # 3-col: word, translation, example
+                    row = {
+                        "word": parts[0],
+                        "translation": parts[1],
+                        "example": parts[2],
+                    }
+                elif len(parts) == 4:
+                    # 4-col: original_word, recognized_word, translation, example
+                    # Use recognized_word as the canonical word
+                    row = {
+                        "word": parts[1],
+                        "translation": parts[2],
+                        "example": parts[3],
+                    }
+                else:
+                    return False
+                writer.writerow(row)
+
+        return True
+    except (OSError, csv.Error):
+        return False
+
+
 def restore_vocabulary_from_backup(backup_path, language_to_learn, mother_tongue):
     """
     Restore a vocabulary file from a backup.
@@ -49,13 +125,20 @@ def restore_vocabulary_from_backup(backup_path, language_to_learn, mother_tongue
 
     # Validate the backup is parseable
     validation = utils.validate_backup_parseable(backup_path)
+    needs_header_migration = False
     if not validation["valid"]:
-        return {
-            "success": False,
-            "restored_path": None,
-            "pre_restore_backup": None,
-            "error": f"Backup validation failed: {validation['error']}",
-        }
+        # Check if it's a headerless legacy backup (3 or 4 tab-separated columns)
+        # Headerless files fail with "No header row found" or "Missing required columns"
+        # because CSV parser uses first data row as header
+        if _is_valid_headerless_backup(backup_path):
+            needs_header_migration = True
+        else:
+            return {
+                "success": False,
+                "restored_path": None,
+                "pre_restore_backup": None,
+                "error": f"Backup validation failed: {validation['error']}",
+            }
 
     # Get target path
     translations_path, _ = utils.get_pair_file_paths(language_to_learn, mother_tongue)
@@ -78,7 +161,17 @@ def restore_vocabulary_from_backup(backup_path, language_to_learn, mother_tongue
 
     # Restore from backup
     try:
-        shutil.copy(backup_path, translations_path)
+        if needs_header_migration:
+            # Migrate headerless backup to proper CSV format
+            if not _migrate_headerless_to_csv(backup_path, translations_path):
+                return {
+                    "success": False,
+                    "restored_path": None,
+                    "pre_restore_backup": pre_restore_backup,
+                    "error": "Failed to migrate headerless backup",
+                }
+        else:
+            shutil.copy(backup_path, translations_path)
     except OSError as e:
         return {
             "success": False,
@@ -144,10 +237,7 @@ def validate_all_backups(language_to_learn, mother_tongue):
             # GPT response backups are not validated the same way
             format_info = utils.get_backup_format_version(backup_path)
             # Mark "unknown" format as invalid since we can't verify integrity
-            is_valid = (
-                format_info["error"] is None
-                and format_info["version"] != "unknown"
-            )
+            is_valid = format_info["error"] is None and format_info["version"] != "unknown"
             results.append(
                 {
                     "path": backup_path,
