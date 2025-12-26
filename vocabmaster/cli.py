@@ -304,6 +304,9 @@ def translate(pair, count, deck_name):
         click.echo(f"{ERROR_PREFIX} {error}", err=True)
         handle_rate_limit_error()
         sys.exit(1)
+    except csv_handler.ValidationError as error:
+        click.echo(f"{ERROR_PREFIX} {error}", err=True)
+        sys.exit(1)
     except csv_handler.AllWordsTranslatedError as error:
         click.secho("Actually...", fg="blue")
         click.secho("No action needed: ", fg="green", nl=False)
