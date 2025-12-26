@@ -18,6 +18,10 @@ ALL_WORDS_TRANSLATED_MESSAGE = (
 )
 
 
+class ValidationError(RuntimeError):
+    """Raised when vocabulary entries fail validation before write."""
+
+
 def atomic_write_csv(filepath, write_function):
     """
     Write CSV atomically using temp-then-rename pattern.
@@ -45,6 +49,55 @@ def atomic_write_csv(filepath, write_function):
         except OSError:
             pass
         raise
+
+
+def validate_entries_before_write(entries):
+    """
+    Validate that entries are safe to write to the vocabulary file.
+
+    Checks that the data structure is valid and contains at least one entry
+    to prevent writing empty or corrupted data.
+
+    Args:
+        entries (dict): Dictionary of word entries to validate.
+
+    Returns:
+        dict: Validation result with keys:
+            - valid (bool): True if safe to write
+            - entry_count (int): Number of entries
+            - error (str | None): Error message if invalid
+    """
+    if entries is None:
+        return {"valid": False, "entry_count": 0, "error": "Entries dictionary is None"}
+
+    if not isinstance(entries, dict):
+        return {"valid": False, "entry_count": 0, "error": "Entries must be a dictionary"}
+
+    entry_count = len(entries)
+
+    if entry_count == 0:
+        return {"valid": False, "entry_count": 0, "error": "No entries to write"}
+
+    # Validate each entry has required structure
+    for word, entry in entries.items():
+        if not isinstance(entry, dict):
+            return {
+                "valid": False,
+                "entry_count": entry_count,
+                "error": f"Entry for '{word}' is not a dictionary",
+            }
+
+        # Check for required keys
+        required_keys = {"word", "translation", "example"}
+        missing_keys = required_keys - set(entry.keys())
+        if missing_keys:
+            return {
+                "valid": False,
+                "entry_count": entry_count,
+                "error": f"Entry for '{word}' missing keys: {', '.join(sorted(missing_keys))}",
+            }
+
+    return {"valid": True, "entry_count": entry_count, "error": None}
 
 
 def sanitize_csv_value(value: str) -> str:
@@ -490,6 +543,13 @@ def add_translations_and_examples_to_file(translations_path, pair):
                     skip_translation_for.add(original_word)
 
         click.echo()
+
+    # Validate entries before writing to prevent data loss
+    validation = validate_entries_before_write(current_entries)
+    if not validation["valid"]:
+        raise ValidationError(
+            f"Cannot write: {validation['error']}. Original file preserved. Check backup for recovery."
+        )
 
     # Write the updated translations and examples to the output file atomically
     def write_translations(output_file):
