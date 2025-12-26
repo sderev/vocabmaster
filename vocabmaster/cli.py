@@ -10,6 +10,10 @@ from vocabmaster import config_handler, csv_handler, gpt_integration
 from . import utils
 from .utils import openai_api_key_exists, setup_backup_dir, setup_dir, setup_files
 
+# CLI message prefixes (styled, user-facing)
+ERROR_PREFIX = click.style("Error:", fg="red")
+WARNING_PREFIX = click.style("Warning:", fg="yellow")
+
 
 def validate_data_directory(path_str: str) -> Path:
     """
@@ -164,8 +168,7 @@ def add(pair, word):
     try:
         language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
     except Exception as error:
-        click.secho("Error: ", fg="red", nl=False, err=True)
-        click.echo(error, err=True)
+        click.echo(f"{ERROR_PREFIX} {error}", err=True)
         sys.exit(1)
 
     translations_filepath, anki_filepath = setup_files(
@@ -186,8 +189,7 @@ def add(pair, word):
     try:
         validated_word = validate_word(word_str)
     except ValueError as e:
-        click.secho("Error: ", fg="red", nl=False, err=True)
-        click.echo(str(e), err=True)
+        click.echo(f"{ERROR_PREFIX} {e}", err=True)
         sys.exit(1)
     except click.Abort:
         click.echo("Word not added.")
@@ -235,8 +237,7 @@ def translate(pair, count, deck_name):
     try:
         language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
     except Exception as error:
-        click.secho("Error: ", fg="red", nl=False, err=True)
-        click.echo(error, err=True)
+        click.echo(f"{ERROR_PREFIX} {error}", err=True)
         sys.exit(1)
 
     # Validate deck name early to avoid mutating files on validation failure
@@ -244,8 +245,7 @@ def translate(pair, count, deck_name):
         try:
             deck_name = utils.validate_deck_name(deck_name)
         except ValueError as error:
-            click.secho("Error: ", fg="red", nl=False, err=True)
-            click.echo(str(error), err=True)
+            click.echo(f"{ERROR_PREFIX} {error}", err=True)
             sys.exit(1)
 
     custom_deck_name = deck_name
@@ -253,8 +253,7 @@ def translate(pair, count, deck_name):
         try:
             custom_deck_name = config_handler.get_deck_name(language_to_learn, mother_tongue)
         except ValueError as error:
-            click.secho("Error: ", fg="red", nl=False, err=True)
-            click.echo(str(error), err=True)
+            click.echo(f"{ERROR_PREFIX} {error}", err=True)
             sys.exit(1)
 
     translations_filepath, anki_filepath = setup_files(
@@ -302,7 +301,7 @@ def translate(pair, count, deck_name):
         csv_handler.add_translations_and_examples_to_file(translations_filepath, pair)
         click.echo()
     except openai.error.RateLimitError as error:
-        click.echo(click.style("Error: ", fg="red") + f"{error}", err=True)
+        click.echo(f"{ERROR_PREFIX} {error}", err=True)
         handle_rate_limit_error()
         sys.exit(1)
     except csv_handler.AllWordsTranslatedError as error:
@@ -388,11 +387,10 @@ def anki(pair, deck_name):
     try:
         language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
     except Exception as error:
-        click.secho("Error: ", fg="red", nl=False, err=True)
-        click.echo(error, err=True)
+        click.echo(f"{ERROR_PREFIX} {error}", err=True)
         if pair is None:
             click.echo(
-                f"Run '{click.style('vocabmaster pairs add', bold=True)}' to create a language pair.",
+                f"Hint: Run '{click.style('vocabmaster pairs add', bold=True)}' to create a language pair.",
                 err=True,
             )
         sys.exit(1)
@@ -403,16 +401,14 @@ def anki(pair, deck_name):
         try:
             custom_deck_name = utils.validate_deck_name(custom_deck_name)
         except ValueError as error:
-            click.secho("Error: ", fg="red", nl=False, err=True)
-            click.echo(str(error), err=True)
+            click.echo(f"{ERROR_PREFIX} {error}", err=True)
             sys.exit(1)
 
     if custom_deck_name is None:
         try:
             custom_deck_name = config_handler.get_deck_name(language_to_learn, mother_tongue)
         except ValueError as error:
-            click.secho("Error: ", fg="red", nl=False, err=True)
-            click.echo(str(error), err=True)
+            click.echo(f"{ERROR_PREFIX} {error}", err=True)
             sys.exit(1)
 
     translations_filepath, anki_filepath = setup_files(
@@ -436,8 +432,7 @@ def create_language_pair_interactively():
         language_to_learn = utils.validate_language_name(language_to_learn)
         mother_tongue = utils.validate_language_name(mother_tongue)
     except ValueError as error:
-        click.secho("Error: ", fg="red", nl=False, err=True)
-        click.echo(str(error), err=True)
+        click.echo(f"{ERROR_PREFIX} {error}", err=True)
         sys.exit(1)
 
     click.echo()
@@ -566,20 +561,17 @@ def config_dir(show_only, directory):
     try:
         target_path = validate_data_directory(directory_input)
     except ValueError as e:
-        click.secho("Error: ", fg="red", nl=False, err=True)
-        click.echo(str(e), err=True)
+        click.echo(f"{ERROR_PREFIX} {e}", err=True)
         sys.exit(1)
 
     if target_path.exists() and not target_path.is_dir():
-        click.secho("Error: ", fg="red", nl=False, err=True)
-        click.echo(f"{target_path} exists and is not a directory.", err=True)
+        click.echo(f"{ERROR_PREFIX} {target_path} exists and is not a directory.", err=True)
         sys.exit(1)
 
     try:
         target_path.mkdir(parents=True, exist_ok=True)
     except OSError as error:
-        click.secho("Error: ", fg="red", nl=False, err=True)
-        click.echo(f"Unable to use '{target_path}': {error}", err=True)
+        click.echo(f"{ERROR_PREFIX} Unable to use '{target_path}': {error}", err=True)
         sys.exit(1)
 
     config_handler.set_data_directory(target_path)
@@ -613,7 +605,7 @@ def openai_api_key_explain():
     """
     Explain how to set up the OpenAI API key.
     """
-    click.secho("Error: OpenAI API key not found.", fg="red", err=True)
+    click.echo(f"{ERROR_PREFIX} OpenAI API key not found.", err=True)
     click.echo(err=True)
     click.echo(
         "You can generate API keys in the OpenAI web interface. See"
@@ -719,21 +711,17 @@ def pairs_rename_command():
         old_language, old_mother_tongue = resolve_language_pair_choice(choice, language_pairs)
     except ValueError as error:
         message = str(error)
-        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(f"{ERROR_PREFIX} {message}", err=True)
         if message == "Invalid choice":
-            click.echo(message, err=True)
             click.echo(
-                f"Please enter a number between 1 and {len(language_pairs)}",
+                f"Hint: Enter a number between 1 and {len(language_pairs)}.",
                 err=True,
             )
         elif "Invalid language pair." in message:
-            click.echo(message, err=True)
             click.echo(
-                f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}",
+                f"Hint: Format is {click.style('language_to_learn:mother_tongue', bold=True)}.",
                 err=True,
             )
-        else:
-            click.echo(message, err=True)
         sys.exit(1)
 
     new_pair_input = click.prompt(
@@ -742,8 +730,7 @@ def pairs_rename_command():
     ).strip()
 
     if not new_pair_input:
-        click.secho("Error: ", fg="red", nl=False, err=True)
-        click.echo("New language pair cannot be empty.", err=True)
+        click.echo(f"{ERROR_PREFIX} New language pair cannot be empty.", err=True)
         sys.exit(1)
 
     try:
@@ -752,11 +739,10 @@ def pairs_rename_command():
         new_language = utils.validate_language_name(new_language)
         new_mother_tongue = utils.validate_language_name(new_mother_tongue)
     except ValueError as error:
-        click.secho("Error: ", fg="red", nl=False, err=True)
-        click.echo(str(error), err=True)
+        click.echo(f"{ERROR_PREFIX} {error}", err=True)
         if "Invalid language pair" in str(error):
             click.echo(
-                f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}",
+                f"Hint: Format is {click.style('language_to_learn:mother_tongue', bold=True)}.",
                 err=True,
             )
         sys.exit(1)
@@ -765,8 +751,9 @@ def pairs_rename_command():
     new_key = (new_language, new_mother_tongue)
 
     if old_key == new_key:
-        click.secho("Error: ", fg="red", nl=False, err=True)
-        click.echo("New language pair must be different from the current one.", err=True)
+        click.echo(
+            f"{ERROR_PREFIX} New language pair must be different from the current one.", err=True
+        )
         sys.exit(1)
 
     existing_pairs = config_handler.get_all_language_pairs()
@@ -775,9 +762,8 @@ def pairs_rename_command():
         and pair["mother_tongue"].casefold() == new_key[1]
         for pair in existing_pairs
     ):
-        click.secho("Error: ", fg="red", nl=False, err=True)
         click.echo(
-            f"The language pair {new_key[0]}:{new_key[1]} already exists. Choose another name.",
+            f"{ERROR_PREFIX} The language pair {new_key[0]}:{new_key[1]} already exists. Choose another name.",
             err=True,
         )
         sys.exit(1)
@@ -856,8 +842,7 @@ def pairs_set_deck_name_command(pair, name, remove):
         try:
             language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
         except ValueError as error:
-            click.secho("Error: ", fg="red", nl=False, err=True)
-            click.echo(str(error), err=True)
+            click.echo(f"{ERROR_PREFIX} {error}", err=True)
             sys.exit(1)
     else:
         language_pairs = get_language_pairs_or_abort(
@@ -874,21 +859,17 @@ def pairs_set_deck_name_command(pair, name, remove):
             language_to_learn, mother_tongue = resolve_language_pair_choice(choice, language_pairs)
         except ValueError as error:
             message = str(error)
-            click.secho("Error: ", fg="red", nl=False, err=True)
+            click.echo(f"{ERROR_PREFIX} {message}", err=True)
             if message == "Invalid choice":
-                click.echo(message, err=True)
                 click.echo(
-                    f"Please enter a number between 1 and {len(language_pairs)}",
+                    f"Hint: Enter a number between 1 and {len(language_pairs)}.",
                     err=True,
                 )
             elif "Invalid language pair." in message:
-                click.echo(message, err=True)
                 click.echo(
-                    f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}",
+                    f"Hint: Format is {click.style('language_to_learn:mother_tongue', bold=True)}.",
                     err=True,
                 )
-            else:
-                click.echo(message, err=True)
             sys.exit(1)
 
     # Validate that pair exists in config (especially important for --remove)
@@ -899,10 +880,11 @@ def pairs_set_deck_name_command(pair, name, remove):
         for pair in all_pairs
     )
     if not pair_exists:
-        click.secho("Error: ", fg="red", nl=False, err=True)
-        click.echo(f"Language pair {language_to_learn}:{mother_tongue} not found.", err=True)
         click.echo(
-            f"Run '{click.style('vocabmaster pairs list', bold=True)}' to see configured pairs.",
+            f"{ERROR_PREFIX} Language pair {language_to_learn}:{mother_tongue} not found.", err=True
+        )
+        click.echo(
+            f"Hint: Run '{click.style('vocabmaster pairs list', bold=True)}' to see configured pairs.",
             err=True,
         )
         sys.exit(1)
@@ -916,8 +898,7 @@ def pairs_set_deck_name_command(pair, name, remove):
         current_name_error = str(error)
 
     if current_name_error:
-        click.secho("Warning: ", fg="yellow", nl=False, err=True)
-        click.echo(current_name_error, err=True)
+        click.echo(f"{WARNING_PREFIX} {current_name_error}", err=True)
         click.echo("Stored deck name is invalid. You can remove it or set a new name.", err=True)
     elif current_name:
         click.echo(f"Current custom deck name: {click.style(current_name, bold=True)}")
@@ -971,8 +952,7 @@ def pairs_set_deck_name_command(pair, name, remove):
         )
         click.echo(f"Future Anki decks will use: {click.style(normalized_name, bold=True)}")
     except ValueError as error:
-        click.secho("Error: ", fg="red", nl=False, err=True)
-        click.echo(str(error), err=True)
+        click.echo(f"{ERROR_PREFIX} {error}", err=True)
         sys.exit(1)
 
 
@@ -992,9 +972,8 @@ def pairs_inspect_command(pair):
     if pair is None:
         default_pair = config_handler.get_default_language_pair()
         if default_pair is None:
-            click.secho("Error: ", fg="red", nl=False, err=True)
             click.echo(
-                "No default language pair found. Run 'vocabmaster pairs add' to create one.",
+                f"{ERROR_PREFIX} No default language pair found. Run 'vocabmaster pairs add' to create one.",
                 err=True,
             )
             sys.exit(1)
@@ -1004,9 +983,9 @@ def pairs_inspect_command(pair):
         try:
             language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
         except ValueError:
-            click.secho("Error: ", fg="red", nl=False, err=True)
+            click.echo(f"{ERROR_PREFIX} Invalid language pair format.", err=True)
             click.echo(
-                f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}",
+                f"Hint: Format is {click.style('language_to_learn:mother_tongue', bold=True)}.",
                 err=True,
             )
             sys.exit(1)
@@ -1021,11 +1000,7 @@ def pairs_inspect_command(pair):
     )
     if not pair_exists:
         provided = pair.strip().casefold() if pair else f"{normalized_pair[0]}:{normalized_pair[1]}"
-        click.secho("Error: ", fg="red", nl=False, err=True)
-        click.echo(
-            f"The language pair {provided} was not found.",
-            err=True,
-        )
+        click.echo(f"{ERROR_PREFIX} The language pair {provided} was not found.", err=True)
         sys.exit(1)
 
     translations_path, anki_path = utils.get_pair_file_paths(normalized_pair[0], normalized_pair[1])
@@ -1105,18 +1080,17 @@ def tokens(pair):
     try:
         language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
     except Exception as error:
-        click.secho("Error: ", fg="red", nl=False, err=True)
-        click.echo(error, err=True)
+        click.echo(f"{ERROR_PREFIX} {error}", err=True)
         if pair is None:
             click.echo(
-                f"Run '{click.style('vocabmaster pairs add', bold=True)}' to create a language pair.",
+                f"Hint: Run '{click.style('vocabmaster pairs add', bold=True)}' to create a language pair.",
                 err=True,
             )
         sys.exit(1)
     translations_filepath, anki_file = setup_files(setup_dir(), language_to_learn, mother_tongue)
 
     if csv_handler.vocabulary_list_is_empty(translations_filepath):
-        click.secho("The list is empty!", fg="red", err=True)
+        click.echo(f"{ERROR_PREFIX} The list is empty!", err=True)
         click.echo("Please add words to the list before running this command.", err=True)
         sys.exit(0)
 
@@ -1252,8 +1226,7 @@ def get_language_pairs_or_abort(empty_hint: str, no_pairs_message: str):
     """
     language_pairs = print_all_language_pairs(empty_hint=empty_hint)
     if not language_pairs:
-        click.secho("Error: ", fg="red", nl=False, err=True)
-        click.echo(no_pairs_message, err=True)
+        click.echo(f"{ERROR_PREFIX} {no_pairs_message}", err=True)
         sys.exit(1)
     return language_pairs
 
@@ -1304,21 +1277,17 @@ def select_default_language_pair(language_pairs):
         language_to_learn, mother_tongue = resolve_language_pair_choice(choice, language_pairs)
     except ValueError as error:
         message = str(error)
-        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(f"{ERROR_PREFIX} {message}", err=True)
         if message == "Invalid choice":
-            click.echo(message, err=True)
             click.echo(
-                f"Please enter a number between 1 and {len(language_pairs)}",
+                f"Hint: Enter a number between 1 and {len(language_pairs)}.",
                 err=True,
             )
         elif "Invalid language pair." in message:
-            click.echo(message, err=True)
             click.echo(
-                f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}",
+                f"Hint: Format is {click.style('language_to_learn:mother_tongue', bold=True)}.",
                 err=True,
             )
-        else:
-            click.echo(message, err=True)
         sys.exit(1)
 
     config_handler.set_default_language_pair(language_to_learn, mother_tongue)
@@ -1376,29 +1345,24 @@ def remove_language_pairs(language_pairs, default_hint, add_hint):
 
     raw_choices = [item.strip() for item in choices_input.split(",") if item.strip()]
     if not raw_choices:
-        click.secho("Error: ", fg="red", nl=False, err=True)
-        click.echo("No language pairs selected for removal.", err=True)
+        click.echo(f"{ERROR_PREFIX} No language pairs selected for removal.", err=True)
         sys.exit(1)
 
     try:
         selections = parse_multiple_language_pair_choices(raw_choices, language_pairs)
     except ValueError as error:
         message = str(error)
-        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(f"{ERROR_PREFIX} {message}", err=True)
         if message == "Invalid choice":
-            click.echo(message, err=True)
             click.echo(
-                f"Please enter a number between 1 and {len(language_pairs)}",
+                f"Hint: Enter a number between 1 and {len(language_pairs)}.",
                 err=True,
             )
         elif "Invalid language pair." in message:
-            click.echo(message, err=True)
             click.echo(
-                f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}",
+                f"Hint: Format is {click.style('language_to_learn:mother_tongue', bold=True)}.",
                 err=True,
             )
-        else:
-            click.echo(message, err=True)
         sys.exit(1)
 
     display_pairs = [f"{lang}:{mother}" for lang, mother in selections]
@@ -1422,8 +1386,7 @@ def remove_language_pairs(language_pairs, default_hint, add_hint):
                 or removed_default
             )
         except ValueError as error:
-            click.secho("Error: ", fg="red", nl=False, err=True)
-            click.echo(error, err=True)
+            click.echo(f"{ERROR_PREFIX} {error}", err=True)
             sys.exit(1)
 
         click.echo(
@@ -1434,13 +1397,13 @@ def remove_language_pairs(language_pairs, default_hint, add_hint):
     remaining_pairs = config_handler.get_all_language_pairs()
 
     if removed_default:
-        click.secho("Heads-up: the default language pair was removed.", fg="yellow", err=True)
+        click.echo(f"{WARNING_PREFIX} The default language pair was removed.", err=True)
         if remaining_pairs:
-            click.secho(default_hint, fg="blue", err=True)
+            click.echo(f"Hint: {default_hint}", err=True)
 
     if not remaining_pairs:
-        click.secho("There are no language pairs configured now.", fg="yellow", err=True)
-        click.secho(add_hint, fg="blue", err=True)
+        click.echo(f"{WARNING_PREFIX} There are no language pairs configured now.", err=True)
+        click.echo(f"Hint: {add_hint}", err=True)
 
 
 def print_current_storage_directory(current_dir: Path | None = None) -> Path:
