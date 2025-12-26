@@ -5,14 +5,10 @@ from pathlib import Path
 import click
 import openai
 
-from vocabmaster import config_handler, csv_handler, gpt_integration, recovery
+from vocabmaster import config_handler, csv_handler, gpt_integration
 
 from . import utils
 from .utils import openai_api_key_exists, setup_backup_dir, setup_dir, setup_files
-
-# CLI message prefixes (styled, user-facing)
-ERROR_PREFIX = click.style("Error:", fg="red")
-WARNING_PREFIX = click.style("Warning:", fg="yellow")
 
 
 def validate_data_directory(path_str: str) -> Path:
@@ -131,17 +127,24 @@ class AliasedGroup(click.Group):
 @click.pass_context
 def vocabmaster(ctx):
     """
-    Build vocabulary flashcards with AI-generated translations and examples.
+    VocabMaster is a command-line tool to help you learn vocabulary.
 
-    \b
-    Quick start:
-      vocabmaster pairs add          # Create a language pair
-      vocabmaster add "to have"      # Add a word
-      vocabmaster translate          # Generate Anki deck
+    It uses ChatGPT to generate translations and examples for your words,
+    and creates an Anki deck for you to import.
 
-    \b
-    More info:
-      https://github.com/sderev/vocabmaster
+    Start by setting up a new language pair:
+    'vocabmaster pairs add'
+
+    Add words to your vocabulary list:
+    'vocabmaster add to have'
+
+    Generate an Anki deck from your vocabulary list:
+    'vocabmaster translate'
+
+    You can find help for each command by running:
+    'vocabmaster <command> --help'
+
+    For more information, please visit https://github.com/sderev/vocabmaster.
     """
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
@@ -151,24 +154,26 @@ def vocabmaster(ctx):
 @click.option(
     "--pair",
     type=str,
-    help="Language pair (e.g., english:french). Overrides default.",
+    help=(
+        "This overrides the default language pair. Specify in the format"
+        " 'language_to_learn:mother_tongue'. For example: 'english:french'."
+    ),
     required=False,
 )
 @click.argument("word", type=str, nargs=-1)
 def add(pair, word):
     """
-    Add a word to the vocabulary list.
+    Add a word to the vocabulary list, if not already present.
 
-    \b
-    Examples:
-      vocabmaster add good
-      vocabmaster add "to be"
-      vocabmaster add --pair spanish:english hola
+    WORD: The word or phrase to be added to the vocabulary list.
+
+    Examples: 'good', 'to be', 'a cat'
     """
     try:
         language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
     except Exception as error:
-        click.echo(f"{ERROR_PREFIX} {error}", err=True)
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(error, err=True)
         sys.exit(1)
 
     translations_filepath, anki_filepath = setup_files(
@@ -189,7 +194,8 @@ def add(pair, word):
     try:
         validated_word = validate_word(word_str)
     except ValueError as e:
-        click.echo(f"{ERROR_PREFIX} {e}", err=True)
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(str(e), err=True)
         sys.exit(1)
     except click.Abort:
         click.echo("Word not added.")
@@ -206,38 +212,38 @@ def add(pair, word):
 @click.option(
     "--pair",
     type=str,
-    help="Language pair (e.g., english:french). Overrides default.",
+    help=(
+        "This overrides the default language pair. Specify in the format"
+        " 'language_to_learn:mother_tongue'. For example: 'english:french'."
+    ),
     required=False,
 )
 @click.option(
     "--count",
     is_flag=True,
-    help="Show count of untranslated words and exit.",
+    help="Show the number of words remaining to be translated in the vocabulary list.",
     required=False,
 )
 @click.option(
     "--deck-name",
     type=str,
-    help="Custom Anki deck name (overrides config).",
+    help="Custom deck name (overrides config setting).",
     required=False,
 )
 def translate(pair, count, deck_name):
     """
-    Translate words and generate an Anki deck.
+    Translate, Add examples, and Generate an Anki deck.
 
-    Reads your vocabulary list, fetches AI-generated translations and examples,
-    then creates an Anki-ready file for import.
+    This command reads your vocabulary list, fetches translations and examples,
+    and creates an Anki-ready file for import.
 
-    \b
-    Examples:
-      vocabmaster translate
-      vocabmaster translate --count
-      vocabmaster translate --pair spanish:english
+    The generated Anki deck will be saved in the same folder as your vocabulary list.
     """
     try:
         language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
     except Exception as error:
-        click.echo(f"{ERROR_PREFIX} {error}", err=True)
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(error, err=True)
         sys.exit(1)
 
     # Validate deck name early to avoid mutating files on validation failure
@@ -245,7 +251,8 @@ def translate(pair, count, deck_name):
         try:
             deck_name = utils.validate_deck_name(deck_name)
         except ValueError as error:
-            click.echo(f"{ERROR_PREFIX} {error}", err=True)
+            click.secho("Error: ", fg="red", nl=False, err=True)
+            click.echo(str(error), err=True)
             sys.exit(1)
 
     custom_deck_name = deck_name
@@ -253,7 +260,8 @@ def translate(pair, count, deck_name):
         try:
             custom_deck_name = config_handler.get_deck_name(language_to_learn, mother_tongue)
         except ValueError as error:
-            click.echo(f"{ERROR_PREFIX} {error}", err=True)
+            click.secho("Error: ", fg="red", nl=False, err=True)
+            click.echo(str(error), err=True)
             sys.exit(1)
 
     translations_filepath, anki_filepath = setup_files(
@@ -301,11 +309,8 @@ def translate(pair, count, deck_name):
         csv_handler.add_translations_and_examples_to_file(translations_filepath, pair)
         click.echo()
     except openai.error.RateLimitError as error:
-        click.echo(f"{ERROR_PREFIX} {error}", err=True)
+        click.echo(click.style("Error: ", fg="red") + f"{error}", err=True)
         handle_rate_limit_error()
-        sys.exit(1)
-    except csv_handler.ValidationError as error:
-        click.echo(f"{ERROR_PREFIX} {error}", err=True)
         sys.exit(1)
     except csv_handler.AllWordsTranslatedError as error:
         click.secho("Actually...", fg="blue")
@@ -366,34 +371,32 @@ def generate_anki_deck(
 @click.option(
     "--pair",
     type=str,
-    help="Language pair (e.g., english:french). Overrides default.",
+    help=(
+        "Generate the deck for a specific language pair. Specify in the format "
+        "'language_to_learn:mother_tongue'."
+    ),
     required=False,
 )
 @click.option(
     "--deck-name",
     type=str,
-    help="Custom Anki deck name (overrides config).",
+    help="Custom deck name (overrides config setting).",
     required=False,
 )
 def anki(pair, deck_name):
     """
-    Generate an Anki deck from existing translations.
+    Generate an Anki deck from your vocabulary list.
 
-    Unlike `translate`, this does not fetch new translations. Use this to
-    regenerate the Anki file after editing the vocabulary CSV manually.
-
-    \b
-    Examples:
-      vocabmaster anki
-      vocabmaster anki --deck-name "My Vocabulary"
+    The Anki deck will be saved in the same folder as your vocabulary list.
     """
     try:
         language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
     except Exception as error:
-        click.echo(f"{ERROR_PREFIX} {error}", err=True)
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(error, err=True)
         if pair is None:
             click.echo(
-                f"Hint: Run '{click.style('vocabmaster pairs add', bold=True)}' to create a language pair.",
+                f"Run '{click.style('vocabmaster pairs add', bold=True)}' to create a language pair.",
                 err=True,
             )
         sys.exit(1)
@@ -404,14 +407,16 @@ def anki(pair, deck_name):
         try:
             custom_deck_name = utils.validate_deck_name(custom_deck_name)
         except ValueError as error:
-            click.echo(f"{ERROR_PREFIX} {error}", err=True)
+            click.secho("Error: ", fg="red", nl=False, err=True)
+            click.echo(str(error), err=True)
             sys.exit(1)
 
     if custom_deck_name is None:
         try:
             custom_deck_name = config_handler.get_deck_name(language_to_learn, mother_tongue)
         except ValueError as error:
-            click.echo(f"{ERROR_PREFIX} {error}", err=True)
+            click.secho("Error: ", fg="red", nl=False, err=True)
+            click.echo(str(error), err=True)
             sys.exit(1)
 
     translations_filepath, anki_filepath = setup_files(
@@ -435,7 +440,8 @@ def create_language_pair_interactively():
         language_to_learn = utils.validate_language_name(language_to_learn)
         mother_tongue = utils.validate_language_name(mother_tongue)
     except ValueError as error:
-        click.echo(f"{ERROR_PREFIX} {error}", err=True)
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(str(error), err=True)
         sys.exit(1)
 
     click.echo()
@@ -512,12 +518,10 @@ def create_language_pair_interactively():
 @click.pass_context
 def config(ctx):
     """
-    Manage storage location and API key settings.
+    Manage VocabMaster configuration such as language pairs, storage location, and API keys.
 
-    \b
-    Subcommands:
-      dir    Set data directory for vocabulary and Anki files
-      key    Check OpenAI API key status
+    Run 'vocabmaster config dir' to choose where CSV and Anki files are stored. The configuration
+    file itself always lives under ~/.config/vocabmaster/config.json.
     """
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
@@ -528,17 +532,12 @@ def config(ctx):
     "--show",
     "show_only",
     is_flag=True,
-    help="Display current directory and exit.",
+    help="Display the current storage directory and exit without making changes.",
 )
 @click.argument("directory", required=False)
 def config_dir(show_only, directory):
     """
-    Set the data directory for vocabulary and Anki files.
-
-    \b
-    Examples:
-      vocabmaster config dir --show
-      vocabmaster config dir ~/vocabmaster-data
+    Set the dir where the vocab list and Anki deck are stored.
     """
     current_dir = config_handler.get_data_directory()
     if show_only and directory is not None:
@@ -564,17 +563,20 @@ def config_dir(show_only, directory):
     try:
         target_path = validate_data_directory(directory_input)
     except ValueError as e:
-        click.echo(f"{ERROR_PREFIX} {e}", err=True)
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(str(e), err=True)
         sys.exit(1)
 
     if target_path.exists() and not target_path.is_dir():
-        click.echo(f"{ERROR_PREFIX} {target_path} exists and is not a directory.", err=True)
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(f"{target_path} exists and is not a directory.", err=True)
         sys.exit(1)
 
     try:
         target_path.mkdir(parents=True, exist_ok=True)
     except OSError as error:
-        click.echo(f"{ERROR_PREFIX} Unable to use '{target_path}': {error}", err=True)
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(f"Unable to use '{target_path}': {error}", err=True)
         sys.exit(1)
 
     config_handler.set_data_directory(target_path)
@@ -586,9 +588,7 @@ def config_dir(show_only, directory):
 @config.command("key")
 def config_key():
     """
-    Check if the OpenAI API key is configured.
-
-    The key must be set via the OPENAI_API_KEY environment variable.
+    Set the OpenAI API key.
     """
     if openai_api_key_exists():
         click.secho("OpenAI API key found!", fg="green")
@@ -608,7 +608,7 @@ def openai_api_key_explain():
     """
     Explain how to set up the OpenAI API key.
     """
-    click.echo(f"{ERROR_PREFIX} OpenAI API key not found.", err=True)
+    click.secho("Error: OpenAI API key not found.", fg="red", err=True)
     click.echo(err=True)
     click.echo(
         "You can generate API keys in the OpenAI web interface. See"
@@ -633,18 +633,7 @@ def openai_api_key_explain():
 @click.pass_context
 def pairs(ctx):
     """
-    Manage language pairs.
-
-    \b
-    Subcommands:
-      list           List all language pairs
-      add            Create a new language pair
-      remove         Remove language pairs
-      rename         Rename a language pair
-      default        Show current default pair
-      set-default    Change default pair
-      set-deck-name  Set custom Anki deck name
-      inspect        Show pair details and stats
+    Manage language pairs (list, add, remove, rename, inspect).
     """
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
@@ -652,7 +641,9 @@ def pairs(ctx):
 
 @pairs.command("list")
 def pairs_list():
-    """List all configured language pairs."""
+    """
+    List all configured language pairs.
+    """
     print_all_language_pairs(
         f"Use {click.style('vocabmaster pairs add', bold=True)} to add a new language pair."
     )
@@ -660,13 +651,17 @@ def pairs_list():
 
 @pairs.command("add")
 def pairs_add():
-    """Create a new language pair interactively."""
+    """
+    Create a new language pair.
+    """
     create_language_pair_interactively()
 
 
 @pairs.command("default")
 def pairs_default_command():
-    """Show the current default language pair."""
+    """
+    Show the current default language pair.
+    """
     print_default_language_pair()
     click.secho("You can change the default language pair at any time by running:", fg="blue")
     click.secho("vocabmaster pairs set-default", bold=True)
@@ -674,7 +669,9 @@ def pairs_default_command():
 
 @pairs.command("set-default")
 def pairs_set_default_command():
-    """Set the default language pair interactively."""
+    """
+    Set the default language pair.
+    """
     language_pairs = get_language_pairs_or_abort(
         f"Use {click.style('vocabmaster pairs add', bold=True)} to add a new language pair.",
         "No language pairs found. Run 'vocabmaster pairs add' to add one before setting a default.",
@@ -684,7 +681,10 @@ def pairs_set_default_command():
 
 @pairs.command("remove")
 def pairs_remove_command():
-    """Remove one or more language pairs interactively."""
+    """
+    Remove one or multiple language pairs.
+    """
+
     language_pairs = get_language_pairs_or_abort(
         f"Use {click.style('vocabmaster pairs add', bold=True)} to add a new language pair.",
         "No language pairs found. Run 'vocabmaster pairs add' to add one before removing.",
@@ -699,7 +699,9 @@ def pairs_remove_command():
 
 @pairs.command("rename")
 def pairs_rename_command():
-    """Rename an existing language pair interactively."""
+    """
+    Rename an existing language pair.
+    """
     language_pairs = get_language_pairs_or_abort(
         f"Use {click.style('vocabmaster pairs add', bold=True)} to add a new language pair.",
         "No language pairs found. Run 'vocabmaster pairs add' to add one before renaming.",
@@ -714,17 +716,21 @@ def pairs_rename_command():
         old_language, old_mother_tongue = resolve_language_pair_choice(choice, language_pairs)
     except ValueError as error:
         message = str(error)
-        click.echo(f"{ERROR_PREFIX} {message}", err=True)
+        click.secho("Error: ", fg="red", nl=False, err=True)
         if message == "Invalid choice":
+            click.echo(message, err=True)
             click.echo(
-                f"Hint: Enter a number between 1 and {len(language_pairs)}.",
+                f"Please enter a number between 1 and {len(language_pairs)}",
                 err=True,
             )
         elif "Invalid language pair." in message:
+            click.echo(message, err=True)
             click.echo(
-                f"Hint: Format is {click.style('language_to_learn:mother_tongue', bold=True)}.",
+                f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}",
                 err=True,
             )
+        else:
+            click.echo(message, err=True)
         sys.exit(1)
 
     new_pair_input = click.prompt(
@@ -733,7 +739,8 @@ def pairs_rename_command():
     ).strip()
 
     if not new_pair_input:
-        click.echo(f"{ERROR_PREFIX} New language pair cannot be empty.", err=True)
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo("New language pair cannot be empty.", err=True)
         sys.exit(1)
 
     try:
@@ -742,10 +749,11 @@ def pairs_rename_command():
         new_language = utils.validate_language_name(new_language)
         new_mother_tongue = utils.validate_language_name(new_mother_tongue)
     except ValueError as error:
-        click.echo(f"{ERROR_PREFIX} {error}", err=True)
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(str(error), err=True)
         if "Invalid language pair" in str(error):
             click.echo(
-                f"Hint: Format is {click.style('language_to_learn:mother_tongue', bold=True)}.",
+                f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}",
                 err=True,
             )
         sys.exit(1)
@@ -754,9 +762,8 @@ def pairs_rename_command():
     new_key = (new_language, new_mother_tongue)
 
     if old_key == new_key:
-        click.echo(
-            f"{ERROR_PREFIX} New language pair must be different from the current one.", err=True
-        )
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo("New language pair must be different from the current one.", err=True)
         sys.exit(1)
 
     existing_pairs = config_handler.get_all_language_pairs()
@@ -765,8 +772,9 @@ def pairs_rename_command():
         and pair["mother_tongue"].casefold() == new_key[1]
         for pair in existing_pairs
     ):
+        click.secho("Error: ", fg="red", nl=False, err=True)
         click.echo(
-            f"{ERROR_PREFIX} The language pair {new_key[0]}:{new_key[1]} already exists. Choose another name.",
+            f"The language pair {new_key[0]}:{new_key[1]} already exists. Choose another name.",
             err=True,
         )
         sys.exit(1)
@@ -816,36 +824,31 @@ def pairs_rename_command():
 @click.option(
     "--pair",
     type=str,
-    help="Language pair (e.g., english:french). Omit to select interactively.",
+    help=("Language pair to configure. Specify in the format 'language_to_learn:mother_tongue'."),
     required=False,
 )
 @click.option(
     "--name",
     type=str,
-    help="Deck name to set. Omit to be prompted.",
+    help="Custom deck name to set. Omit to be prompted interactively.",
     required=False,
 )
 @click.option(
     "--remove",
     is_flag=True,
-    help="Remove custom name (revert to auto-generated).",
+    help="Remove the custom deck name (revert to auto-generation).",
 )
 def pairs_set_deck_name_command(pair, name, remove):
     """
-    Set or remove a custom Anki deck name for a language pair.
-
-    \b
-    Examples:
-      vocabmaster pairs set-deck-name
-      vocabmaster pairs set-deck-name --pair english:french --name "My Vocab"
-      vocabmaster pairs set-deck-name --remove
+    Set or remove a custom deck name for a language pair.
     """
     # Get language pair (either from option or by prompting)
     if pair:
         try:
             language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
         except ValueError as error:
-            click.echo(f"{ERROR_PREFIX} {error}", err=True)
+            click.secho("Error: ", fg="red", nl=False, err=True)
+            click.echo(str(error), err=True)
             sys.exit(1)
     else:
         language_pairs = get_language_pairs_or_abort(
@@ -862,17 +865,21 @@ def pairs_set_deck_name_command(pair, name, remove):
             language_to_learn, mother_tongue = resolve_language_pair_choice(choice, language_pairs)
         except ValueError as error:
             message = str(error)
-            click.echo(f"{ERROR_PREFIX} {message}", err=True)
+            click.secho("Error: ", fg="red", nl=False, err=True)
             if message == "Invalid choice":
+                click.echo(message, err=True)
                 click.echo(
-                    f"Hint: Enter a number between 1 and {len(language_pairs)}.",
+                    f"Please enter a number between 1 and {len(language_pairs)}",
                     err=True,
                 )
             elif "Invalid language pair." in message:
+                click.echo(message, err=True)
                 click.echo(
-                    f"Hint: Format is {click.style('language_to_learn:mother_tongue', bold=True)}.",
+                    f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}",
                     err=True,
                 )
+            else:
+                click.echo(message, err=True)
             sys.exit(1)
 
     # Validate that pair exists in config (especially important for --remove)
@@ -883,11 +890,10 @@ def pairs_set_deck_name_command(pair, name, remove):
         for pair in all_pairs
     )
     if not pair_exists:
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(f"Language pair {language_to_learn}:{mother_tongue} not found.", err=True)
         click.echo(
-            f"{ERROR_PREFIX} Language pair {language_to_learn}:{mother_tongue} not found.", err=True
-        )
-        click.echo(
-            f"Hint: Run '{click.style('vocabmaster pairs list', bold=True)}' to see configured pairs.",
+            f"Run '{click.style('vocabmaster pairs list', bold=True)}' to see configured pairs.",
             err=True,
         )
         sys.exit(1)
@@ -901,7 +907,8 @@ def pairs_set_deck_name_command(pair, name, remove):
         current_name_error = str(error)
 
     if current_name_error:
-        click.echo(f"{WARNING_PREFIX} {current_name_error}", err=True)
+        click.secho("Warning: ", fg="yellow", nl=False, err=True)
+        click.echo(current_name_error, err=True)
         click.echo("Stored deck name is invalid. You can remove it or set a new name.", err=True)
     elif current_name:
         click.echo(f"Current custom deck name: {click.style(current_name, bold=True)}")
@@ -955,7 +962,8 @@ def pairs_set_deck_name_command(pair, name, remove):
         )
         click.echo(f"Future Anki decks will use: {click.style(normalized_name, bold=True)}")
     except ValueError as error:
-        click.echo(f"{ERROR_PREFIX} {error}", err=True)
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(str(error), err=True)
         sys.exit(1)
 
 
@@ -963,20 +971,21 @@ def pairs_set_deck_name_command(pair, name, remove):
 @click.option(
     "--pair",
     type=str,
-    help="Language pair (e.g., english:french). Defaults to current default.",
+    help=(
+        "Inspect a specific language pair. Specify in the format 'language_to_learn:mother_tongue'."
+    ),
     required=False,
 )
 def pairs_inspect_command(pair):
     """
-    Show details and stats for a language pair.
-
-    Displays vocabulary file location, word counts, and cost estimates.
+    Inspect a language pair and display storage information.
     """
     if pair is None:
         default_pair = config_handler.get_default_language_pair()
         if default_pair is None:
+            click.secho("Error: ", fg="red", nl=False, err=True)
             click.echo(
-                f"{ERROR_PREFIX} No default language pair found. Run 'vocabmaster pairs add' to create one.",
+                "No default language pair found. Run 'vocabmaster pairs add' to create one.",
                 err=True,
             )
             sys.exit(1)
@@ -986,9 +995,9 @@ def pairs_inspect_command(pair):
         try:
             language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
         except ValueError:
-            click.echo(f"{ERROR_PREFIX} Invalid language pair format.", err=True)
+            click.secho("Error: ", fg="red", nl=False, err=True)
             click.echo(
-                f"Hint: Format is {click.style('language_to_learn:mother_tongue', bold=True)}.",
+                f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}",
                 err=True,
             )
             sys.exit(1)
@@ -1003,7 +1012,11 @@ def pairs_inspect_command(pair):
     )
     if not pair_exists:
         provided = pair.strip().casefold() if pair else f"{normalized_pair[0]}:{normalized_pair[1]}"
-        click.echo(f"{ERROR_PREFIX} The language pair {provided} was not found.", err=True)
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(
+            f"The language pair {provided} was not found.",
+            err=True,
+        )
         sys.exit(1)
 
     translations_path, anki_path = utils.get_pair_file_paths(normalized_pair[0], normalized_pair[1])
@@ -1066,34 +1079,31 @@ def pairs_inspect_command(pair):
 @click.option(
     "--pair",
     type=str,
-    help="Language pair (e.g., english:french). Overrides default.",
+    help=(
+        "Estimate tokens for a specific language pair. Specify in the format "
+        "'language_to_learn:mother_tongue'."
+    ),
     required=False,
 )
 def tokens(pair):
     """
-    Estimate input token usage and cost for the next translation.
-
-    Calculates the prompt size for pending words. Output tokens are not included.
-
-    \b
-    Examples:
-      vocabmaster tokens
-      vocabmaster tokens --pair spanish:english
+    Estimate input-token usage for the next translation run (output tokens are not included).
     """
     try:
         language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
     except Exception as error:
-        click.echo(f"{ERROR_PREFIX} {error}", err=True)
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(error, err=True)
         if pair is None:
             click.echo(
-                f"Hint: Run '{click.style('vocabmaster pairs add', bold=True)}' to create a language pair.",
+                f"Run '{click.style('vocabmaster pairs add', bold=True)}' to create a language pair.",
                 err=True,
             )
         sys.exit(1)
     translations_filepath, anki_file = setup_files(setup_dir(), language_to_learn, mother_tongue)
 
     if csv_handler.vocabulary_list_is_empty(translations_filepath):
-        click.echo(f"{ERROR_PREFIX} The list is empty!", err=True)
+        click.secho("The list is empty!", fg="red", err=True)
         click.echo("Please add words to the list before running this command.", err=True)
         sys.exit(0)
 
@@ -1229,7 +1239,8 @@ def get_language_pairs_or_abort(empty_hint: str, no_pairs_message: str):
     """
     language_pairs = print_all_language_pairs(empty_hint=empty_hint)
     if not language_pairs:
-        click.echo(f"{ERROR_PREFIX} {no_pairs_message}", err=True)
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo(no_pairs_message, err=True)
         sys.exit(1)
     return language_pairs
 
@@ -1280,17 +1291,21 @@ def select_default_language_pair(language_pairs):
         language_to_learn, mother_tongue = resolve_language_pair_choice(choice, language_pairs)
     except ValueError as error:
         message = str(error)
-        click.echo(f"{ERROR_PREFIX} {message}", err=True)
+        click.secho("Error: ", fg="red", nl=False, err=True)
         if message == "Invalid choice":
+            click.echo(message, err=True)
             click.echo(
-                f"Hint: Enter a number between 1 and {len(language_pairs)}.",
+                f"Please enter a number between 1 and {len(language_pairs)}",
                 err=True,
             )
         elif "Invalid language pair." in message:
+            click.echo(message, err=True)
             click.echo(
-                f"Hint: Format is {click.style('language_to_learn:mother_tongue', bold=True)}.",
+                f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}",
                 err=True,
             )
+        else:
+            click.echo(message, err=True)
         sys.exit(1)
 
     config_handler.set_default_language_pair(language_to_learn, mother_tongue)
@@ -1348,24 +1363,29 @@ def remove_language_pairs(language_pairs, default_hint, add_hint):
 
     raw_choices = [item.strip() for item in choices_input.split(",") if item.strip()]
     if not raw_choices:
-        click.echo(f"{ERROR_PREFIX} No language pairs selected for removal.", err=True)
+        click.secho("Error: ", fg="red", nl=False, err=True)
+        click.echo("No language pairs selected for removal.", err=True)
         sys.exit(1)
 
     try:
         selections = parse_multiple_language_pair_choices(raw_choices, language_pairs)
     except ValueError as error:
         message = str(error)
-        click.echo(f"{ERROR_PREFIX} {message}", err=True)
+        click.secho("Error: ", fg="red", nl=False, err=True)
         if message == "Invalid choice":
+            click.echo(message, err=True)
             click.echo(
-                f"Hint: Enter a number between 1 and {len(language_pairs)}.",
+                f"Please enter a number between 1 and {len(language_pairs)}",
                 err=True,
             )
         elif "Invalid language pair." in message:
+            click.echo(message, err=True)
             click.echo(
-                f"Hint: Format is {click.style('language_to_learn:mother_tongue', bold=True)}.",
+                f"The format is {click.style('language_to_learn:mother_tongue', bold=True)}",
                 err=True,
             )
+        else:
+            click.echo(message, err=True)
         sys.exit(1)
 
     display_pairs = [f"{lang}:{mother}" for lang, mother in selections]
@@ -1389,7 +1409,8 @@ def remove_language_pairs(language_pairs, default_hint, add_hint):
                 or removed_default
             )
         except ValueError as error:
-            click.echo(f"{ERROR_PREFIX} {error}", err=True)
+            click.secho("Error: ", fg="red", nl=False, err=True)
+            click.echo(error, err=True)
             sys.exit(1)
 
         click.echo(
@@ -1400,13 +1421,13 @@ def remove_language_pairs(language_pairs, default_hint, add_hint):
     remaining_pairs = config_handler.get_all_language_pairs()
 
     if removed_default:
-        click.echo(f"{WARNING_PREFIX} The default language pair was removed.", err=True)
+        click.secho("Heads-up: the default language pair was removed.", fg="yellow", err=True)
         if remaining_pairs:
-            click.echo(f"Hint: {default_hint}", err=True)
+            click.secho(default_hint, fg="blue", err=True)
 
     if not remaining_pairs:
-        click.echo(f"{WARNING_PREFIX} There are no language pairs configured now.", err=True)
-        click.echo(f"Hint: {add_hint}", err=True)
+        click.secho("There are no language pairs configured now.", fg="yellow", err=True)
+        click.secho(add_hint, fg="blue", err=True)
 
 
 def print_current_storage_directory(current_dir: Path | None = None) -> Path:
@@ -1470,247 +1491,3 @@ def handle_rate_limit_error():
         " here:\nhttps://platform.openai.com/account/billing/limits"
     )
     click.echo()
-
-
-# --- Recovery Commands ---
-
-
-@vocabmaster.group("recover", invoke_without_command=True)
-@click.pass_context
-def recover(ctx):
-    """
-    Backup recovery and data restoration tools.
-
-    \b
-    Subcommands:
-      list      List available backups for a language pair
-      restore   Restore vocabulary CSV from a backup
-      validate  Validate backup integrity
-    """
-    if ctx.invoked_subcommand is None:
-        click.echo(ctx.get_help())
-
-
-@recover.command("list")
-@click.option(
-    "--pair",
-    type=str,
-    help="Language pair (e.g., english:french). Defaults to current default.",
-    required=False,
-)
-def recover_list(pair):
-    """
-    List available backups for a language pair.
-
-    Displays all backup files with timestamps and metadata.
-
-    \b
-    Examples:
-      vocabmaster recover list
-      vocabmaster recover list --pair spanish:english
-    """
-    try:
-        language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
-    except Exception as error:
-        click.echo(f"{ERROR_PREFIX} {error}", err=True)
-        if pair is None:
-            click.echo(
-                f"Hint: Run '{click.style('vocabmaster pairs add', bold=True)}' to create a language pair.",
-                err=True,
-            )
-        sys.exit(1)
-
-    backups = utils.list_backups(language_to_learn, mother_tongue)
-
-    if not backups:
-        click.echo(f"No backups found for {language_to_learn}:{mother_tongue}")
-        return
-
-    click.secho(
-        f"Backups for {language_to_learn}:{mother_tongue} ({len(backups)} total):",
-        fg="blue",
-    )
-    click.echo()
-
-    for idx, backup in enumerate(backups, start=1):
-        timestamp_display = recovery.format_backup_timestamp(backup["timestamp"])
-        size_kb = backup["size"] / 1024
-
-        type_color = {
-            "vocabulary": "green",
-            "gpt-response": "yellow",
-            "anki-deck": "cyan",
-            "pre-restore": "magenta",
-        }.get(backup["type"], "white")
-
-        click.echo(f"  {idx}. ", nl=False)
-        click.secho(f"[{backup['type']}]", fg=type_color, nl=False)
-        click.echo(f" {timestamp_display} ({size_kb:.1f} KB)")
-        click.echo(f"     {backup['filename']}")
-
-
-@recover.command("restore")
-@click.option(
-    "--pair",
-    type=str,
-    help="Language pair (e.g., english:french). Defaults to current default.",
-    required=False,
-)
-@click.option(
-    "--backup-id",
-    type=int,
-    help="Backup number from 'recover list' output.",
-    required=False,
-)
-@click.option(
-    "--latest",
-    is_flag=True,
-    help="Restore from the most recent vocabulary backup.",
-)
-def recover_restore(pair, backup_id, latest):
-    """
-    Restore vocabulary CSV from a backup.
-
-    Creates a pre-restore backup before overwriting the current file.
-
-    \b
-    Examples:
-      vocabmaster recover restore --latest
-      vocabmaster recover restore --backup-id 3
-    """
-    try:
-        language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
-    except Exception as error:
-        click.echo(f"{ERROR_PREFIX} {error}", err=True)
-        sys.exit(1)
-
-    if not latest and backup_id is None:
-        click.echo(f"{ERROR_PREFIX} Specify --latest or --backup-id.", err=True)
-        click.echo(
-            f"Hint: Run '{click.style('vocabmaster recover list', bold=True)}' to see available backups.",
-            err=True,
-        )
-        sys.exit(1)
-
-    if latest and backup_id is not None:
-        click.echo(f"{ERROR_PREFIX} Cannot use both --latest and --backup-id.", err=True)
-        sys.exit(1)
-
-    # Get the backup to restore
-    if latest:
-        backup = recovery.get_latest_backup(language_to_learn, mother_tongue, "vocabulary")
-        if backup is None:
-            click.echo(f"{ERROR_PREFIX} No vocabulary backups found.", err=True)
-            sys.exit(1)
-        backup_path = backup["path"]
-    else:
-        backups = utils.list_backups(language_to_learn, mother_tongue)
-
-        if not backups:
-            click.echo(f"{ERROR_PREFIX} No backups found.", err=True)
-            click.echo(
-                f"Hint: Run '{click.style('vocabmaster recover list', bold=True)}' to see available backups.",
-                err=True,
-            )
-            sys.exit(1)
-
-        if backup_id < 1 or backup_id > len(backups):
-            click.echo(
-                f"{ERROR_PREFIX} Invalid backup ID. Must be between 1 and {len(backups)}.",
-                err=True,
-            )
-            sys.exit(1)
-
-        backup = backups[backup_id - 1]
-        if backup["type"] not in ("vocabulary", "pre-restore"):
-            click.echo(
-                f"{WARNING_PREFIX} Selected backup is a {backup['type']}, not a vocabulary file.",
-                err=True,
-            )
-            if not click.confirm("Continue anyway?", default=False):
-                click.echo("Restore cancelled.")
-                return
-        backup_path = backup["path"]
-
-    # Confirm restoration
-    timestamp_display = recovery.format_backup_timestamp(backup["timestamp"])
-    click.echo(f"Restoring from backup: {backup['filename']}")
-    click.echo(f"Timestamp: {timestamp_display}")
-
-    if not click.confirm("Proceed with restore?", default=False):
-        click.echo("Restore cancelled.")
-        return
-
-    # Perform restoration
-    result = recovery.restore_vocabulary_from_backup(backup_path, language_to_learn, mother_tongue)
-
-    if result["success"]:
-        click.secho("Vocabulary restored successfully!", fg="green")
-        click.echo(f"Restored to: {result['restored_path']}")
-        if result["pre_restore_backup"]:
-            click.echo(f"Pre-restore backup: {result['pre_restore_backup']}")
-    else:
-        click.echo(f"{ERROR_PREFIX} Restore failed: {result['error']}", err=True)
-        sys.exit(1)
-
-
-@recover.command("validate")
-@click.option(
-    "--pair",
-    type=str,
-    help="Language pair to validate. Defaults to current default.",
-    required=False,
-)
-def recover_validate(pair):
-    """
-    Validate backup integrity.
-
-    Checks all backups for the specified language pair to ensure they are
-    parseable and properly formatted.
-
-    \b
-    Examples:
-      vocabmaster recover validate
-      vocabmaster recover validate --pair spanish:english
-    """
-    try:
-        language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
-    except Exception as error:
-        click.echo(f"{ERROR_PREFIX} {error}", err=True)
-        sys.exit(1)
-
-    click.echo(f"Validating backups for {language_to_learn}:{mother_tongue}...")
-    click.echo()
-
-    validation = recovery.validate_all_backups(language_to_learn, mother_tongue)
-
-    if validation["total"] == 0:
-        click.echo("No backups found.")
-        return
-
-    # Summary
-    click.secho("Validation Summary:", fg="blue", bold=True)
-    click.echo(f"  Total backups: {validation['total']}")
-    click.secho(f"  Valid: {validation['valid']}", fg="green")
-    if validation["invalid"] > 0:
-        click.secho(f"  Invalid: {validation['invalid']}", fg="red")
-    click.echo()
-
-    # Details
-    click.secho("Details:", fg="blue")
-    for result in validation["results"]:
-        status = click.style("OK", fg="green") if result["valid"] else click.style("FAIL", fg="red")
-        click.echo(f"  [{status}] {result['filename']}")
-        click.echo(f"       Type: {result['type']}, Format: {result['format_version']}")
-        if result["rows"] is not None:
-            click.echo(f"       Rows: {result['rows']}")
-        if result["error"]:
-            click.secho(f"       Error: {result['error']}", fg="red")
-
-    if validation["invalid"] > 0:
-        click.echo()
-        click.secho(
-            f"{WARNING_PREFIX} {validation['invalid']} backup(s) have issues.",
-            fg="yellow",
-            err=True,
-        )

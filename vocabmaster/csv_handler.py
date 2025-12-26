@@ -1,7 +1,4 @@
 import csv
-import os
-import stat
-import tempfile
 from csv import DictReader, DictWriter
 from pathlib import Path
 
@@ -10,102 +7,9 @@ import click
 from vocabmaster import gpt_integration, utils
 
 CSV_FIELDNAMES = ["word", "translation", "example"]
-
-# CLI message prefixes (styled, user-facing)
-ERROR_PREFIX = click.style("Error:", fg="red")
-WARNING_PREFIX = click.style("Warning:", fg="yellow")
 ALL_WORDS_TRANSLATED_MESSAGE = (
     "All the words in the vocabulary list already have translations and examples"
 )
-
-
-class ValidationError(RuntimeError):
-    """Raised when vocabulary entries fail validation before write."""
-
-
-def atomic_write_csv(filepath, write_function):
-    """
-    Write CSV atomically using temp-then-rename pattern.
-
-    Creates a temporary file in the same directory as the target, writes content
-    via the provided callback, then atomically replaces the target file. This
-    ensures the file is never left in a corrupted state if the process is killed
-    during write.
-
-    Args:
-        filepath: Path to the target CSV file (str or Path)
-        write_function: Callable that receives the open file handle and writes content
-    """
-    filepath = Path(filepath)
-    existing_mode = None
-    if filepath.exists():
-        existing_mode = stat.S_IMODE(filepath.stat().st_mode)
-    temp_fd, temp_path = tempfile.mkstemp(
-        dir=filepath.parent, prefix=".csv_", suffix=".tmp", text=True
-    )
-    try:
-        with os.fdopen(temp_fd, "w", encoding="utf-8", newline="") as file:
-            write_function(file)
-        # Apply permissions after writing (not before) to avoid write failure
-        # when the original file is read-only
-        if existing_mode is not None:
-            os.chmod(temp_path, existing_mode)
-        os.replace(temp_path, str(filepath))
-    except Exception:
-        try:
-            os.unlink(temp_path)
-        except OSError:
-            pass
-        raise
-
-
-def validate_entries_before_write(entries):
-    """
-    Validate that entries are safe to write to the vocabulary file.
-
-    Checks that the data structure is valid and contains at least one entry
-    to prevent writing empty or corrupted data.
-
-    Args:
-        entries (dict): Dictionary of word entries to validate.
-
-    Returns:
-        dict: Validation result with keys:
-            - valid (bool): True if safe to write
-            - entry_count (int): Number of entries
-            - error (str | None): Error message if invalid
-    """
-    if entries is None:
-        return {"valid": False, "entry_count": 0, "error": "Entries dictionary is None"}
-
-    if not isinstance(entries, dict):
-        return {"valid": False, "entry_count": 0, "error": "Entries must be a dictionary"}
-
-    entry_count = len(entries)
-
-    if entry_count == 0:
-        return {"valid": False, "entry_count": 0, "error": "No entries to write"}
-
-    # Validate each entry has required structure
-    for word, entry in entries.items():
-        if not isinstance(entry, dict):
-            return {
-                "valid": False,
-                "entry_count": entry_count,
-                "error": f"Entry for '{word}' is not a dictionary",
-            }
-
-        # Check for required keys
-        required_keys = {"word", "translation", "example"}
-        missing_keys = required_keys - set(entry.keys())
-        if missing_keys:
-            return {
-                "valid": False,
-                "entry_count": entry_count,
-                "error": f"Entry for '{word}' missing keys: {', '.join(sorted(missing_keys))}",
-            }
-
-    return {"valid": True, "entry_count": entry_count, "error": None}
 
 
 def sanitize_csv_value(value: str) -> str:
@@ -113,8 +17,6 @@ def sanitize_csv_value(value: str) -> str:
     Sanitize value for safe CSV storage.
 
     Prevents CSV injection by prefixing dangerous characters with single quote.
-    Only sanitizes hyphen when it appears formula-like (e.g., "-123", "-=SUM")
-    or contains DDE injection patterns.
 
     Args:
         value: Value to sanitize
@@ -125,29 +27,10 @@ def sanitize_csv_value(value: str) -> str:
     if not value:
         return value
 
-    first_char = value[0]
-
-    # Always sanitize these formula starters
-    if first_char in ("=", "+", "@", "\t", "\r", "\n"):
+    # Prefix dangerous characters with single quote to prevent formula injection
+    # Excel/LibreOffice interpret =, +, -, @ at start as formulas
+    if value and value[0] in ("=", "+", "-", "@", "\t", "\r", "\n"):
         return "'" + value
-
-    # For hyphen, sanitize if:
-    # 1. Followed by digit or formula char (e.g., "-123", "-=SUM"), OR
-    # 2. Contains any digit (potential cell reference like "-A1", "-A1+1"), OR
-    # 3. Contains DDE injection patterns (pipe or exclamation mark), OR
-    # 4. Contains function call pattern (parenthesis indicates formula like -SUM())
-    # This preserves legitimate vocabulary like "-ism" while blocking formulas
-    if first_char == "-":
-        if len(value) > 1:
-            second_char = value[1]
-            if second_char.isdigit() or second_char in ("=", "+", "-", "@"):
-                return "'" + value
-        # Block potential cell references (contain digits like -A1, -AB123)
-        if any(c.isdigit() for c in value[1:]):
-            return "'" + value
-        # Block DDE injection and function-like patterns
-        if "|" in value or "!" in value or "(" in value:
-            return "'" + value
 
     return value
 
@@ -292,31 +175,16 @@ def append_word(word, translations_filepath):
     """
     Appends the word to the translations file with empty translation and example fields.
 
-    Uses atomic write to prevent corruption if interrupted.
-
     Args:
         word (str): The word to be appended to the file.
         translations_filepath (str): The path to the file containing the list of words.
     """
-    translations_filepath = Path(translations_filepath)
-
     # Sanitize word before appending to prevent CSV injection
     safe_word = sanitize_csv_value(word)
 
-    # Read existing content
-    existing_content = ""
-    if translations_filepath.exists():
-        existing_content = translations_filepath.read_text(encoding="utf-8")
-
-    def write_with_append(file):
-        file.write(existing_content)
-        # Ensure we're on a new line if file has content
-        if existing_content and not existing_content.endswith("\n"):
-            file.write("\n")
+    with open(translations_filepath, "a", encoding="UTF-8") as file:
         dict_writer = DictWriter(file, fieldnames=CSV_FIELDNAMES)
         dict_writer.writerow({"word": safe_word, "translation": "", "example": ""})
-
-    atomic_write_csv(translations_filepath, write_with_append)
 
 
 def get_words_to_translate(translations_path):
@@ -385,7 +253,7 @@ def generate_translations_and_examples(language_to_learn, mother_tongue, transla
 
     # Create a backup of the LM response
     backup_dir = utils.get_backup_dir(language_to_learn, mother_tongue)
-    utils.backup_content(backup_dir, generated_text)
+    utils.backup_content(backup_dir, gpt_response)
 
     return generated_text
 
@@ -418,14 +286,7 @@ def convert_text_to_dict(generated_text):
         return value
 
     result = {}
-    failed_entries = []
-
-    def _record_failure(line_number: int, columns: list[str]) -> str:
-        word_candidate = columns[0].strip() if columns and columns[0].strip() else "unknown"
-        failed_entries.append((line_number, word_candidate))
-        return word_candidate
-
-    for line_number, line in enumerate(lines, start=1):
+    for line in lines:
         line = line.strip()
         if not line:
             continue
@@ -433,16 +294,11 @@ def convert_text_to_dict(generated_text):
         # Split and detect potential tab corruption
         columns = line.split("\t")
         if len(columns) > 4:
-            word_candidate = _record_failure(line_number, columns)
             # Likely has tabs within content - warn and skip to prevent data corruption
             click.echo(
-                (
-                    f"{WARNING_PREFIX} Line {line_number}: Line appears corrupted "
-                    f"(tabs in content?) for word '{word_candidate}'"
-                ),
+                f"{click.style('Warning:', fg='yellow')} Line appears corrupted (tabs in content?):\n{line}",
                 err=True,
             )
-            click.echo(line, err=True)
             click.echo(
                 "Skipping line to prevent data corruption. Consider removing tabs from content.",
                 err=True,
@@ -460,15 +316,10 @@ def convert_text_to_dict(generated_text):
             original_word, recognized_word, translation_quoted, example_quoted = columns[:4]
         else:
             # Neither 3 nor 4+ columns - cannot parse
-            word_candidate = _record_failure(line_number, columns)
             click.echo(
-                (
-                    f"{WARNING_PREFIX} Line {line_number}: Could not parse word "
-                    f"'{word_candidate}' (expected 3-4 columns, got {len(columns)})"
-                ),
+                f"{click.style('Warning:', fg='yellow')} Could not parse line:\n{line}",
                 err=True,
             )
-            click.echo(line, err=True)
             continue
 
         translation = _strip_wrapping(translation_quoted, "'")
@@ -479,17 +330,6 @@ def convert_text_to_dict(generated_text):
             "translation": translation,
             "example": example,
         }
-
-    if failed_entries:
-        click.echo(
-            (
-                f"{WARNING_PREFIX} Failed to parse {len(failed_entries)} line(s). "
-                "The following words may need review:"
-            ),
-            err=True,
-        )
-        for line_number, word_candidate in failed_entries:
-            click.echo(f"  Line {line_number}: '{word_candidate}'", err=True)
 
     return result
 
@@ -549,7 +389,7 @@ def add_translations_and_examples_to_file(translations_path, pair):
     # Report missing words
     if missing_words:
         click.echo(
-            f"\n{ERROR_PREFIX} LM failed to return translations for {len(missing_words)} word(s):",
+            f"\n{click.style('Error:', fg='red')} LM failed to return translations for {len(missing_words)} word(s):",
             err=True,
         )
         for word in missing_words:
@@ -557,7 +397,10 @@ def add_translations_and_examples_to_file(translations_path, pair):
         click.echo("Please retry or add them manually.\n", err=True)
 
     if mismatches:
-        click.echo(f"\n{WARNING_PREFIX} Word corrections detected:", err=True)
+        click.echo(
+            f"\n{click.style('Word corrections detected:', fg='yellow')}",
+            err=True,
+        )
 
         for original_word, potential_corrections in mismatches:
             if len(potential_corrections) == 1:
@@ -611,15 +454,8 @@ def add_translations_and_examples_to_file(translations_path, pair):
 
         click.echo()
 
-    # Validate entries before writing to prevent data loss
-    validation = validate_entries_before_write(current_entries)
-    if not validation["valid"]:
-        raise ValidationError(
-            f"Cannot write: {validation['error']}. Original file preserved. Check backup for recovery."
-        )
-
-    # Write the updated translations and examples to the output file atomically
-    def write_translations(output_file):
+    # Write the updated translations and examples to the output file
+    with open(translations_path, "w", encoding="UTF-8") as output_file:
         writer = DictWriter(output_file, fieldnames=CSV_FIELDNAMES)
         writer.writeheader()
 
@@ -643,8 +479,6 @@ def add_translations_and_examples_to_file(translations_path, pair):
 
             # Write the updated entry to the output file
             writer.writerow(current_entry)
-
-    atomic_write_csv(translations_path, write_translations)
 
     # Create a backup of the translations file
     utils.backup_file(backup_dir, translations_path)
@@ -692,8 +526,6 @@ def generate_anki_output_file(
     formatted as an Anki deck with proper headers. The resulting file can be imported into Anki to create flashcards
     with the word on the front and the translation and example on the back.
 
-    Uses atomic write to prevent corruption if interrupted.
-
     Args:
         translations_path (str): The path to the CSV file containing the translations and examples.
         anki_output_file (str): The path to the output TSV file formatted for Anki import.
@@ -707,15 +539,15 @@ def generate_anki_output_file(
     # Ensure the source file contains the expected header so the DictReader can parse rows safely.
     ensure_csv_has_fieldnames(translations_path)
 
-    # Read all translations first
-    with open(translations_path, encoding="UTF-8") as translations_file:
-        translations_dict_reader = DictReader(translations_file)
-        all_translations = list(translations_dict_reader)
-
-    def write_anki_deck(anki_file):
+    with (
+        open(translations_path, encoding="UTF-8") as translations_file,
+        open(anki_output_file, "w", encoding="UTF-8") as anki_file,
+    ):
         # Write Anki headers first
         headers = generate_anki_headers(language_to_learn, mother_tongue, custom_deck_name)
         anki_file.write(headers + "\n")
+
+        translations_dict_reader = DictReader(translations_file)
 
         anki_dict_writer = DictWriter(
             anki_file,
@@ -724,30 +556,27 @@ def generate_anki_output_file(
             delimiter="\t",
         )
 
-        for translations in all_translations:
+        for translations in translations_dict_reader:
             if not translations["translation"] or not translations["example"]:
                 continue
             else:
-                translation_text = translations["translation"].strip('"')
+                translations["translation"] = translations["translation"].strip('"')
 
                 # Create a card with the word on the front, and the translations and example on the back
                 card = {
                     "Front": translations["word"],
-                    "Back": f"{translation_text}<br><br><details><summary>example</summary><i>&quot;{translations['example']}&quot;</i></details>",
+                    "Back": f"{translations['translation']}<br><br><details><summary>example</summary><i>&quot;{translations['example']}&quot;</i></details>",
                 }
 
                 # Write the card to the Anki output file
                 anki_dict_writer.writerow(card)
-
-    atomic_write_csv(anki_output_file, write_anki_deck)
 
 
 def ensure_csv_has_fieldnames(translations_path, fieldnames=None):
     """
     Ensure the CSV file starts with the expected fieldnames.
 
-    The header row is inserted only when it is missing. Uses atomic write to
-    prevent corruption if interrupted during the insert.
+    The header row is inserted only when it is missing.
 
     Args:
         translations_path (str): The path to the CSV file.
@@ -756,9 +585,7 @@ def ensure_csv_has_fieldnames(translations_path, fieldnames=None):
     if fieldnames is None:
         fieldnames = CSV_FIELDNAMES
 
-    translations_path = Path(translations_path)
-
-    with open(translations_path, "r", encoding="UTF-8") as file:
+    with open(translations_path, "r+", encoding="UTF-8") as file:
         # Check if the fieldnames is already present in the first row of the content
         for line in file:
             if line.startswith(",".join(fieldnames)):
@@ -768,14 +595,11 @@ def ensure_csv_has_fieldnames(translations_path, fieldnames=None):
 
         file.seek(0, 0)  # Move the file pointer to the beginning of the file
         content = file.read()
+        file.seek(0, 0)
 
-    # Need to insert header row - use atomic write
-    def write_with_header(output_file):
-        writer = csv.writer(output_file)
+        writer = csv.writer(file)
         writer.writerow(fieldnames)  # Write the fieldnames to the first row
-        output_file.write(content)  # Write the original content after the fieldnames
-
-    atomic_write_csv(translations_path, write_with_header)
+        file.write(content)  # Write the original content after the fieldnames
 
 
 def vocabulary_list_is_empty(translations_path):
