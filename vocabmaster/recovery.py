@@ -5,6 +5,7 @@ This module provides utilities to restore vocabulary files from backups,
 validate backup integrity, and migrate between format versions.
 """
 
+import csv
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -142,18 +143,25 @@ def validate_all_backups(language_to_learn, mother_tongue):
         elif backup["type"] == "gpt-response":
             # GPT response backups are not validated the same way
             format_info = utils.get_backup_format_version(backup_path)
+            # Mark "unknown" format as invalid since we can't verify integrity
+            is_valid = (
+                format_info["error"] is None
+                and format_info["version"] != "unknown"
+            )
             results.append(
                 {
                     "path": backup_path,
                     "filename": backup["filename"],
                     "type": backup["type"],
-                    "valid": format_info["error"] is None,
+                    "valid": is_valid,
                     "rows": None,
                     "format_version": format_info["version"],
-                    "error": format_info["error"],
+                    "error": format_info["error"]
+                    if format_info["error"]
+                    else ("Unknown format" if not is_valid else None),
                 }
             )
-            if format_info["error"] is None:
+            if is_valid:
                 valid_count += 1
             else:
                 invalid_count += 1
@@ -233,3 +241,219 @@ def format_backup_timestamp(timestamp_str):
         return dt.strftime("%Y-%m-%d %H:%M:%S")
     except (ValueError, TypeError):
         return timestamp_str
+
+
+# --- Format Migration Functions ---
+
+
+def migrate_gpt_response_backup(backup_path, output_path=None):
+    """
+    Migrate a GPT response backup from 3-column to 4-column format.
+
+    The old format: word\\ttranslation\\texample
+    The new format: original_word\\trecognized_word\\ttranslation\\texample
+
+    For migration, recognized_word is set equal to original_word (no correction).
+
+    Args:
+        backup_path (pathlib.Path | str): Path to the backup file to migrate.
+        output_path (pathlib.Path | str | None): Output path. If None, creates
+            a new file with '_migrated' suffix.
+
+    Returns:
+        dict: Migration result with keys:
+            - success (bool): True if migration succeeded
+            - output_path (pathlib.Path): Path to migrated file
+            - original_format (str): Detected original format
+            - rows_migrated (int): Number of rows migrated
+            - error (str | None): Error message if failed
+    """
+    backup_path = Path(backup_path)
+
+    if not backup_path.exists():
+        return {
+            "success": False,
+            "output_path": None,
+            "original_format": "unknown",
+            "rows_migrated": 0,
+            "error": "Backup file does not exist",
+        }
+
+    # Detect format
+    format_info = utils.get_backup_format_version(backup_path)
+
+    if format_info["error"]:
+        return {
+            "success": False,
+            "output_path": None,
+            "original_format": format_info["version"],
+            "rows_migrated": 0,
+            "error": format_info["error"],
+        }
+
+    if format_info["version"] == "4-col":
+        return {
+            "success": True,
+            "output_path": backup_path,
+            "original_format": "4-col",
+            "rows_migrated": 0,
+            "error": None,
+        }
+
+    if format_info["version"] != "3-col":
+        return {
+            "success": False,
+            "output_path": None,
+            "original_format": format_info["version"],
+            "rows_migrated": 0,
+            "error": f"Cannot migrate format: {format_info['version']}",
+        }
+
+    # Create output path
+    if output_path is None:
+        output_path = backup_path.with_suffix(".migrated.bak")
+    else:
+        output_path = Path(output_path)
+
+    try:
+        content = backup_path.read_text(encoding="utf-8")
+        lines = content.strip().split("\n")
+
+        migrated_lines = []
+        rows_migrated = 0
+        skipped_rows = 0
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            parts = line.split("\t")
+            if len(parts) == 3:
+                # 3-col format: word, translation, example
+                word, translation, example = parts
+                # Convert to 4-col: original_word, recognized_word, translation, example
+                migrated_line = f"{word}\t{word}\t{translation}\t{example}"
+                migrated_lines.append(migrated_line)
+                rows_migrated += 1
+            elif len(parts) == 4:
+                # Already 4-col, keep as-is
+                migrated_lines.append(line)
+            else:
+                # Unexpected column count - skip and track
+                skipped_rows += 1
+
+        if skipped_rows > 0:
+            return {
+                "success": False,
+                "output_path": None,
+                "original_format": format_info["version"],
+                "rows_migrated": 0,
+                "error": f"Skipped {skipped_rows} rows with unexpected column counts",
+            }
+
+        output_path.write_text("\n".join(migrated_lines) + "\n", encoding="utf-8")
+
+        return {
+            "success": True,
+            "output_path": output_path,
+            "original_format": "3-col",
+            "rows_migrated": rows_migrated,
+            "error": None,
+        }
+
+    except OSError as e:
+        return {
+            "success": False,
+            "output_path": None,
+            "original_format": "3-col",
+            "rows_migrated": 0,
+            "error": f"File operation failed: {e}",
+        }
+
+
+def migrate_vocabulary_backup(backup_path, output_path=None):
+    """
+    Migrate a vocabulary CSV backup, ensuring proper format.
+
+    Vocabulary files already use the standard CSV format with headers.
+    This function validates and optionally repairs the format.
+
+    Args:
+        backup_path (pathlib.Path | str): Path to the backup file.
+        output_path (pathlib.Path | str | None): Output path. If None, creates
+            a new file with '_migrated' suffix.
+
+    Returns:
+        dict: Migration result with keys:
+            - success (bool): True if migration succeeded
+            - output_path (pathlib.Path): Path to migrated file
+            - original_format (str): Detected original format
+            - rows_migrated (int): Number of rows in output
+            - error (str | None): Error message if failed
+    """
+    backup_path = Path(backup_path)
+
+    if not backup_path.exists():
+        return {
+            "success": False,
+            "output_path": None,
+            "original_format": "unknown",
+            "rows_migrated": 0,
+            "error": "Backup file does not exist",
+        }
+
+    # Validate the backup
+    validation = utils.validate_backup_parseable(backup_path)
+
+    if not validation["valid"]:
+        return {
+            "success": False,
+            "output_path": None,
+            "original_format": "unknown",
+            "rows_migrated": 0,
+            "error": validation["error"],
+        }
+
+    # Create output path
+    if output_path is None:
+        output_path = backup_path.with_suffix(".migrated.bak")
+    else:
+        output_path = Path(output_path)
+
+    try:
+        # Read and rewrite with proper format
+        with open(backup_path, "r", encoding="utf-8") as infile:
+            reader = csv.DictReader(infile)
+            rows = list(reader)
+
+        with open(output_path, "w", encoding="utf-8", newline="") as outfile:
+            fieldnames = ["word", "translation", "example"]
+            writer = csv.DictWriter(outfile, fieldnames=fieldnames)
+            writer.writeheader()
+
+            for row in rows:
+                # Ensure all required fields exist
+                clean_row = {
+                    "word": row.get("word", ""),
+                    "translation": row.get("translation", ""),
+                    "example": row.get("example", ""),
+                }
+                writer.writerow(clean_row)
+
+        return {
+            "success": True,
+            "output_path": output_path,
+            "original_format": "3-col",
+            "rows_migrated": len(rows),
+            "error": None,
+        }
+
+    except (OSError, csv.Error) as e:
+        return {
+            "success": False,
+            "output_path": None,
+            "original_format": "unknown",
+            "rows_migrated": 0,
+            "error": f"Migration failed: {e}",
+        }
