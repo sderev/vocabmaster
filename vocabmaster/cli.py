@@ -1605,6 +1605,14 @@ def recover_restore(pair, backup_id, latest):
     else:
         backups = utils.list_backups(language_to_learn, mother_tongue)
 
+        if not backups:
+            click.echo(f"{ERROR_PREFIX} No backups found.", err=True)
+            click.echo(
+                f"Hint: Run '{click.style('vocabmaster recover list', bold=True)}' to see available backups.",
+                err=True,
+            )
+            sys.exit(1)
+
         if backup_id < 1 or backup_id > len(backups):
             click.echo(
                 f"{ERROR_PREFIX} Invalid backup ID. Must be between 1 and {len(backups)}.",
