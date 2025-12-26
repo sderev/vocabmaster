@@ -645,9 +645,9 @@ class TestHelperFunctions:
     def test_print_default_language_pair_none(self, isolated_app_dir, capsys):
         returned = cli.print_default_language_pair()
 
-        output = capsys.readouterr().out
+        captured = capsys.readouterr()
         assert returned is None
-        assert "No default language pair configured yet." in output
+        assert "No default language pair configured yet." in captured.err
 
     def test_print_default_language_pair_existing(self, isolated_app_dir, capsys):
         config_handler.set_language_pair("english", "french")
@@ -662,10 +662,10 @@ class TestHelperFunctions:
     def test_print_all_language_pairs_empty(self, isolated_app_dir, capsys):
         returned = cli.print_all_language_pairs()
 
-        output = capsys.readouterr().out
+        captured = capsys.readouterr()
         assert returned == []
-        assert "No language pairs found yet." in output
-        assert "vocabmaster pairs add" in output
+        assert "No language pairs found yet." in captured.err
+        assert "vocabmaster pairs add" in captured.err
 
     def test_print_all_language_pairs_lists_items(self, isolated_app_dir, capsys):
         config_handler.set_language_pair("english", "french")
@@ -683,16 +683,16 @@ class TestHelperFunctions:
 
         cli.openai_api_key_explain()
 
-        output = capsys.readouterr().out
-        assert "set it up by running `setx OPENAI_API_KEY your_key`" in output
+        captured = capsys.readouterr()
+        assert "setx OPENAI_API_KEY your_key" in captured.err
 
     def test_openai_api_key_explain_unix(self, monkeypatch, capsys):
         monkeypatch.setattr(cli.platform, "system", lambda: "Linux")
 
         cli.openai_api_key_explain()
 
-        output = capsys.readouterr().out
-        assert "export OPENAI_API_KEY=YOUR_KEY" in output
+        captured = capsys.readouterr()
+        assert "export OPENAI_API_KEY=YOUR_KEY" in captured.err
 
     def test_handle_rate_limit_error_guidance(self, capsys):
         cli.handle_rate_limit_error()
@@ -1559,7 +1559,9 @@ class TestPairsSetDeckNameCommand:
         assert "Error:" in result.output
         assert "not found" in result.output
 
-    def test_set_deck_name_handles_invalid_stored_name_on_remove(self, isolated_app_dir, monkeypatch):
+    def test_set_deck_name_handles_invalid_stored_name_on_remove(
+        self, isolated_app_dir, monkeypatch
+    ):
         """Allow removing an invalid stored deck name instead of crashing."""
         config_handler.set_language_pair("english", "french")
         config = config_handler.read_config()

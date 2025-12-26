@@ -296,10 +296,12 @@ def convert_text_to_dict(generated_text):
         if len(columns) > 4:
             # Likely has tabs within content - warn and skip to prevent data corruption
             click.echo(
-                f"{click.style('Warning: ', fg='yellow')} Line appears corrupted (tabs in content?):\n{line}"
+                f"{click.style('Warning:', fg='yellow')} Line appears corrupted (tabs in content?):\n{line}",
+                err=True,
             )
             click.echo(
-                "Skipping line to prevent data corruption. Consider removing tabs from content."
+                "Skipping line to prevent data corruption. Consider removing tabs from content.",
+                err=True,
             )
             continue
 
@@ -314,7 +316,10 @@ def convert_text_to_dict(generated_text):
             original_word, recognized_word, translation_quoted, example_quoted = columns[:4]
         else:
             # Neither 3 nor 4+ columns - cannot parse
-            click.echo(f"{click.style('Warning: ', fg='yellow')} Could not parse line:\n{line}")
+            click.echo(
+                f"{click.style('Warning:', fg='yellow')} Could not parse line:\n{line}",
+                err=True,
+            )
             continue
 
         translation = _strip_wrapping(translation_quoted, "'")
@@ -384,14 +389,18 @@ def add_translations_and_examples_to_file(translations_path, pair):
     # Report missing words
     if missing_words:
         click.echo(
-            f"\n{click.style('Error:', fg='red')} LM failed to return translations for {len(missing_words)} word(s):"
+            f"\n{click.style('Error:', fg='red')} LM failed to return translations for {len(missing_words)} word(s):",
+            err=True,
         )
         for word in missing_words:
-            click.echo(f"  - {word}")
-        click.echo("Please retry or add them manually.\n")
+            click.echo(f"  - {word}", err=True)
+        click.echo("Please retry or add them manually.\n", err=True)
 
     if mismatches:
-        click.echo(f"\n{click.style('Word corrections detected:', fg='yellow')}")
+        click.echo(
+            f"\n{click.style('Word corrections detected:', fg='yellow')}",
+            err=True,
+        )
 
         for original_word, potential_corrections in mismatches:
             if len(potential_corrections) == 1:
