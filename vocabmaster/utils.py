@@ -348,7 +348,7 @@ def get_backup_format_version(backup_path):
 
     Returns:
         dict: Format information with keys:
-            - version (str): "3-col", "4-col", "gpt-response", or "unknown"
+            - version (str): "3-col", "4-col", "mixed", or "unknown"
             - columns (list): Detected column names
             - error (str | None): Error message if detection failed
     """
@@ -362,26 +362,42 @@ def get_backup_format_version(backup_path):
 
         # GPT response backups are typically raw text (TSV without header)
         if backup_path.suffix == ".bak" and "gpt_request_" in backup_path.name:
-            lines = [line for line in content.strip().split("\n") if line.strip()]
+            lines = [line for line in content.splitlines() if line.strip()]
             if not lines:
                 return {"version": "unknown", "columns": [], "error": "Empty file"}
 
-            # Check column count in first data line
-            first_line_cols = lines[0].split("\t")
-            if len(first_line_cols) == 3:
+            column_counts = set()
+            for line_number, line in enumerate(lines, start=1):
+                columns = line.split("\t")
+                column_count = len(columns)
+                if column_count == 3:
+                    column_counts.add(3)
+                elif column_count == 4:
+                    column_counts.add(4)
+                else:
+                    return {
+                        "version": "unknown",
+                        "columns": [],
+                        "error": f"Line {line_number} has {column_count} columns",
+                    }
+
+            if column_counts == {3}:
                 return {
                     "version": "3-col",
                     "columns": ["word", "translation", "example"],
                     "error": None,
                 }
-            elif len(first_line_cols) >= 4:
+            if column_counts == {4}:
                 return {
                     "version": "4-col",
                     "columns": ["original_word", "recognized_word", "translation", "example"],
                     "error": None,
                 }
-            else:
-                return {"version": "unknown", "columns": [], "error": "Unrecognized format"}
+            return {
+                "version": "mixed",
+                "columns": [],
+                "error": "Mixed column counts in GPT response backup",
+            }
 
         # CSV vocabulary backups have a header row
         with open(backup_path, "r", encoding="utf-8") as file:
@@ -416,7 +432,7 @@ def list_backups(language_to_learn, mother_tongue):
             - path (pathlib.Path): Full path to backup file
             - filename (str): Backup filename
             - timestamp (str): Extracted timestamp from filename
-            - type (str): "vocabulary", "gpt-response", "anki-deck", or "pre-restore"
+            - type (str): "vocabulary" or "gpt-response"
             - size (int): File size in bytes
             - mtime (float): Modification time
     """
@@ -459,10 +475,6 @@ def list_backups(language_to_learn, mother_tongue):
             prefix = f"anki_deck_{pair_pattern}"
             if filename.startswith(prefix):
                 timestamp = filename[len(prefix) : -len(".bak")]
-        elif filename.startswith("pre_restore_"):
-            backup_type = "pre-restore"
-            # Format: pre_restore_TIMESTAMP.bak
-            timestamp = filename[len("pre_restore_") : -len(".bak")]
 
         backups.append(
             {
