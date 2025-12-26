@@ -1,9 +1,12 @@
+import csv
 import os
 import shutil
 import string
 from datetime import datetime
+from pathlib import Path
 
 import click
+import openai
 
 from vocabmaster import config_handler
 
@@ -281,6 +284,196 @@ def generate_iso_timestamp():
     return now.isoformat().replace(":", "_")
 
 
+# --- Backup Validation Functions ---
+
+
+def validate_backup_parseable(backup_path):
+    """
+    Check if a backup file can be parsed as valid CSV.
+
+    Args:
+        backup_path (pathlib.Path | str): Path to the backup file.
+
+    Returns:
+        dict: Validation result with keys:
+            - valid (bool): True if parseable
+            - rows (int): Number of data rows (excluding header) if valid
+            - error (str | None): Error message if invalid
+    """
+    backup_path = Path(backup_path)
+
+    if not backup_path.exists():
+        return {"valid": False, "rows": 0, "error": "File does not exist"}
+
+    try:
+        with open(backup_path, "r", encoding="utf-8") as file:
+            reader = csv.DictReader(file)
+            rows = list(reader)
+
+            # Check that we have the expected fieldnames
+            if reader.fieldnames is None:
+                return {"valid": False, "rows": 0, "error": "No header row found"}
+
+            expected_fields = {"word", "translation", "example"}
+            actual_fields = set(reader.fieldnames)
+
+            if not expected_fields.issubset(actual_fields):
+                missing = expected_fields - actual_fields
+                return {
+                    "valid": False,
+                    "rows": 0,
+                    "error": f"Missing required columns: {', '.join(sorted(missing))}",
+                }
+
+            return {"valid": True, "rows": len(rows), "error": None}
+
+    except csv.Error as e:
+        return {"valid": False, "rows": 0, "error": f"CSV parse error: {e}"}
+    except UnicodeDecodeError as e:
+        return {"valid": False, "rows": 0, "error": f"File decode error: {e}"}
+    except OSError as e:
+        return {"valid": False, "rows": 0, "error": f"File read error: {e}"}
+
+
+def get_backup_format_version(backup_path):
+    """
+    Detect the format version of a backup file.
+
+    The application historically used 3-column format (word, translation, example)
+    for GPT response backups and vocabulary files. The format is determined by
+    examining the content structure.
+
+    Args:
+        backup_path (pathlib.Path | str): Path to the backup file.
+
+    Returns:
+        dict: Format information with keys:
+            - version (str): "3-col", "4-col", "gpt-response", or "unknown"
+            - columns (list): Detected column names
+            - error (str | None): Error message if detection failed
+    """
+    backup_path = Path(backup_path)
+
+    if not backup_path.exists():
+        return {"version": "unknown", "columns": [], "error": "File does not exist"}
+
+    try:
+        content = backup_path.read_text(encoding="utf-8")
+
+        # GPT response backups are typically raw text (TSV without header)
+        if backup_path.suffix == ".bak" and "gpt_request_" in backup_path.name:
+            lines = [line for line in content.strip().split("\n") if line.strip()]
+            if not lines:
+                return {"version": "unknown", "columns": [], "error": "Empty file"}
+
+            # Check column count in first data line
+            first_line_cols = lines[0].split("\t")
+            if len(first_line_cols) == 3:
+                return {
+                    "version": "3-col",
+                    "columns": ["word", "translation", "example"],
+                    "error": None,
+                }
+            elif len(first_line_cols) >= 4:
+                return {
+                    "version": "4-col",
+                    "columns": ["original_word", "recognized_word", "translation", "example"],
+                    "error": None,
+                }
+            else:
+                return {"version": "unknown", "columns": [], "error": "Unrecognized format"}
+
+        # CSV vocabulary backups have a header row
+        with open(backup_path, "r", encoding="utf-8") as file:
+            reader = csv.DictReader(file)
+            if reader.fieldnames is None:
+                return {"version": "unknown", "columns": [], "error": "No header row"}
+
+            columns = list(reader.fieldnames)
+            if set(columns) == {"word", "translation", "example"}:
+                return {"version": "3-col", "columns": columns, "error": None}
+            elif len(columns) >= 4:
+                return {"version": "4-col", "columns": columns, "error": None}
+            else:
+                return {"version": "unknown", "columns": columns, "error": None}
+
+    except UnicodeDecodeError as e:
+        return {"version": "unknown", "columns": [], "error": f"File decode error: {e}"}
+    except OSError as e:
+        return {"version": "unknown", "columns": [], "error": f"File read error: {e}"}
+
+
+def list_backups(language_to_learn, mother_tongue):
+    """
+    List all backup files for a language pair with metadata.
+
+    Args:
+        language_to_learn (str): Target language.
+        mother_tongue (str): User's mother tongue.
+
+    Returns:
+        list[dict]: List of backup info dictionaries, each with keys:
+            - path (pathlib.Path): Full path to backup file
+            - filename (str): Backup filename
+            - timestamp (str): Extracted timestamp from filename
+            - type (str): "vocabulary" or "gpt-response"
+            - size (int): File size in bytes
+            - mtime (float): Modification time
+    """
+    # Validate language names
+    language_to_learn = validate_language_name(language_to_learn)
+    mother_tongue = validate_language_name(mother_tongue)
+
+    backup_dir = get_backup_dir(language_to_learn, mother_tongue)
+
+    if not backup_dir.exists():
+        return []
+
+    backups = []
+
+    for backup_file in sorted(backup_dir.glob("*.bak"), key=lambda p: p.stat().st_mtime):
+        filename = backup_file.name
+        stat = backup_file.stat()
+
+        # Determine backup type and extract timestamp based on known prefixes
+        # Timestamps use ISO format with colons replaced by underscores: 2024-01-01T12_34_56.789012
+        timestamp = ""
+        backup_type = "unknown"
+
+        if filename.startswith("gpt_request_"):
+            backup_type = "gpt-response"
+            # Format: gpt_request_TIMESTAMP.bak
+            timestamp = filename[len("gpt_request_") : -len(".bak")]
+        elif filename.startswith("vocab_list_"):
+            backup_type = "vocabulary"
+            # Format: vocab_list_lang-lang_TIMESTAMP.bak
+            # Find the lang-lang pattern (contains hyphen), timestamp follows
+            pair_pattern = f"{language_to_learn}-{mother_tongue}_"
+            prefix = f"vocab_list_{pair_pattern}"
+            if filename.startswith(prefix):
+                timestamp = filename[len(prefix) : -len(".bak")]
+        elif filename.startswith("anki_deck_"):
+            backup_type = "anki-deck"
+            # Format: anki_deck_lang-lang_TIMESTAMP.bak
+            pair_pattern = f"{language_to_learn}-{mother_tongue}_"
+            prefix = f"anki_deck_{pair_pattern}"
+            if filename.startswith(prefix):
+                timestamp = filename[len(prefix) : -len(".bak")]
+
+        backups.append(
+            {
+                "path": backup_file,
+                "filename": filename,
+                "timestamp": timestamp,
+                "type": backup_type,
+                "size": stat.st_size,
+                "mtime": stat.st_mtime,
+            }
+        )
+
+    return backups
+
+
 def get_language_pair_from_option(pair):
     """
     Get the language pair based on the input option string or the default language pair.
@@ -335,7 +528,7 @@ def openai_api_key_exists():
     """
     Check if an OpenAI API key is set on the system.
     """
-    return bool(os.environ.get("OPENAI_API_KEY"))
+    return bool(os.environ.get("OPENAI_API_KEY") or openai.api_key)
 
 
 BLUE = "\x1b[94m"

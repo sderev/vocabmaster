@@ -1,3 +1,4 @@
+import openai
 import pytest
 
 from vocabmaster import config_handler, utils
@@ -73,6 +74,20 @@ def test_get_pair_mode_translation_mode():
     assert utils.get_pair_mode("french", "english") == "translation"
     assert utils.get_pair_mode("spanish", "italian") == "translation"
     assert utils.get_pair_mode("German", "french") == "translation"
+
+
+def test_openai_api_key_exists_checks_sdk_key(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(openai, "api_key", "sk-test")
+
+    assert utils.openai_api_key_exists() is True
+
+
+def test_openai_api_key_exists_false_without_env_or_sdk_key(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(openai, "api_key", None)
+
+    assert utils.openai_api_key_exists() is False
 
 
 # Tests for validate_deck_name()
