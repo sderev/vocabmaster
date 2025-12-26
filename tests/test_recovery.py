@@ -372,6 +372,56 @@ class TestRestoreVocabulary:
         assert result["success"] is False
         assert "does not exist" in result["error"]
 
+    def test_restore_headerless_backup_migrates_to_csv(self, tmp_path, fake_home, monkeypatch):
+        """Restore headerless TSV backup and migrate to CSV format."""
+        from vocabmaster import config_handler
+
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        config_handler.set_data_directory(data_dir)
+
+        # Create headerless TSV backup (3-column legacy format)
+        backup_dir = data_dir / ".backup" / "english-french"
+        backup_dir.mkdir(parents=True)
+        backup_file = backup_dir / "vocab_list_english-french_2024-01-01T12_00_00.bak"
+        backup_file.write_text("hello\tbonjour\tHello world\ncat\tchat\tThe cat\n")
+
+        result = recovery.restore_vocabulary_from_backup(backup_file, "english", "french")
+
+        assert result["success"] is True
+        assert result["restored_path"] is not None
+
+        # Check content was migrated to proper CSV with headers
+        content = result["restored_path"].read_text()
+        assert "word,translation,example" in content
+        assert "hello,bonjour,Hello world" in content
+        assert "cat,chat,The cat" in content
+
+    def test_restore_headerless_4col_backup_migrates(self, tmp_path, fake_home, monkeypatch):
+        """Restore 4-column headerless backup (original_word, recognized_word, etc.)."""
+        from vocabmaster import config_handler
+
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        config_handler.set_data_directory(data_dir)
+
+        # Create headerless TSV backup (4-column format)
+        backup_dir = data_dir / ".backup" / "english-french"
+        backup_dir.mkdir(parents=True)
+        backup_file = backup_dir / "vocab_list_english-french_2024-01-01T12_00_00.bak"
+        # original_word, recognized_word, translation, example
+        backup_file.write_text("helo\thello\tbonjour\tHello world\n")
+
+        result = recovery.restore_vocabulary_from_backup(backup_file, "english", "french")
+
+        assert result["success"] is True
+
+        # Check recognized_word is used as the canonical word
+        content = result["restored_path"].read_text()
+        assert "word,translation,example" in content
+        assert "hello,bonjour,Hello world" in content
+        assert "helo" not in content  # original typo should not appear
+
 
 class TestValidateAllBackups:
     """Test bulk backup validation."""
