@@ -46,10 +46,10 @@ def validate_data_directory(path_str: str) -> Path:
 
     # On all systems, require path to be under home directory or explicit /opt location
     home = Path.home()
-    allowed_prefixes = [str(home), "/opt", "/tmp"]
+    allowed_prefixes = [str(home), "/opt"]
 
     if not any(str(path).startswith(prefix) for prefix in allowed_prefixes):
-        raise ValueError(f"Directory must be under home directory, /opt, or /tmp. Got: {path}")
+        raise ValueError(f"Directory must be under home directory or /opt. Got: {path}")
 
     return path
 
@@ -90,6 +90,7 @@ def validate_word(word: str) -> str:
         click.secho(
             f"Warning: Word starts with '{word[0]}' which may be interpreted as a formula in spreadsheets.",
             fg="yellow",
+            err=True,
         )
         if not click.confirm("Continue anyway?", default=False):
             raise click.Abort()
@@ -510,7 +511,7 @@ def create_language_pair_interactively():
                 default_mother_tongue = config_handler.get_default_language_pair()["mother_tongue"]
                 click.secho(f"{default_language_to_learn}:{default_mother_tongue}", bold=True)
     else:
-        click.secho("Creation canceled", fg="red")
+        click.secho("Creation canceled.", fg="red", err=True)
 
 
 @vocabmaster.group(invoke_without_command=True)
@@ -607,17 +608,24 @@ def openai_api_key_explain():
     """
     Explain how to set up the OpenAI API key.
     """
-    click.secho("You need to set up an OpenAI API key.", fg="red")
-    click.echo()
+    click.secho("Error: OpenAI API key not found.", fg="red", err=True)
+    click.echo(err=True)
     click.echo(
         "You can generate API keys in the OpenAI web interface. See"
-        " https://platform.openai.com/account/api-keys for details."
+        " https://platform.openai.com/account/api-keys for details.",
+        err=True,
     )
-    click.echo()
+    click.echo(err=True)
     if platform.system() == "Windows":
-        click.echo("Then, you can set it up by running `setx OPENAI_API_KEY your_key`")
+        click.echo(
+            "Hint: Set the key by running `setx OPENAI_API_KEY your_key`.",
+            err=True,
+        )
     else:
-        click.echo("Then, you can set it up by running `export OPENAI_API_KEY=YOUR_KEY`")
+        click.echo(
+            "Hint: Set the key by running `export OPENAI_API_KEY=YOUR_KEY`.",
+            err=True,
+        )
     return
 
 
@@ -899,9 +907,9 @@ def pairs_set_deck_name_command(pair, name, remove):
         current_name_error = str(error)
 
     if current_name_error:
-        click.secho("Warning: ", fg="yellow", nl=False)
-        click.echo(current_name_error)
-        click.echo("Stored deck name is invalid. You can remove it or set a new name.")
+        click.secho("Warning: ", fg="yellow", nl=False, err=True)
+        click.echo(current_name_error, err=True)
+        click.echo("Stored deck name is invalid. You can remove it or set a new name.", err=True)
     elif current_name:
         click.echo(f"Current custom deck name: {click.style(current_name, bold=True)}")
     else:
@@ -1147,8 +1155,8 @@ def print_default_language_pair():
     click.secho("The current default language pair is:", fg="blue")
     default_pair = config_handler.get_default_language_pair()
     if default_pair is None:
-        click.secho("No default language pair configured yet.", fg="yellow")
-        click.echo()
+        click.secho("No default language pair configured yet.", fg="yellow", err=True)
+        click.echo(err=True)
         return None
 
     click.secho(
@@ -1167,13 +1175,13 @@ def print_all_language_pairs(empty_hint: str | None = None):
     click.secho("The following language pairs have been set up:", fg="blue")
     language_pairs = config_handler.get_all_language_pairs()
     if not language_pairs:
-        click.secho("No language pairs found yet.", fg="yellow")
+        click.secho("No language pairs found yet.", fg="yellow", err=True)
         hint = (
             empty_hint
             or f"Use {click.style('vocabmaster pairs add', bold=True)} to add a new language pair."
         )
-        click.echo(hint)
-        click.echo()
+        click.echo(hint, err=True)
+        click.echo(err=True)
         return []
 
     for idx, language_pair in enumerate(language_pairs, start=1):
@@ -1413,13 +1421,13 @@ def remove_language_pairs(language_pairs, default_hint, add_hint):
     remaining_pairs = config_handler.get_all_language_pairs()
 
     if removed_default:
-        click.secho("Heads-up: the default language pair was removed.", fg="yellow")
+        click.secho("Heads-up: the default language pair was removed.", fg="yellow", err=True)
         if remaining_pairs:
-            click.secho(default_hint, fg="blue")
+            click.secho(default_hint, fg="blue", err=True)
 
     if not remaining_pairs:
-        click.secho("There are no language pairs configured now.", fg="yellow")
-        click.secho(add_hint, fg="blue")
+        click.secho("There are no language pairs configured now.", fg="yellow", err=True)
+        click.secho(add_hint, fg="blue", err=True)
 
 
 def print_current_storage_directory(current_dir: Path | None = None) -> Path:
