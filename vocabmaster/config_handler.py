@@ -4,7 +4,6 @@ import platform
 import tempfile
 from copy import deepcopy
 from pathlib import Path
-from typing import Optional
 
 APP_NAME = "vocabmaster"
 CONFIG_FILENAME = "config.json"
@@ -29,7 +28,7 @@ def _get_config_base_dir() -> Path:
     return Path.home() / ".config" / APP_NAME
 
 
-def _get_legacy_config_path() -> Optional[Path]:
+def _get_legacy_config_path() -> Path | None:
     """
     Return the legacy configuration file path used in previous releases.
     """
@@ -337,7 +336,7 @@ def get_all_language_pairs():
     return config.get("language_pairs", [])
 
 
-def get_deck_name(language_to_learn: str, mother_tongue: str) -> Optional[str]:
+def get_deck_name(language_to_learn: str, mother_tongue: str) -> str | None:
     """
     Get the custom deck name for a language pair, if configured.
 
