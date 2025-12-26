@@ -5,7 +5,7 @@ from pathlib import Path
 import click
 import openai
 
-from vocabmaster import config_handler, csv_handler, gpt_integration
+from vocabmaster import config_handler, csv_handler, gpt_integration, recovery
 
 from . import utils
 from .utils import openai_api_key_exists, setup_backup_dir, setup_dir, setup_files
@@ -1467,3 +1467,238 @@ def handle_rate_limit_error():
         " here:\nhttps://platform.openai.com/account/billing/limits"
     )
     click.echo()
+
+
+# --- Recovery Commands ---
+
+
+@vocabmaster.group("recover", invoke_without_command=True)
+@click.pass_context
+def recover(ctx):
+    """
+    Backup recovery and data restoration tools.
+
+    \b
+    Subcommands:
+      list      List available backups for a language pair
+      restore   Restore vocabulary CSV from a backup
+      validate  Validate backup integrity
+    """
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
+
+
+@recover.command("list")
+@click.option(
+    "--pair",
+    type=str,
+    help="Language pair (e.g., english:french). Defaults to current default.",
+    required=False,
+)
+def recover_list(pair):
+    """
+    List available backups for a language pair.
+
+    Displays all backup files with timestamps and metadata.
+
+    \b
+    Examples:
+      vocabmaster recover list
+      vocabmaster recover list --pair spanish:english
+    """
+    try:
+        language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
+    except Exception as error:
+        click.echo(f"{ERROR_PREFIX} {error}", err=True)
+        if pair is None:
+            click.echo(
+                f"Hint: Run '{click.style('vocabmaster pairs add', bold=True)}' to create a language pair.",
+                err=True,
+            )
+        sys.exit(1)
+
+    backups = utils.list_backups(language_to_learn, mother_tongue)
+
+    if not backups:
+        click.echo(f"No backups found for {language_to_learn}:{mother_tongue}")
+        return
+
+    click.secho(
+        f"Backups for {language_to_learn}:{mother_tongue} ({len(backups)} total):",
+        fg="blue",
+    )
+    click.echo()
+
+    for idx, backup in enumerate(backups, start=1):
+        timestamp_display = recovery.format_backup_timestamp(backup["timestamp"])
+        size_kb = backup["size"] / 1024
+
+        type_color = {
+            "vocabulary": "green",
+            "gpt-response": "yellow",
+            "anki-deck": "cyan",
+        }.get(backup["type"], "white")
+
+        click.echo(f"  {idx}. ", nl=False)
+        click.secho(f"[{backup['type']}]", fg=type_color, nl=False)
+        click.echo(f" {timestamp_display} ({size_kb:.1f} KB)")
+        click.echo(f"     {backup['filename']}")
+
+
+@recover.command("restore")
+@click.option(
+    "--pair",
+    type=str,
+    help="Language pair (e.g., english:french). Defaults to current default.",
+    required=False,
+)
+@click.option(
+    "--backup-id",
+    type=int,
+    help="Backup number from 'recover list' output.",
+    required=False,
+)
+@click.option(
+    "--latest",
+    is_flag=True,
+    help="Restore from the most recent vocabulary backup.",
+)
+def recover_restore(pair, backup_id, latest):
+    """
+    Restore vocabulary CSV from a backup.
+
+    Creates a pre-restore backup before overwriting the current file.
+
+    \b
+    Examples:
+      vocabmaster recover restore --latest
+      vocabmaster recover restore --backup-id 3
+    """
+    try:
+        language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
+    except Exception as error:
+        click.echo(f"{ERROR_PREFIX} {error}", err=True)
+        sys.exit(1)
+
+    if not latest and backup_id is None:
+        click.echo(f"{ERROR_PREFIX} Specify --latest or --backup-id.", err=True)
+        click.echo(
+            f"Hint: Run '{click.style('vocabmaster recover list', bold=True)}' to see available backups.",
+            err=True,
+        )
+        sys.exit(1)
+
+    if latest and backup_id is not None:
+        click.echo(f"{ERROR_PREFIX} Cannot use both --latest and --backup-id.", err=True)
+        sys.exit(1)
+
+    # Get the backup to restore
+    if latest:
+        backup = recovery.get_latest_backup(language_to_learn, mother_tongue, "vocabulary")
+        if backup is None:
+            click.echo(f"{ERROR_PREFIX} No vocabulary backups found.", err=True)
+            sys.exit(1)
+        backup_path = backup["path"]
+    else:
+        backups = utils.list_backups(language_to_learn, mother_tongue)
+
+        if backup_id < 1 or backup_id > len(backups):
+            click.echo(
+                f"{ERROR_PREFIX} Invalid backup ID. Must be between 1 and {len(backups)}.",
+                err=True,
+            )
+            sys.exit(1)
+
+        backup = backups[backup_id - 1]
+        if backup["type"] != "vocabulary":
+            click.echo(
+                f"{WARNING_PREFIX} Selected backup is a {backup['type']}, not a vocabulary file.",
+                err=True,
+            )
+            if not click.confirm("Continue anyway?", default=False):
+                click.echo("Restore cancelled.")
+                return
+        backup_path = backup["path"]
+
+    # Confirm restoration
+    timestamp_display = recovery.format_backup_timestamp(backup["timestamp"])
+    click.echo(f"Restoring from backup: {backup['filename']}")
+    click.echo(f"Timestamp: {timestamp_display}")
+
+    if not click.confirm("Proceed with restore?", default=False):
+        click.echo("Restore cancelled.")
+        return
+
+    # Perform restoration
+    result = recovery.restore_vocabulary_from_backup(backup_path, language_to_learn, mother_tongue)
+
+    if result["success"]:
+        click.secho("Vocabulary restored successfully!", fg="green")
+        click.echo(f"Restored to: {result['restored_path']}")
+        if result["pre_restore_backup"]:
+            click.echo(f"Pre-restore backup: {result['pre_restore_backup']}")
+    else:
+        click.echo(f"{ERROR_PREFIX} Restore failed: {result['error']}", err=True)
+        sys.exit(1)
+
+
+@recover.command("validate")
+@click.option(
+    "--pair",
+    type=str,
+    help="Language pair to validate. Defaults to current default.",
+    required=False,
+)
+def recover_validate(pair):
+    """
+    Validate backup integrity.
+
+    Checks all backups for the specified language pair to ensure they are
+    parseable and properly formatted.
+
+    \b
+    Examples:
+      vocabmaster recover validate
+      vocabmaster recover validate --pair spanish:english
+    """
+    try:
+        language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
+    except Exception as error:
+        click.echo(f"{ERROR_PREFIX} {error}", err=True)
+        sys.exit(1)
+
+    click.echo(f"Validating backups for {language_to_learn}:{mother_tongue}...")
+    click.echo()
+
+    validation = recovery.validate_all_backups(language_to_learn, mother_tongue)
+
+    if validation["total"] == 0:
+        click.echo("No backups found.")
+        return
+
+    # Summary
+    click.secho("Validation Summary:", fg="blue", bold=True)
+    click.echo(f"  Total backups: {validation['total']}")
+    click.secho(f"  Valid: {validation['valid']}", fg="green")
+    if validation["invalid"] > 0:
+        click.secho(f"  Invalid: {validation['invalid']}", fg="red")
+    click.echo()
+
+    # Details
+    click.secho("Details:", fg="blue")
+    for result in validation["results"]:
+        status = click.style("OK", fg="green") if result["valid"] else click.style("FAIL", fg="red")
+        click.echo(f"  [{status}] {result['filename']}")
+        click.echo(f"       Type: {result['type']}, Format: {result['format_version']}")
+        if result["rows"] is not None:
+            click.echo(f"       Rows: {result['rows']}")
+        if result["error"]:
+            click.secho(f"       Error: {result['error']}", fg="red")
+
+    if validation["invalid"] > 0:
+        click.echo()
+        click.secho(
+            f"{WARNING_PREFIX} {validation['invalid']} backup(s) have issues.",
+            fg="yellow",
+            err=True,
+        )
