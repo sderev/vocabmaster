@@ -127,24 +127,17 @@ class AliasedGroup(click.Group):
 @click.pass_context
 def vocabmaster(ctx):
     """
-    VocabMaster is a command-line tool to help you learn vocabulary.
+    Build vocabulary flashcards with AI-generated translations and examples.
 
-    It uses ChatGPT to generate translations and examples for your words,
-    and creates an Anki deck for you to import.
+    \b
+    Quick start:
+      vocabmaster pairs add          # Create a language pair
+      vocabmaster add "to have"      # Add a word
+      vocabmaster translate          # Generate Anki deck
 
-    Start by setting up a new language pair:
-    'vocabmaster pairs add'
-
-    Add words to your vocabulary list:
-    'vocabmaster add to have'
-
-    Generate an Anki deck from your vocabulary list:
-    'vocabmaster translate'
-
-    You can find help for each command by running:
-    'vocabmaster <command> --help'
-
-    For more information, please visit https://github.com/sderev/vocabmaster.
+    \b
+    More info:
+      https://github.com/sderev/vocabmaster
     """
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
@@ -154,20 +147,19 @@ def vocabmaster(ctx):
 @click.option(
     "--pair",
     type=str,
-    help=(
-        "This overrides the default language pair. Specify in the format"
-        " 'language_to_learn:mother_tongue'. For example: 'english:french'."
-    ),
+    help="Language pair (e.g., english:french). Overrides default.",
     required=False,
 )
 @click.argument("word", type=str, nargs=-1)
 def add(pair, word):
     """
-    Add a word to the vocabulary list, if not already present.
+    Add a word to the vocabulary list.
 
-    WORD: The word or phrase to be added to the vocabulary list.
-
-    Examples: 'good', 'to be', 'a cat'
+    \b
+    Examples:
+      vocabmaster add good
+      vocabmaster add "to be"
+      vocabmaster add --pair spanish:english hola
     """
     try:
         language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
@@ -212,32 +204,33 @@ def add(pair, word):
 @click.option(
     "--pair",
     type=str,
-    help=(
-        "This overrides the default language pair. Specify in the format"
-        " 'language_to_learn:mother_tongue'. For example: 'english:french'."
-    ),
+    help="Language pair (e.g., english:french). Overrides default.",
     required=False,
 )
 @click.option(
     "--count",
     is_flag=True,
-    help="Show the number of words remaining to be translated in the vocabulary list.",
+    help="Show count of untranslated words and exit.",
     required=False,
 )
 @click.option(
     "--deck-name",
     type=str,
-    help="Custom deck name (overrides config setting).",
+    help="Custom Anki deck name (overrides config).",
     required=False,
 )
 def translate(pair, count, deck_name):
     """
-    Translate, Add examples, and Generate an Anki deck.
+    Translate words and generate an Anki deck.
 
-    This command reads your vocabulary list, fetches translations and examples,
-    and creates an Anki-ready file for import.
+    Reads your vocabulary list, fetches AI-generated translations and examples,
+    then creates an Anki-ready file for import.
 
-    The generated Anki deck will be saved in the same folder as your vocabulary list.
+    \b
+    Examples:
+      vocabmaster translate
+      vocabmaster translate --count
+      vocabmaster translate --pair spanish:english
     """
     try:
         language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
@@ -371,23 +364,26 @@ def generate_anki_deck(
 @click.option(
     "--pair",
     type=str,
-    help=(
-        "Generate the deck for a specific language pair. Specify in the format "
-        "'language_to_learn:mother_tongue'."
-    ),
+    help="Language pair (e.g., english:french). Overrides default.",
     required=False,
 )
 @click.option(
     "--deck-name",
     type=str,
-    help="Custom deck name (overrides config setting).",
+    help="Custom Anki deck name (overrides config).",
     required=False,
 )
 def anki(pair, deck_name):
     """
-    Generate an Anki deck from your vocabulary list.
+    Generate an Anki deck from existing translations.
 
-    The Anki deck will be saved in the same folder as your vocabulary list.
+    Unlike `translate`, this does not fetch new translations. Use this to
+    regenerate the Anki file after editing the vocabulary CSV manually.
+
+    \b
+    Examples:
+      vocabmaster anki
+      vocabmaster anki --deck-name "My Vocabulary"
     """
     try:
         language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
@@ -518,10 +514,12 @@ def create_language_pair_interactively():
 @click.pass_context
 def config(ctx):
     """
-    Manage VocabMaster configuration such as language pairs, storage location, and API keys.
+    Manage storage location and API key settings.
 
-    Run 'vocabmaster config dir' to choose where CSV and Anki files are stored. The configuration
-    file itself always lives under ~/.config/vocabmaster/config.json.
+    \b
+    Subcommands:
+      dir    Set data directory for vocabulary and Anki files
+      key    Check OpenAI API key status
     """
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
@@ -532,12 +530,17 @@ def config(ctx):
     "--show",
     "show_only",
     is_flag=True,
-    help="Display the current storage directory and exit without making changes.",
+    help="Display current directory and exit.",
 )
 @click.argument("directory", required=False)
 def config_dir(show_only, directory):
     """
-    Set the dir where the vocab list and Anki deck are stored.
+    Set the data directory for vocabulary and Anki files.
+
+    \b
+    Examples:
+      vocabmaster config dir --show
+      vocabmaster config dir ~/vocabmaster-data
     """
     current_dir = config_handler.get_data_directory()
     if show_only and directory is not None:
@@ -588,7 +591,9 @@ def config_dir(show_only, directory):
 @config.command("key")
 def config_key():
     """
-    Set the OpenAI API key.
+    Check if the OpenAI API key is configured.
+
+    The key must be set via the OPENAI_API_KEY environment variable.
     """
     if openai_api_key_exists():
         click.secho("OpenAI API key found!", fg="green")
@@ -633,7 +638,18 @@ def openai_api_key_explain():
 @click.pass_context
 def pairs(ctx):
     """
-    Manage language pairs (list, add, remove, rename, inspect).
+    Manage language pairs.
+
+    \b
+    Subcommands:
+      list           List all language pairs
+      add            Create a new language pair
+      remove         Remove language pairs
+      rename         Rename a language pair
+      default        Show current default pair
+      set-default    Change default pair
+      set-deck-name  Set custom Anki deck name
+      inspect        Show pair details and stats
     """
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
@@ -641,9 +657,7 @@ def pairs(ctx):
 
 @pairs.command("list")
 def pairs_list():
-    """
-    List all configured language pairs.
-    """
+    """List all configured language pairs."""
     print_all_language_pairs(
         f"Use {click.style('vocabmaster pairs add', bold=True)} to add a new language pair."
     )
@@ -651,17 +665,13 @@ def pairs_list():
 
 @pairs.command("add")
 def pairs_add():
-    """
-    Create a new language pair.
-    """
+    """Create a new language pair interactively."""
     create_language_pair_interactively()
 
 
 @pairs.command("default")
 def pairs_default_command():
-    """
-    Show the current default language pair.
-    """
+    """Show the current default language pair."""
     print_default_language_pair()
     click.secho("You can change the default language pair at any time by running:", fg="blue")
     click.secho("vocabmaster pairs set-default", bold=True)
@@ -669,9 +679,7 @@ def pairs_default_command():
 
 @pairs.command("set-default")
 def pairs_set_default_command():
-    """
-    Set the default language pair.
-    """
+    """Set the default language pair interactively."""
     language_pairs = get_language_pairs_or_abort(
         f"Use {click.style('vocabmaster pairs add', bold=True)} to add a new language pair.",
         "No language pairs found. Run 'vocabmaster pairs add' to add one before setting a default.",
@@ -681,10 +689,7 @@ def pairs_set_default_command():
 
 @pairs.command("remove")
 def pairs_remove_command():
-    """
-    Remove one or multiple language pairs.
-    """
-
+    """Remove one or more language pairs interactively."""
     language_pairs = get_language_pairs_or_abort(
         f"Use {click.style('vocabmaster pairs add', bold=True)} to add a new language pair.",
         "No language pairs found. Run 'vocabmaster pairs add' to add one before removing.",
@@ -699,9 +704,7 @@ def pairs_remove_command():
 
 @pairs.command("rename")
 def pairs_rename_command():
-    """
-    Rename an existing language pair.
-    """
+    """Rename an existing language pair interactively."""
     language_pairs = get_language_pairs_or_abort(
         f"Use {click.style('vocabmaster pairs add', bold=True)} to add a new language pair.",
         "No language pairs found. Run 'vocabmaster pairs add' to add one before renaming.",
@@ -824,23 +827,29 @@ def pairs_rename_command():
 @click.option(
     "--pair",
     type=str,
-    help=("Language pair to configure. Specify in the format 'language_to_learn:mother_tongue'."),
+    help="Language pair (e.g., english:french). Omit to select interactively.",
     required=False,
 )
 @click.option(
     "--name",
     type=str,
-    help="Custom deck name to set. Omit to be prompted interactively.",
+    help="Deck name to set. Omit to be prompted.",
     required=False,
 )
 @click.option(
     "--remove",
     is_flag=True,
-    help="Remove the custom deck name (revert to auto-generation).",
+    help="Remove custom name (revert to auto-generated).",
 )
 def pairs_set_deck_name_command(pair, name, remove):
     """
-    Set or remove a custom deck name for a language pair.
+    Set or remove a custom Anki deck name for a language pair.
+
+    \b
+    Examples:
+      vocabmaster pairs set-deck-name
+      vocabmaster pairs set-deck-name --pair english:french --name "My Vocab"
+      vocabmaster pairs set-deck-name --remove
     """
     # Get language pair (either from option or by prompting)
     if pair:
@@ -971,14 +980,14 @@ def pairs_set_deck_name_command(pair, name, remove):
 @click.option(
     "--pair",
     type=str,
-    help=(
-        "Inspect a specific language pair. Specify in the format 'language_to_learn:mother_tongue'."
-    ),
+    help="Language pair (e.g., english:french). Defaults to current default.",
     required=False,
 )
 def pairs_inspect_command(pair):
     """
-    Inspect a language pair and display storage information.
+    Show details and stats for a language pair.
+
+    Displays vocabulary file location, word counts, and cost estimates.
     """
     if pair is None:
         default_pair = config_handler.get_default_language_pair()
@@ -1079,15 +1088,19 @@ def pairs_inspect_command(pair):
 @click.option(
     "--pair",
     type=str,
-    help=(
-        "Estimate tokens for a specific language pair. Specify in the format "
-        "'language_to_learn:mother_tongue'."
-    ),
+    help="Language pair (e.g., english:french). Overrides default.",
     required=False,
 )
 def tokens(pair):
     """
-    Estimate input-token usage for the next translation run (output tokens are not included).
+    Estimate input token usage and cost for the next translation.
+
+    Calculates the prompt size for pending words. Output tokens are not included.
+
+    \b
+    Examples:
+      vocabmaster tokens
+      vocabmaster tokens --pair spanish:english
     """
     try:
         language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
