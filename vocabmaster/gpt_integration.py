@@ -98,7 +98,19 @@ def chatgpt_request(
     stream=False,
 ):
     start_time = time.monotonic_ns()
-    openai.api_key = os.getenv("OPENAI_API_KEY")
+
+    # Handle API key: prefer already-set SDK key, otherwise read from environment
+    if not openai.api_key:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is not set")
+
+        openai.api_key = api_key
+
+        # Remove from environment to limit exposure window and prevent subprocess
+        # inheritance. Note: doesn't prevent initial /proc/PID/environ visibility
+        # at process start - this is defense-in-depth, not complete protection.
+        os.environ.pop("OPENAI_API_KEY", None)
 
     # Make the API request
     response = openai.ChatCompletion.create(
