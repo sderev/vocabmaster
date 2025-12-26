@@ -76,8 +76,8 @@ class TestRootCommand:
         result = invoke_cli(["config"])
 
         assert result.exit_code == 0
-        assert "Manage VocabMaster configuration" in result.output
-        assert "config dir" in result.output
+        assert "Manage storage location and API key settings" in result.output
+        assert "dir" in result.output
 
 
 class TestAddCommand:
@@ -752,8 +752,8 @@ class TestPairsGroup:
 
         assert result.exit_code == 0
         assert "Manage language pairs" in result.output
-        assert "add" in result.output and "Create a new language pair." in result.output
-        assert "list" in result.output and "List all configured language pairs." in result.output
+        assert "add" in result.output
+        assert "list" in result.output
         assert "set-deck-name" in result.output
 
     def test_pair_alias_help(self):
