@@ -229,6 +229,30 @@ class TestBackupValidation:
         assert result["version"] == "4-col"
         assert result["error"] is None
 
+    def test_get_format_version_gpt_response_invalid_columns(self, tmp_path):
+        """Detect invalid GPT response format when column count is wrong."""
+        backup_file = tmp_path / "gpt_request_timestamp.bak"
+        backup_file.write_text("hello\tbonjour\n", encoding="utf-8")
+
+        result = utils.get_backup_format_version(backup_file)
+
+        assert result["version"] == "unknown"
+        assert "Line 1" in result["error"]
+
+    def test_get_format_version_gpt_response_mixed_columns(self, tmp_path):
+        """Detect mixed GPT response format when column counts differ."""
+        backup_file = tmp_path / "gpt_request_timestamp.bak"
+        backup_file.write_text(
+            "hello\t'bonjour'\t\"Hello world\"\n"
+            "brethen\tbrethren\t'brothers'\t\"The brethren gather\"\n",
+            encoding="utf-8",
+        )
+
+        result = utils.get_backup_format_version(backup_file)
+
+        assert result["version"] == "mixed"
+        assert "Mixed column counts" in result["error"]
+
     def test_get_format_version_csv_vocabulary(self, tmp_path):
         """Detect vocabulary CSV format."""
         backup_file = tmp_path / "vocab_list_en-fr_timestamp.bak"
@@ -484,6 +508,35 @@ class TestRestoreVocabulary:
         assert "hello,bonjour,Hello world" in content
         assert "helo" not in content  # original typo should not appear
 
+    def test_restore_headerless_migration_failure_keeps_existing_file(
+        self, tmp_path, fake_home, monkeypatch
+    ):
+        """Migration failure does not overwrite existing vocabulary file."""
+        from vocabmaster import config_handler
+
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        config_handler.set_data_directory(data_dir)
+
+        original_content = "word,translation,example\nworld,monde,World\n"
+        vocab_file = data_dir / "vocab_list_english-french.csv"
+        vocab_file.write_text(original_content)
+
+        backup_dir = data_dir / ".backup" / "english-french"
+        backup_dir.mkdir(parents=True)
+        backup_file = backup_dir / "vocab_list_english-french_2024-01-01T12_00_00.bak"
+        backup_file.write_text("helo\thello\tbonjour\tHello world\n")
+
+        def fake_detect(_path):
+            return {"delimiter": "\t", "columns": 3}
+
+        monkeypatch.setattr(recovery, "_detect_headerless_backup_format", fake_detect)
+
+        result = recovery.restore_vocabulary_from_backup(backup_file, "english", "french")
+
+        assert result["success"] is False
+        assert vocab_file.read_text() == original_content
+
 
 class TestValidateAllBackups:
     """Test bulk backup validation."""
@@ -526,6 +579,28 @@ class TestValidateAllBackups:
         assert result["total"] == 2
         assert result["valid"] == 1
         assert result["invalid"] == 1
+
+    def test_validate_all_flags_invalid_gpt_response(self, tmp_path, fake_home, monkeypatch):
+        """Validate marks malformed GPT response backups as invalid."""
+        from vocabmaster import config_handler
+
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        config_handler.set_data_directory(data_dir)
+
+        backup_dir = data_dir / ".backup" / "english-french"
+        backup_dir.mkdir(parents=True)
+
+        gpt_backup = backup_dir / "gpt_request_2024-01-01T12_00_00.bak"
+        gpt_backup.write_text("hello\tbonjour\n")
+
+        result = recovery.validate_all_backups("english", "french")
+
+        assert result["total"] == 1
+        assert result["valid"] == 0
+        assert result["invalid"] == 1
+        assert result["results"][0]["type"] == "gpt-response"
+        assert result["results"][0]["valid"] is False
 
     def test_validate_all_counts_pre_restore(self, tmp_path, fake_home, monkeypatch):
         """Validate treats pre-restore backups as vocabulary files."""
