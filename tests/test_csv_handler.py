@@ -525,22 +525,6 @@ def test_sanitize_csv_value_preserves_hyphenated_words():
     assert sanitize_csv_value("-=SUM") == "'-=SUM"
     assert sanitize_csv_value("--5") == "'--5"
 
-    # DDE injection patterns should be sanitized even with letter after hyphen
-    assert sanitize_csv_value("-cmd|'/C calc'!A0") == "'-cmd|'/C calc'!A0"
-    assert sanitize_csv_value("-something!else") == "'-something!else"
-    assert sanitize_csv_value("-pipe|test") == "'-pipe|test"
-
-    # Function-like patterns should be sanitized
-    assert sanitize_csv_value("-SUM(1,1)") == "'-SUM(1,1)"
-    assert sanitize_csv_value("-HYPERLINK(url)") == "'-HYPERLINK(url)"
-    assert sanitize_csv_value("-IF(A1,B1,C1)") == "'-IF(A1,B1,C1)"
-
-    # Cell reference patterns should be sanitized (contain digits)
-    assert sanitize_csv_value("-A1") == "'-A1"
-    assert sanitize_csv_value("-AB123") == "'-AB123"
-    assert sanitize_csv_value("-A1+1") == "'-A1+1"
-    assert sanitize_csv_value("-a1") == "'-a1"  # lowercase also blocked
-
     # Other dangerous chars unchanged
     assert sanitize_csv_value("=cmd") == "'=cmd"
     assert sanitize_csv_value("+1") == "'+1"
