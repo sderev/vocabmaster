@@ -1,4 +1,6 @@
 import csv
+import os
+import tempfile
 from csv import DictReader, DictWriter
 from pathlib import Path
 
@@ -16,11 +18,41 @@ ALL_WORDS_TRANSLATED_MESSAGE = (
 )
 
 
+def atomic_write_csv(filepath, write_function):
+    """
+    Write CSV atomically using temp-then-rename pattern.
+
+    Creates a temporary file in the same directory as the target, writes content
+    via the provided callback, then atomically replaces the target file. This
+    ensures the file is never left in a corrupted state if the process is killed
+    during write.
+
+    Args:
+        filepath: Path to the target CSV file (str or Path)
+        write_function: Callable that receives the open file handle and writes content
+    """
+    filepath = Path(filepath)
+    temp_fd, temp_path = tempfile.mkstemp(
+        dir=filepath.parent, prefix=".csv_", suffix=".tmp", text=True
+    )
+    try:
+        with os.fdopen(temp_fd, "w", encoding="utf-8", newline="") as file:
+            write_function(file)
+        os.replace(temp_path, str(filepath))
+    except Exception:
+        try:
+            os.unlink(temp_path)
+        except OSError:
+            pass
+        raise
+
+
 def sanitize_csv_value(value: str) -> str:
     """
     Sanitize value for safe CSV storage.
 
     Prevents CSV injection by prefixing dangerous characters with single quote.
+    Only sanitizes hyphen when it appears formula-like (e.g., "-123", "-=SUM").
 
     Args:
         value: Value to sanitize
@@ -31,10 +63,18 @@ def sanitize_csv_value(value: str) -> str:
     if not value:
         return value
 
-    # Prefix dangerous characters with single quote to prevent formula injection
-    # Excel/LibreOffice interpret =, +, -, @ at start as formulas
-    if value and value[0] in ("=", "+", "-", "@", "\t", "\r", "\n"):
+    first_char = value[0]
+
+    # Always sanitize these formula starters
+    if first_char in ("=", "+", "@", "\t", "\r", "\n"):
         return "'" + value
+
+    # For hyphen, only sanitize if it looks like a formula (not natural language)
+    # "-123" or "-=" are formulas; "-word" or "-ism" are vocabulary
+    if first_char == "-" and len(value) > 1:
+        second_char = value[1]
+        if second_char.isdigit() or second_char in ("=", "+", "-", "@"):
+            return "'" + value
 
     return value
 
@@ -179,16 +219,31 @@ def append_word(word, translations_filepath):
     """
     Appends the word to the translations file with empty translation and example fields.
 
+    Uses atomic write to prevent corruption if interrupted.
+
     Args:
         word (str): The word to be appended to the file.
         translations_filepath (str): The path to the file containing the list of words.
     """
+    translations_filepath = Path(translations_filepath)
+
     # Sanitize word before appending to prevent CSV injection
     safe_word = sanitize_csv_value(word)
 
-    with open(translations_filepath, "a", encoding="UTF-8") as file:
+    # Read existing content
+    existing_content = ""
+    if translations_filepath.exists():
+        existing_content = translations_filepath.read_text(encoding="utf-8")
+
+    def write_with_append(file):
+        file.write(existing_content)
+        # Ensure we're on a new line if file has content
+        if existing_content and not existing_content.endswith("\n"):
+            file.write("\n")
         dict_writer = DictWriter(file, fieldnames=CSV_FIELDNAMES)
         dict_writer.writerow({"word": safe_word, "translation": "", "example": ""})
+
+    atomic_write_csv(translations_filepath, write_with_append)
 
 
 def get_words_to_translate(translations_path):
@@ -451,8 +506,8 @@ def add_translations_and_examples_to_file(translations_path, pair):
 
         click.echo()
 
-    # Write the updated translations and examples to the output file
-    with open(translations_path, "w", encoding="UTF-8") as output_file:
+    # Write the updated translations and examples to the output file atomically
+    def write_translations(output_file):
         writer = DictWriter(output_file, fieldnames=CSV_FIELDNAMES)
         writer.writeheader()
 
@@ -476,6 +531,8 @@ def add_translations_and_examples_to_file(translations_path, pair):
 
             # Write the updated entry to the output file
             writer.writerow(current_entry)
+
+    atomic_write_csv(translations_path, write_translations)
 
     # Create a backup of the translations file
     utils.backup_file(backup_dir, translations_path)
@@ -523,6 +580,8 @@ def generate_anki_output_file(
     formatted as an Anki deck with proper headers. The resulting file can be imported into Anki to create flashcards
     with the word on the front and the translation and example on the back.
 
+    Uses atomic write to prevent corruption if interrupted.
+
     Args:
         translations_path (str): The path to the CSV file containing the translations and examples.
         anki_output_file (str): The path to the output TSV file formatted for Anki import.
@@ -536,15 +595,15 @@ def generate_anki_output_file(
     # Ensure the source file contains the expected header so the DictReader can parse rows safely.
     ensure_csv_has_fieldnames(translations_path)
 
-    with (
-        open(translations_path, encoding="UTF-8") as translations_file,
-        open(anki_output_file, "w", encoding="UTF-8") as anki_file,
-    ):
+    # Read all translations first
+    with open(translations_path, encoding="UTF-8") as translations_file:
+        translations_dict_reader = DictReader(translations_file)
+        all_translations = list(translations_dict_reader)
+
+    def write_anki_deck(anki_file):
         # Write Anki headers first
         headers = generate_anki_headers(language_to_learn, mother_tongue, custom_deck_name)
         anki_file.write(headers + "\n")
-
-        translations_dict_reader = DictReader(translations_file)
 
         anki_dict_writer = DictWriter(
             anki_file,
@@ -553,27 +612,30 @@ def generate_anki_output_file(
             delimiter="\t",
         )
 
-        for translations in translations_dict_reader:
+        for translations in all_translations:
             if not translations["translation"] or not translations["example"]:
                 continue
             else:
-                translations["translation"] = translations["translation"].strip('"')
+                translation_text = translations["translation"].strip('"')
 
                 # Create a card with the word on the front, and the translations and example on the back
                 card = {
                     "Front": translations["word"],
-                    "Back": f"{translations['translation']}<br><br><details><summary>example</summary><i>&quot;{translations['example']}&quot;</i></details>",
+                    "Back": f"{translation_text}<br><br><details><summary>example</summary><i>&quot;{translations['example']}&quot;</i></details>",
                 }
 
                 # Write the card to the Anki output file
                 anki_dict_writer.writerow(card)
+
+    atomic_write_csv(anki_output_file, write_anki_deck)
 
 
 def ensure_csv_has_fieldnames(translations_path, fieldnames=None):
     """
     Ensure the CSV file starts with the expected fieldnames.
 
-    The header row is inserted only when it is missing.
+    The header row is inserted only when it is missing. Uses atomic write to
+    prevent corruption if interrupted during the insert.
 
     Args:
         translations_path (str): The path to the CSV file.
@@ -582,7 +644,9 @@ def ensure_csv_has_fieldnames(translations_path, fieldnames=None):
     if fieldnames is None:
         fieldnames = CSV_FIELDNAMES
 
-    with open(translations_path, "r+", encoding="UTF-8") as file:
+    translations_path = Path(translations_path)
+
+    with open(translations_path, "r", encoding="UTF-8") as file:
         # Check if the fieldnames is already present in the first row of the content
         for line in file:
             if line.startswith(",".join(fieldnames)):
@@ -592,11 +656,14 @@ def ensure_csv_has_fieldnames(translations_path, fieldnames=None):
 
         file.seek(0, 0)  # Move the file pointer to the beginning of the file
         content = file.read()
-        file.seek(0, 0)
 
-        writer = csv.writer(file)
+    # Need to insert header row - use atomic write
+    def write_with_header(output_file):
+        writer = csv.writer(output_file)
         writer.writerow(fieldnames)  # Write the fieldnames to the first row
-        file.write(content)  # Write the original content after the fieldnames
+        output_file.write(content)  # Write the original content after the fieldnames
+
+    atomic_write_csv(translations_path, write_with_header)
 
 
 def vocabulary_list_is_empty(translations_path):

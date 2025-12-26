@@ -511,6 +511,26 @@ def test_csv_injection_prevention():
     assert csv_handler.sanitize_csv_value("normal text") == "normal text"
 
 
+def test_sanitize_csv_value_preserves_hyphenated_words():
+    """Ensure vocabulary words starting with hyphen are not corrupted."""
+    from vocabmaster.csv_handler import sanitize_csv_value
+
+    # Natural language hyphens should be preserved
+    assert sanitize_csv_value("-ism") == "-ism"
+    assert sanitize_csv_value("-able") == "-able"
+    assert sanitize_csv_value("-ing") == "-ing"
+
+    # Formula-like patterns should still be sanitized
+    assert sanitize_csv_value("-123") == "'-123"
+    assert sanitize_csv_value("-=SUM") == "'-=SUM"
+    assert sanitize_csv_value("--5") == "'--5"
+
+    # Other dangerous chars unchanged
+    assert sanitize_csv_value("=cmd") == "'=cmd"
+    assert sanitize_csv_value("+1") == "'+1"
+    assert sanitize_csv_value("@mention") == "'@mention"
+
+
 def test_lm_responses_are_sanitized(tmp_path, monkeypatch):
     """Test that LM responses containing formulas are sanitized before writing to CSV."""
 
