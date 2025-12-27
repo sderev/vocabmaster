@@ -44,10 +44,12 @@ def atomic_write_csv(filepath, write_function):
         dir=filepath.parent, prefix=".csv_", suffix=".tmp", text=True
     )
     try:
-        if existing_mode is not None:
-            os.chmod(temp_path, existing_mode)
         with os.fdopen(temp_fd, "w", encoding="utf-8", newline="") as file:
             write_function(file)
+        # Apply permissions after writing (not before) to avoid write failure
+        # when the original file is read-only
+        if existing_mode is not None:
+            os.chmod(temp_path, existing_mode)
         os.replace(temp_path, str(filepath))
     except Exception:
         try:
@@ -131,14 +133,18 @@ def sanitize_csv_value(value: str) -> str:
 
     # For hyphen, sanitize if:
     # 1. Followed by digit or formula char (e.g., "-123", "-=SUM"), OR
-    # 2. Contains DDE injection patterns (pipe or exclamation mark), OR
-    # 3. Contains function call pattern (parenthesis indicates formula like -SUM())
+    # 2. Contains any digit (potential cell reference like "-A1", "-A1+1"), OR
+    # 3. Contains DDE injection patterns (pipe or exclamation mark), OR
+    # 4. Contains function call pattern (parenthesis indicates formula like -SUM())
     # This preserves legitimate vocabulary like "-ism" while blocking formulas
     if first_char == "-":
         if len(value) > 1:
             second_char = value[1]
             if second_char.isdigit() or second_char in ("=", "+", "-", "@"):
                 return "'" + value
+        # Block potential cell references (contain digits like -A1, -AB123)
+        if any(c.isdigit() for c in value[1:]):
+            return "'" + value
         # Block DDE injection and function-like patterns
         if "|" in value or "!" in value or "(" in value:
             return "'" + value
