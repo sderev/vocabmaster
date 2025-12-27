@@ -111,7 +111,8 @@ def sanitize_csv_value(value: str) -> str:
     Sanitize value for safe CSV storage.
 
     Prevents CSV injection by prefixing dangerous characters with single quote.
-    Only sanitizes hyphen when it appears formula-like (e.g., "-123", "-=SUM").
+    Only sanitizes hyphen when it appears formula-like (e.g., "-123", "-=SUM")
+    or contains DDE injection patterns.
 
     Args:
         value: Value to sanitize
@@ -128,11 +129,17 @@ def sanitize_csv_value(value: str) -> str:
     if first_char in ("=", "+", "@", "\t", "\r", "\n"):
         return "'" + value
 
-    # For hyphen, only sanitize if it looks like a formula (not natural language)
-    # "-123" or "-=" are formulas; "-word" or "-ism" are vocabulary
-    if first_char == "-" and len(value) > 1:
-        second_char = value[1]
-        if second_char.isdigit() or second_char in ("=", "+", "-", "@"):
+    # For hyphen, sanitize if:
+    # 1. Followed by digit or formula char (e.g., "-123", "-=SUM"), OR
+    # 2. Contains DDE injection patterns (pipe or exclamation mark)
+    # This preserves legitimate vocabulary like "-ism" while blocking "-cmd|'/C calc'!A0"
+    if first_char == "-":
+        if len(value) > 1:
+            second_char = value[1]
+            if second_char.isdigit() or second_char in ("=", "+", "-", "@"):
+                return "'" + value
+        # Block DDE injection patterns
+        if "|" in value or "!" in value:
             return "'" + value
 
     return value
