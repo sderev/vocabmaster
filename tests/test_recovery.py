@@ -2,6 +2,7 @@
 
 import csv
 import os
+import stat
 
 import pytest
 
@@ -82,6 +83,24 @@ class TestAtomicWriteCSV:
         content = output_file.read_text()
         assert "hello,bonjour" in content
         assert "new_word" not in content
+
+    def test_atomic_write_preserves_permissions(self, tmp_path):
+        """Atomic write keeps original file permissions when replacing."""
+        if os.name == "nt":
+            pytest.skip("Permissions semantics differ on Windows")
+
+        from vocabmaster.csv_handler import atomic_write_csv
+
+        output_file = tmp_path / "test.csv"
+        output_file.write_text("old content")
+        output_file.chmod(0o640)
+
+        def write_content(f):
+            f.write("new content")
+
+        atomic_write_csv(output_file, write_content)
+
+        assert stat.S_IMODE(output_file.stat().st_mode) == 0o640
 
 
 class TestValidateEntriesBeforeWrite:
@@ -277,6 +296,25 @@ class TestListBackups:
 
         assert len(backups) == 1
         assert backups[0]["type"] == "gpt-response"
+
+    def test_list_backups_finds_pre_restore(self, tmp_path, fake_home, monkeypatch):
+        """List finds pre-restore backups."""
+        from vocabmaster import config_handler
+
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        config_handler.set_data_directory(data_dir)
+
+        backup_dir = data_dir / ".backup" / "english-french"
+        backup_dir.mkdir(parents=True)
+
+        backup_file = backup_dir / "pre_restore_2024-01-01T12_00_00.bak"
+        backup_file.write_text("word,translation,example\nhello,bonjour,Hello\n")
+
+        backups = utils.list_backups("english", "french")
+
+        assert len(backups) == 1
+        assert backups[0]["type"] == "pre-restore"
 
 
 class TestRestoreVocabulary:
@@ -488,6 +526,27 @@ class TestValidateAllBackups:
         assert result["total"] == 2
         assert result["valid"] == 1
         assert result["invalid"] == 1
+
+    def test_validate_all_counts_pre_restore(self, tmp_path, fake_home, monkeypatch):
+        """Validate treats pre-restore backups as vocabulary files."""
+        from vocabmaster import config_handler
+
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        config_handler.set_data_directory(data_dir)
+
+        backup_dir = data_dir / ".backup" / "english-french"
+        backup_dir.mkdir(parents=True)
+
+        backup_file = backup_dir / "pre_restore_2024-01-01T12_00_00.bak"
+        backup_file.write_text("word,translation,example\nhello,bonjour,Hello\n")
+
+        result = recovery.validate_all_backups("english", "french")
+
+        assert result["total"] == 1
+        assert result["valid"] == 1
+        assert result["invalid"] == 0
+        assert result["results"][0]["type"] == "pre-restore"
 
 
 class TestFormatMigration:

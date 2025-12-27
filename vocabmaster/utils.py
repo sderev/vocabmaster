@@ -416,7 +416,7 @@ def list_backups(language_to_learn, mother_tongue):
             - path (pathlib.Path): Full path to backup file
             - filename (str): Backup filename
             - timestamp (str): Extracted timestamp from filename
-            - type (str): "vocabulary" or "gpt-response"
+            - type (str): "vocabulary", "gpt-response", "anki-deck", or "pre-restore"
             - size (int): File size in bytes
             - mtime (float): Modification time
     """
@@ -459,6 +459,10 @@ def list_backups(language_to_learn, mother_tongue):
             prefix = f"anki_deck_{pair_pattern}"
             if filename.startswith(prefix):
                 timestamp = filename[len(prefix) : -len(".bak")]
+        elif filename.startswith("pre_restore_"):
+            backup_type = "pre-restore"
+            # Format: pre_restore_TIMESTAMP.bak
+            timestamp = filename[len("pre_restore_") : -len(".bak")]
 
         backups.append(
             {
