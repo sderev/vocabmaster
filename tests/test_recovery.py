@@ -517,9 +517,9 @@ class TestValidateAllBackups:
         valid_backup = backup_dir / "vocab_list_english-french_valid.bak"
         valid_backup.write_text("word,translation,example\nhello,bonjour,Hello\n")
 
-        # Invalid vocabulary backup (wrong columns)
+        # Invalid vocabulary backup (wrong column count - not 3 or 4)
         invalid_backup = backup_dir / "vocab_list_english-french_invalid.bak"
-        invalid_backup.write_text("wrong,columns,here\ndata,data,data\n")
+        invalid_backup.write_text("only,two\ncolumns,here\n")
 
         result = recovery.validate_all_backups("english", "french")
 
