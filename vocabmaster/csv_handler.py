@@ -389,7 +389,14 @@ def convert_text_to_dict(generated_text):
         return value
 
     result = {}
-    for line in lines:
+    failed_entries = []
+
+    def _record_failure(line_number: int, columns: list[str]) -> str:
+        word_candidate = columns[0].strip() if columns and columns[0].strip() else "unknown"
+        failed_entries.append((line_number, word_candidate))
+        return word_candidate
+
+    for line_number, line in enumerate(lines, start=1):
         line = line.strip()
         if not line:
             continue
@@ -397,10 +404,16 @@ def convert_text_to_dict(generated_text):
         # Split and detect potential tab corruption
         columns = line.split("\t")
         if len(columns) > 4:
+            word_candidate = _record_failure(line_number, columns)
             # Likely has tabs within content - warn and skip to prevent data corruption
             click.echo(
-                f"{WARNING_PREFIX} Line appears corrupted (tabs in content?):\n{line}", err=True
+                (
+                    f"{WARNING_PREFIX} Line {line_number}: Line appears corrupted "
+                    f"(tabs in content?) for word '{word_candidate}'"
+                ),
+                err=True,
             )
+            click.echo(line, err=True)
             click.echo(
                 "Skipping line to prevent data corruption. Consider removing tabs from content.",
                 err=True,
@@ -418,7 +431,15 @@ def convert_text_to_dict(generated_text):
             original_word, recognized_word, translation_quoted, example_quoted = columns[:4]
         else:
             # Neither 3 nor 4+ columns - cannot parse
-            click.echo(f"{WARNING_PREFIX} Could not parse line:\n{line}", err=True)
+            word_candidate = _record_failure(line_number, columns)
+            click.echo(
+                (
+                    f"{WARNING_PREFIX} Line {line_number}: Could not parse word "
+                    f"'{word_candidate}' (expected 3-4 columns, got {len(columns)})"
+                ),
+                err=True,
+            )
+            click.echo(line, err=True)
             continue
 
         translation = _strip_wrapping(translation_quoted, "'")
@@ -429,6 +450,17 @@ def convert_text_to_dict(generated_text):
             "translation": translation,
             "example": example,
         }
+
+    if failed_entries:
+        click.echo(
+            (
+                f"{WARNING_PREFIX} Failed to parse {len(failed_entries)} line(s). "
+                "The following words may need review:"
+            ),
+            err=True,
+        )
+        for line_number, word_candidate in failed_entries:
+            click.echo(f"  Line {line_number}: '{word_candidate}'", err=True)
 
     return result
 
