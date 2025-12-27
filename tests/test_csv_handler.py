@@ -525,6 +525,11 @@ def test_sanitize_csv_value_preserves_hyphenated_words():
     assert sanitize_csv_value("-=SUM") == "'-=SUM"
     assert sanitize_csv_value("--5") == "'--5"
 
+    # DDE injection patterns should be sanitized even with letter after hyphen
+    assert sanitize_csv_value("-cmd|'/C calc'!A0") == "'-cmd|'/C calc'!A0"
+    assert sanitize_csv_value("-something!else") == "'-something!else"
+    assert sanitize_csv_value("-pipe|test") == "'-pipe|test"
+
     # Other dangerous chars unchanged
     assert sanitize_csv_value("=cmd") == "'=cmd"
     assert sanitize_csv_value("+1") == "'+1"
