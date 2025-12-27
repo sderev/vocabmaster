@@ -44,13 +44,38 @@ def _atomic_write_csv(output_path, write_function):
             pass
         raise
 
+
+def _detect_headerless_backup_format(backup_path):
+    """
+    Detect whether a backup is a headerless TSV or CSV file.
+
+    Returns a dict with delimiter and column count, or None if format is unsupported.
+    """
+    try:
+        for delimiter, valid_lengths in (("\t", {3, 4}), (",", {3})):
+            with open(backup_path, "r", encoding="utf-8", newline="") as infile:
+                reader = csv.reader(infile, delimiter=delimiter)
+                rows = [row for row in reader if any(cell.strip() for cell in row)]
+
+            if not rows:
+                continue
+
+            lengths = {len(row) for row in rows}
+            if len(lengths) == 1 and lengths.issubset(valid_lengths):
+                return {"delimiter": delimiter, "columns": lengths.pop()}
+
+        return None
+    except (OSError, csv.Error):
+        return None
+
+
 def _is_valid_headerless_backup(backup_path):
     """
     Check if a file is a valid headerless legacy backup.
 
-    Legacy backups were tab-separated files without headers, containing
-    3 columns (word, translation, example) or 4 columns (original_word,
-    recognized_word, translation, example).
+    Legacy backups were tab-separated files without headers (or headerless
+    CSV for vocab lists), containing 3 columns (word, translation, example)
+    or 4 columns (original_word, recognized_word, translation, example).
 
     Args:
         backup_path (pathlib.Path): Path to the backup file.
@@ -58,26 +83,12 @@ def _is_valid_headerless_backup(backup_path):
     Returns:
         bool: True if the file is a valid headerless backup.
     """
-    try:
-        content = backup_path.read_text(encoding="utf-8")
-        lines = [line for line in content.strip().split("\n") if line.strip()]
-
-        if not lines:
-            return False
-
-        for line in lines:
-            parts = line.split("\t")
-            if len(parts) not in (3, 4):
-                return False
-
-        return True
-    except OSError:
-        return False
+    return _detect_headerless_backup_format(backup_path) is not None
 
 
 def _migrate_headerless_to_csv(backup_path, output_path):
     """
-    Migrate a headerless TSV backup to proper CSV format with headers.
+    Migrate a headerless TSV or CSV backup to proper CSV format with headers.
 
     Args:
         backup_path (pathlib.Path): Path to the headerless backup.
@@ -86,34 +97,38 @@ def _migrate_headerless_to_csv(backup_path, output_path):
     Returns:
         bool: True if migration succeeded.
     """
+    format_info = _detect_headerless_backup_format(backup_path)
+    if not format_info:
+        return False
+
     try:
-        content = backup_path.read_text(encoding="utf-8")
-        lines = [line for line in content.strip().split("\n") if line.strip()]
+        with open(backup_path, "r", encoding="utf-8", newline="") as infile:
+            reader = csv.reader(infile, delimiter=format_info["delimiter"])
+            rows = [row for row in reader if any(cell.strip() for cell in row)]
 
         clean_rows = []
-        for line in lines:
-            parts = line.split("\t")
-            if len(parts) == 3:
+        for row in rows:
+            if len(row) != format_info["columns"]:
+                return False
+            if len(row) == 3:
                 # 3-col: word, translation, example
                 clean_rows.append(
                     {
-                        "word": parts[0],
-                        "translation": parts[1],
-                        "example": parts[2],
+                        "word": row[0],
+                        "translation": row[1],
+                        "example": row[2],
                     }
                 )
-            elif len(parts) == 4:
+            else:
                 # 4-col: original_word, recognized_word, translation, example
                 # Use recognized_word as the canonical word
                 clean_rows.append(
                     {
-                        "word": parts[1],
-                        "translation": parts[2],
-                        "example": parts[3],
+                        "word": row[1],
+                        "translation": row[2],
+                        "example": row[3],
                     }
                 )
-            else:
-                return False
 
         def write_csv(outfile):
             writer = csv.DictWriter(outfile, fieldnames=["word", "translation", "example"])
