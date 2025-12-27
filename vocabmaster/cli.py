@@ -1540,6 +1540,7 @@ def recover_list(pair):
             "vocabulary": "green",
             "gpt-response": "yellow",
             "anki-deck": "cyan",
+            "pre-restore": "magenta",
         }.get(backup["type"], "white")
 
         click.echo(f"  {idx}. ", nl=False)
@@ -1621,7 +1622,7 @@ def recover_restore(pair, backup_id, latest):
             sys.exit(1)
 
         backup = backups[backup_id - 1]
-        if backup["type"] != "vocabulary":
+        if backup["type"] not in ("vocabulary", "pre-restore"):
             click.echo(
                 f"{WARNING_PREFIX} Selected backup is a {backup['type']}, not a vocabulary file.",
                 err=True,
