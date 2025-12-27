@@ -264,8 +264,8 @@ def validate_all_backups(language_to_learn, mother_tongue):
     for backup in backups:
         backup_path = backup["path"]
 
-        # Only validate vocabulary backups (not GPT responses)
-        if backup["type"] == "vocabulary":
+        # Only validate vocabulary backups (including pre-restore snapshots)
+        if backup["type"] in ("vocabulary", "pre-restore"):
             validation = utils.validate_backup_parseable(backup_path)
             format_info = utils.get_backup_format_version(backup_path)
 
