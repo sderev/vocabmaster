@@ -231,17 +231,22 @@ def validate_all_backups(language_to_learn, mother_tongue):
             validation = utils.validate_backup_parseable(backup_path)
             format_info = utils.get_backup_format_version(backup_path)
 
+            # Check if it's a headerless legacy backup that can be migrated
+            is_migratable_headerless = False
+            if not validation["valid"] and _is_valid_headerless_backup(backup_path):
+                is_migratable_headerless = True
+
             result = {
                 "path": backup_path,
                 "filename": backup["filename"],
                 "type": backup["type"],
-                "valid": validation["valid"],
+                "valid": validation["valid"] or is_migratable_headerless,
                 "rows": validation["rows"],
-                "format_version": format_info["version"],
-                "error": validation["error"],
+                "format_version": "headerless-legacy" if is_migratable_headerless else format_info["version"],
+                "error": None if is_migratable_headerless else validation["error"],
             }
 
-            if validation["valid"]:
+            if result["valid"]:
                 valid_count += 1
             else:
                 invalid_count += 1
