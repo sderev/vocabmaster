@@ -365,7 +365,7 @@ def generate_translations_and_examples(language_to_learn, mother_tongue, transla
 
     # Create a backup of the LM response
     backup_dir = utils.get_backup_dir(language_to_learn, mother_tongue)
-    utils.backup_content(backup_dir, gpt_response)
+    utils.backup_content(backup_dir, generated_text)
 
     return generated_text
 
