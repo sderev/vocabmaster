@@ -1,5 +1,6 @@
 import csv
 import os
+import stat
 import tempfile
 from csv import DictReader, DictWriter
 from pathlib import Path
@@ -36,10 +37,15 @@ def atomic_write_csv(filepath, write_function):
         write_function: Callable that receives the open file handle and writes content
     """
     filepath = Path(filepath)
+    existing_mode = None
+    if filepath.exists():
+        existing_mode = stat.S_IMODE(filepath.stat().st_mode)
     temp_fd, temp_path = tempfile.mkstemp(
         dir=filepath.parent, prefix=".csv_", suffix=".tmp", text=True
     )
     try:
+        if existing_mode is not None:
+            os.chmod(temp_path, existing_mode)
         with os.fdopen(temp_fd, "w", encoding="utf-8", newline="") as file:
             write_function(file)
         os.replace(temp_path, str(filepath))
