@@ -131,15 +131,16 @@ def sanitize_csv_value(value: str) -> str:
 
     # For hyphen, sanitize if:
     # 1. Followed by digit or formula char (e.g., "-123", "-=SUM"), OR
-    # 2. Contains DDE injection patterns (pipe or exclamation mark)
-    # This preserves legitimate vocabulary like "-ism" while blocking "-cmd|'/C calc'!A0"
+    # 2. Contains DDE injection patterns (pipe or exclamation mark), OR
+    # 3. Contains function call pattern (parenthesis indicates formula like -SUM())
+    # This preserves legitimate vocabulary like "-ism" while blocking formulas
     if first_char == "-":
         if len(value) > 1:
             second_char = value[1]
             if second_char.isdigit() or second_char in ("=", "+", "-", "@"):
                 return "'" + value
-        # Block DDE injection patterns
-        if "|" in value or "!" in value:
+        # Block DDE injection and function-like patterns
+        if "|" in value or "!" in value or "(" in value:
             return "'" + value
 
     return value

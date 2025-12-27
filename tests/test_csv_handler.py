@@ -530,6 +530,11 @@ def test_sanitize_csv_value_preserves_hyphenated_words():
     assert sanitize_csv_value("-something!else") == "'-something!else"
     assert sanitize_csv_value("-pipe|test") == "'-pipe|test"
 
+    # Function-like patterns should be sanitized
+    assert sanitize_csv_value("-SUM(1,1)") == "'-SUM(1,1)"
+    assert sanitize_csv_value("-HYPERLINK(url)") == "'-HYPERLINK(url)"
+    assert sanitize_csv_value("-IF(A1,B1,C1)") == "'-IF(A1,B1,C1)"
+
     # Other dangerous chars unchanged
     assert sanitize_csv_value("=cmd") == "'=cmd"
     assert sanitize_csv_value("+1") == "'+1"
