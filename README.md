@@ -1,6 +1,6 @@
 # VocabMaster
 
-Master new languages with this CLI tool, designed to help you record vocabulary and create Anki flashcards without the need to manually input translations or example sentences.
+CLI tool to record vocabulary and create Anki flashcards. Translations and example sentences are generated automatically.
 
 ![vocabmaster_translate_japanese](https://github.com/sderev/vocabmaster/assets/24412384/d2196f6a-3094-40dd-9b2f-3caffd8ba3dd)
 
@@ -16,11 +16,11 @@ Master new languages with this CLI tool, designed to help you record vocabulary 
     1. [Shell Completion](#shell-completion)
 1. [Usage](#usage)
     1. [Add a new language pair](#add-a-new-language-pair)
-        1. [Definition mode for same-language pairs](#definition-mode-for-same-language-pairs)
     1. [Add words to your vocabulary list](#add-words-to-your-vocabulary-list)
     1. [Manage language pairs](#manage-language-pairs)
     1. [Generate an Anki deck from your vocabulary list](#generate-an-anki-deck-from-your-vocabulary-list)
     1. [Choose where your files live](#choose-where-your-files-live)
+    1. [Recover from backups](#recover-from-backups)
     1. [For detailed help on each command, run](#for-detailed-help-on-each-command-run)
 1. [Importing into Anki](#importing-into-anki)
 1. [Licence](#licence)
@@ -28,12 +28,12 @@ Master new languages with this CLI tool, designed to help you record vocabulary 
 
 ## Features
 
-* Record vocabulary words with ease
+* Record vocabulary words
 * Automatic translation and usage examples via OpenAI GPT
-* Definition mode: use same-language pairs (e.g., french:french) to get concise definitions instead of translations
-* Custom Anki deck names: personalize your deck names instead of using auto-generated names
-* Anki integration for seamless language learning
-* Supports multiple languages
+* Definition mode: same-language pairs (e.g., french:french) for definitions instead of translations
+* Custom Anki deck names
+* Backup and recovery
+* Multiple languages
 
 ## Installation
 
@@ -116,7 +116,7 @@ vocabmaster pairs add
 
 #### Definition mode for same-language pairs
 
-VocabMaster supports same-language pairs for getting definitions instead of translations. This is useful when you want to learn more advanced vocabulary in a language you're already studying.
+VocabMaster supports same-language pairs for getting definitions instead of translations.
 
 For example, to create a French vocabulary list with definitions in French:
 
@@ -199,6 +199,25 @@ vocabmaster config dir ~/Documents/vocabmaster
 ```
 
 Use `--show` to print your current storage directory. Vocabulary CSV and Anki decks default to `~/.vocabmaster`, but you can relocate them anywhere. The configuration file itself always stays under `~/.config/vocabmaster/config.json`.
+
+### Recover from backups
+
+VocabMaster automatically creates backups before modifying your vocabulary files. Use the `recover` command group to list, validate, or restore from these backups.
+
+```
+# List available backups
+vocabmaster recover list
+vocabmaster recover list --pair spanish:english
+
+# Restore from the most recent backup
+vocabmaster recover restore --latest
+
+# Restore a specific backup (use the ID from 'recover list')
+vocabmaster recover restore --backup-id 3
+
+# Validate backup integrity
+vocabmaster recover validate
+```
 
 ### For detailed help on each command, run
 
