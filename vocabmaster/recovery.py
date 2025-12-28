@@ -242,7 +242,9 @@ def validate_all_backups(language_to_learn, mother_tongue):
                 "type": backup["type"],
                 "valid": validation["valid"] or is_migratable_headerless,
                 "rows": validation["rows"],
-                "format_version": "headerless-legacy" if is_migratable_headerless else format_info["version"],
+                "format_version": "headerless-legacy"
+                if is_migratable_headerless
+                else format_info["version"],
                 "error": None if is_migratable_headerless else validation["error"],
             }
 
