@@ -3,7 +3,7 @@ Added
 * Recovery CLI commands (`vocabmaster recover list`, `recover restore`, `recover validate`) for data restoration from backups
 * Atomic CSV writes to prevent data corruption during file operations
 * Same-language definition mode for monolingual vocabulary study
-* Custom Anki deck naming via `vocabmaster config deck-name` command
+* Custom Anki deck naming via `vocabmaster pairs set-deck-name` command
 * CLI support for removing language pairs (`pairs remove`)
 * Configurable vocabulary storage directory (`config dir`)
 * `--show` option for `config dir` commands to display current paths
