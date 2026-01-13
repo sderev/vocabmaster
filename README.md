@@ -198,7 +198,7 @@ vocabmaster config dir --show
 vocabmaster config dir ~/Documents/vocabmaster
 ```
 
-Use `--show` to print your current storage directory. Vocabulary CSV and Anki decks default to `~/.vocabmaster`, but you can relocate them anywhere. The configuration file itself always stays under `~/.config/vocabmaster/config.json`.
+Use `--show` to print your current storage directory. Vocabulary CSV and Anki decks default to `~/.vocabmaster`, but you can relocate them anywhere under your home directory. The configuration file itself always stays under `~/.config/vocabmaster/config.json`.
 
 ### Recover from backups
 

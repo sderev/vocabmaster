@@ -48,12 +48,12 @@ def validate_data_directory(path_str: str) -> Path:
             if str(path).startswith(prefix):
                 raise ValueError(f"Cannot use system directory: {path}")
 
-    # On all systems, require path to be under home directory or explicit /opt location
+    # On all systems, require path to be under home directory
     home = Path.home()
-    allowed_prefixes = [str(home), "/opt"]
+    allowed_prefixes = [str(home)]
 
     if not any(str(path).startswith(prefix) for prefix in allowed_prefixes):
-        raise ValueError(f"Directory must be under home directory or /opt. Got: {path}")
+        raise ValueError(f"Directory must be under home directory. Got: {path}")
 
     return path
 
