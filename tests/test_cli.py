@@ -65,6 +65,36 @@ def touch_setup_files(directory, *_):
     return vocab, anki
 
 
+def make_backup(
+    tmp_path,
+    filename,
+    backup_type="vocabulary",
+    timestamp="2024-01-01T00_00_00",
+    size=1024,
+):
+    """
+    Create a mock backup metadata dict matching `utils.list_backups()` output.
+
+    Args:
+        tmp_path: pytest tmp_path fixture for generating paths
+        filename: Backup filename
+        backup_type: One of "vocabulary", "gpt-response", "anki-deck", "pre-restore"
+        timestamp: ISO timestamp with underscores replacing colons
+        size: File size in bytes
+
+    Returns:
+        dict with keys: path, filename, timestamp, type, size, mtime
+    """
+    return {
+        "path": tmp_path / filename,
+        "filename": filename,
+        "timestamp": timestamp,
+        "type": backup_type,
+        "size": size,
+        "mtime": 0.0,
+    }
+
+
 class TestRootCommand:
     def test_help_displayed_when_no_subcommand(self):
         result = invoke_cli([])
@@ -598,6 +628,532 @@ class TestTokensCommand:
 
         assert result.exit_code == 0
         assert "Number of tokens in the prompt:" in result.output
+
+
+class TestRecoverGroup:
+    """Tests for the recover command group."""
+
+    def test_recover_help_displayed_when_no_subcommand(self):
+        """recover shows help when no subcommand is provided."""
+        result = invoke_cli(["recover"])
+
+        assert result.exit_code == 0
+        assert "Backup recovery and data restoration tools" in result.output
+        assert "list" in result.output
+        assert "restore" in result.output
+        assert "validate" in result.output
+
+
+class TestRecoverListCommand:
+    """Tests for the recover list command."""
+
+    def test_recover_list_no_backups(self, isolated_app_dir, monkeypatch):
+        """recover list shows message when no backups exist."""
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        monkeypatch.setattr(cli.utils, "list_backups", lambda *_: [])
+
+        result = invoke_cli(["recover", "list"])
+
+        assert result.exit_code == 0
+        assert "No backups found for english:french" in result.output
+
+    def test_recover_list_displays_backups(self, isolated_app_dir, monkeypatch, tmp_path):
+        """recover list displays available backups with metadata."""
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        monkeypatch.setattr(
+            cli.utils,
+            "list_backups",
+            lambda *_: [
+                make_backup(
+                    tmp_path,
+                    "vocab_list_english-french_2024-01-01T00_00_00.bak",
+                    backup_type="vocabulary",
+                    size=2048,
+                ),
+                make_backup(
+                    tmp_path,
+                    "gpt_request_2024-01-02T14_30_00.bak",
+                    backup_type="gpt-response",
+                    timestamp="2024-01-02T14_30_00",
+                    size=512,
+                ),
+            ],
+        )
+        monkeypatch.setattr(
+            cli.recovery, "format_backup_timestamp", lambda ts: "2024-01-01 00:00:00"
+        )
+
+        result = invoke_cli(["recover", "list"])
+
+        assert result.exit_code == 0
+        assert "Backups for english:french (2 total)" in result.output
+        assert "[vocabulary]" in result.output
+        assert "[gpt-response]" in result.output
+        assert "vocab_list_english-french_2024-01-01T00_00_00.bak" in result.output
+
+    def test_recover_list_uses_pair_option(self, isolated_app_dir, monkeypatch):
+        """recover list uses specified --pair option."""
+        captured = {}
+
+        def capture_pair(pair):
+            captured["pair"] = pair
+            return "spanish", "english"
+
+        monkeypatch.setattr(cli.config_handler, "get_language_pair", capture_pair)
+        monkeypatch.setattr(cli.utils, "list_backups", lambda *_: [])
+
+        result = invoke_cli(["recover", "list", "--pair", "spanish:english"])
+
+        assert result.exit_code == 0
+        assert captured["pair"] == "spanish:english"
+
+    def test_recover_list_requires_language_pair(self, isolated_app_dir, monkeypatch):
+        """recover list shows error with hint when no language pair configured."""
+
+        def fail_pair(_pair):
+            raise ValueError("No default language pair found.")
+
+        monkeypatch.setattr(cli.config_handler, "get_language_pair", fail_pair)
+
+        result = invoke_cli(["recover", "list"])
+
+        assert result.exit_code == 1
+        assert "No default language pair found." in result.output
+        assert "vocabmaster pairs add" in result.output
+
+
+class TestRecoverRestoreCommand:
+    """Tests for the recover restore command."""
+
+    def test_recover_restore_requires_selection(self, isolated_app_dir, monkeypatch):
+        """recover restore fails if neither --latest nor --backup-id provided."""
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+
+        result = invoke_cli(["recover", "restore"])
+
+        assert result.exit_code == 1
+        assert "Specify --latest or --backup-id." in result.output
+        assert "vocabmaster recover list" in result.output
+
+    def test_recover_restore_rejects_both_options(self, isolated_app_dir, monkeypatch):
+        """recover restore fails if both --latest and --backup-id provided."""
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+
+        result = invoke_cli(["recover", "restore", "--latest", "--backup-id", "1"])
+
+        assert result.exit_code == 1
+        assert "Cannot use both --latest and --backup-id." in result.output
+
+    def test_recover_restore_latest_no_backups(self, isolated_app_dir, monkeypatch):
+        """recover restore --latest shows error when no vocabulary backups exist."""
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        monkeypatch.setattr(cli.recovery, "get_latest_backup", lambda *_: None)
+
+        result = invoke_cli(["recover", "restore", "--latest"])
+
+        assert result.exit_code == 1
+        assert "No vocabulary backups found." in result.output
+
+    def test_recover_restore_backup_id_invalid(self, isolated_app_dir, monkeypatch, tmp_path):
+        """recover restore fails with invalid backup ID and shows valid range."""
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        monkeypatch.setattr(
+            cli.utils,
+            "list_backups",
+            lambda *_: [make_backup(tmp_path, "vocab_backup.bak", backup_type="vocabulary")],
+        )
+
+        result = invoke_cli(["recover", "restore", "--backup-id", "5"])
+
+        assert result.exit_code == 1
+        assert "Invalid backup ID" in result.output
+        assert "Must be between 1 and 1" in result.output
+
+    def test_recover_restore_backup_id_no_backups(self, isolated_app_dir, monkeypatch):
+        """recover restore shows error with hint when no backups exist."""
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        monkeypatch.setattr(cli.utils, "list_backups", lambda *_: [])
+
+        result = invoke_cli(["recover", "restore", "--backup-id", "1"])
+
+        assert result.exit_code == 1
+        assert "No backups found." in result.output
+        assert "vocabmaster recover list" in result.output
+
+    def test_recover_restore_user_cancels(self, isolated_app_dir, monkeypatch, tmp_path):
+        """recover restore respects user cancellation at confirmation prompt."""
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        monkeypatch.setattr(
+            cli.recovery,
+            "get_latest_backup",
+            lambda *_: make_backup(tmp_path, "vocab_backup.bak", backup_type="vocabulary"),
+        )
+
+        def fail_restore(*_args, **_kwargs):
+            pytest.fail("Restore should not run after user cancels.")
+
+        monkeypatch.setattr(cli.recovery, "restore_vocabulary_from_backup", fail_restore)
+
+        result = invoke_cli(["recover", "restore", "--latest"], input_data="n\n")
+
+        assert result.exit_code == 0
+        assert "Restore cancelled." in result.output
+
+    def test_recover_restore_success(self, isolated_app_dir, monkeypatch, tmp_path):
+        """recover restore completes successfully and shows paths."""
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        monkeypatch.setattr(
+            cli.recovery,
+            "get_latest_backup",
+            lambda *_: make_backup(tmp_path, "vocab_backup.bak", backup_type="vocabulary"),
+        )
+        monkeypatch.setattr(
+            cli.recovery,
+            "restore_vocabulary_from_backup",
+            lambda *_: {
+                "success": True,
+                "restored_path": tmp_path / "vocab.csv",
+                "pre_restore_backup": tmp_path / "pre_restore.bak",
+                "error": None,
+            },
+        )
+
+        result = invoke_cli(["recover", "restore", "--latest"], input_data="y\n")
+
+        assert result.exit_code == 0
+        assert "Vocabulary restored successfully!" in result.output
+        assert "Restored to:" in result.output
+        assert "Pre-restore backup:" in result.output
+
+    def test_recover_restore_failure(self, isolated_app_dir, monkeypatch, tmp_path):
+        """recover restore shows error message on failure."""
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        monkeypatch.setattr(
+            cli.utils,
+            "list_backups",
+            lambda *_: [make_backup(tmp_path, "vocab_backup.bak", backup_type="vocabulary")],
+        )
+        monkeypatch.setattr(
+            cli.recovery,
+            "restore_vocabulary_from_backup",
+            lambda *_: {
+                "success": False,
+                "restored_path": None,
+                "pre_restore_backup": None,
+                "error": "Backup corrupted",
+            },
+        )
+
+        result = invoke_cli(["recover", "restore", "--backup-id", "1"], input_data="y\n")
+
+        assert result.exit_code == 1
+        assert "Restore failed: Backup corrupted" in result.output
+
+    def test_recover_restore_warns_non_vocabulary_backup(
+        self, isolated_app_dir, monkeypatch, tmp_path
+    ):
+        """recover restore warns when selecting non-vocabulary backup."""
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        monkeypatch.setattr(
+            cli.utils,
+            "list_backups",
+            lambda *_: [make_backup(tmp_path, "gpt_request.bak", backup_type="gpt-response")],
+        )
+
+        def fail_restore(*_args, **_kwargs):
+            pytest.fail("Restore should not run after user declines warning.")
+
+        monkeypatch.setattr(cli.recovery, "restore_vocabulary_from_backup", fail_restore)
+
+        result = invoke_cli(["recover", "restore", "--backup-id", "1"], input_data="n\n")
+
+        assert result.exit_code == 0
+        assert "Selected backup is a gpt-response" in result.output
+        assert "Restore cancelled." in result.output
+
+    def test_recover_restore_non_vocabulary_backup_accepted(
+        self, isolated_app_dir, monkeypatch, tmp_path
+    ):
+        """recover restore proceeds when user accepts non-vocabulary backup warning."""
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        monkeypatch.setattr(
+            cli.utils,
+            "list_backups",
+            lambda *_: [make_backup(tmp_path, "gpt_request.bak", backup_type="gpt-response")],
+        )
+        monkeypatch.setattr(
+            cli.recovery,
+            "restore_vocabulary_from_backup",
+            lambda *_: {
+                "success": True,
+                "restored_path": tmp_path / "vocab.csv",
+                "pre_restore_backup": None,
+                "error": None,
+            },
+        )
+
+        # First 'y' accepts warning, second 'y' confirms restore
+        result = invoke_cli(["recover", "restore", "--backup-id", "1"], input_data="y\ny\n")
+
+        assert result.exit_code == 0
+        assert "Vocabulary restored successfully!" in result.output
+
+    def test_recover_restore_uses_pair_option(self, isolated_app_dir, monkeypatch):
+        """recover restore uses specified --pair option."""
+        captured = {}
+
+        def capture_pair(pair):
+            captured["pair"] = pair
+            return "spanish", "english"
+
+        monkeypatch.setattr(cli.config_handler, "get_language_pair", capture_pair)
+        monkeypatch.setattr(cli.recovery, "get_latest_backup", lambda *_: None)
+
+        result = invoke_cli(["recover", "restore", "--latest", "--pair", "spanish:english"])
+
+        assert result.exit_code == 1
+        assert captured["pair"] == "spanish:english"
+
+    def test_recover_restore_invalid_pair(self, isolated_app_dir, monkeypatch):
+        """recover restore shows error for invalid language pair."""
+
+        def fail_pair(_pair):
+            raise ValueError("Invalid language pair format.")
+
+        monkeypatch.setattr(cli.config_handler, "get_language_pair", fail_pair)
+
+        result = invoke_cli(["recover", "restore", "--latest"])
+
+        assert result.exit_code == 1
+        assert "Invalid language pair format." in result.output
+
+    def test_recover_restore_backup_id_zero(self, isolated_app_dir, monkeypatch, tmp_path):
+        """recover restore fails with backup ID 0 (boundary condition)."""
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        monkeypatch.setattr(
+            cli.utils,
+            "list_backups",
+            lambda *_: [make_backup(tmp_path, "vocab.bak", backup_type="vocabulary")],
+        )
+
+        result = invoke_cli(["recover", "restore", "--backup-id", "0"])
+
+        assert result.exit_code == 1
+        assert "Invalid backup ID" in result.output
+
+    def test_recover_restore_pre_restore_no_warning(self, isolated_app_dir, monkeypatch, tmp_path):
+        """recover restore accepts pre-restore type without warning."""
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        monkeypatch.setattr(
+            cli.utils,
+            "list_backups",
+            lambda *_: [make_backup(tmp_path, "pre_restore_backup.bak", backup_type="pre-restore")],
+        )
+        monkeypatch.setattr(
+            cli.recovery,
+            "restore_vocabulary_from_backup",
+            lambda *_: {
+                "success": True,
+                "restored_path": tmp_path / "vocab.csv",
+                "pre_restore_backup": None,
+                "error": None,
+            },
+        )
+
+        # Only one 'y' needed (no warning prompt for pre-restore type)
+        result = invoke_cli(["recover", "restore", "--backup-id", "1"], input_data="y\n")
+
+        assert result.exit_code == 0
+        assert "Selected backup is a" not in result.output
+        assert "Vocabulary restored successfully!" in result.output
+
+    def test_recover_restore_warns_anki_deck_backup(self, isolated_app_dir, monkeypatch, tmp_path):
+        """recover restore warns when selecting anki-deck backup."""
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        monkeypatch.setattr(
+            cli.utils,
+            "list_backups",
+            lambda *_: [make_backup(tmp_path, "anki_deck.bak", backup_type="anki-deck")],
+        )
+
+        def fail_restore(*_args, **_kwargs):
+            pytest.fail("Restore should not run after user declines warning.")
+
+        monkeypatch.setattr(cli.recovery, "restore_vocabulary_from_backup", fail_restore)
+
+        result = invoke_cli(["recover", "restore", "--backup-id", "1"], input_data="n\n")
+
+        assert result.exit_code == 0
+        assert "Selected backup is a anki-deck" in result.output
+        assert "Restore cancelled." in result.output
+
+
+class TestRecoverValidateCommand:
+    """Tests for the recover validate command."""
+
+    def test_recover_validate_no_backups(self, isolated_app_dir, monkeypatch):
+        """recover validate shows message when no backups exist."""
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        monkeypatch.setattr(
+            cli.recovery,
+            "validate_all_backups",
+            lambda *_: {"total": 0, "valid": 0, "invalid": 0, "results": []},
+        )
+
+        result = invoke_cli(["recover", "validate"])
+
+        assert result.exit_code == 0
+        assert "No backups found." in result.output
+
+    def test_recover_validate_all_valid(self, isolated_app_dir, monkeypatch):
+        """recover validate shows OK status for valid backups."""
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        monkeypatch.setattr(
+            cli.recovery,
+            "validate_all_backups",
+            lambda *_: {
+                "total": 2,
+                "valid": 2,
+                "invalid": 0,
+                "results": [
+                    {
+                        "filename": "vocab_backup_1.bak",
+                        "type": "vocabulary",
+                        "valid": True,
+                        "rows": 10,
+                        "format_version": "3-col",
+                        "error": None,
+                    },
+                    {
+                        "filename": "vocab_backup_2.bak",
+                        "type": "vocabulary",
+                        "valid": True,
+                        "rows": 5,
+                        "format_version": "3-col",
+                        "error": None,
+                    },
+                ],
+            },
+        )
+
+        result = invoke_cli(["recover", "validate"])
+
+        assert result.exit_code == 0
+        assert "Validation Summary" in result.output
+        assert "Total backups: 2" in result.output
+        assert "Valid: 2" in result.output
+        assert "OK" in result.output
+        assert "Rows: 10" in result.output
+
+    def test_recover_validate_with_invalid_backups(self, isolated_app_dir, monkeypatch):
+        """recover validate shows FAIL status and error details for invalid backups."""
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        monkeypatch.setattr(
+            cli.recovery,
+            "validate_all_backups",
+            lambda *_: {
+                "total": 2,
+                "valid": 1,
+                "invalid": 1,
+                "results": [
+                    {
+                        "filename": "vocab_ok.bak",
+                        "type": "vocabulary",
+                        "valid": True,
+                        "rows": 10,
+                        "format_version": "3-col",
+                        "error": None,
+                    },
+                    {
+                        "filename": "vocab_bad.bak",
+                        "type": "vocabulary",
+                        "valid": False,
+                        "rows": None,
+                        "format_version": "unknown",
+                        "error": "Missing required columns",
+                    },
+                ],
+            },
+        )
+
+        result = invoke_cli(["recover", "validate"])
+
+        assert result.exit_code == 0
+        assert "Total backups: 2" in result.output
+        assert "Valid: 1" in result.output
+        assert "Invalid: 1" in result.output
+        assert "FAIL" in result.output
+        assert "Missing required columns" in result.output
+        assert "backup(s) have issues" in result.output
+
+    def test_recover_validate_uses_pair_option(self, isolated_app_dir, monkeypatch):
+        """recover validate uses specified --pair option."""
+        captured = {}
+
+        def capture_pair(pair):
+            captured["pair"] = pair
+            return "spanish", "english"
+
+        monkeypatch.setattr(cli.config_handler, "get_language_pair", capture_pair)
+        monkeypatch.setattr(
+            cli.recovery,
+            "validate_all_backups",
+            lambda *_: {"total": 0, "valid": 0, "invalid": 0, "results": []},
+        )
+
+        result = invoke_cli(["recover", "validate", "--pair", "spanish:english"])
+
+        assert result.exit_code == 0
+        assert captured["pair"] == "spanish:english"
+
+    def test_recover_validate_invalid_pair(self, isolated_app_dir, monkeypatch):
+        """recover validate shows error for invalid language pair."""
+
+        def fail_pair(_pair):
+            raise ValueError("No default language pair found.")
+
+        monkeypatch.setattr(cli.config_handler, "get_language_pair", fail_pair)
+
+        result = invoke_cli(["recover", "validate"])
+
+        assert result.exit_code == 1
+        assert "No default language pair found." in result.output
 
 
 class TestConfigHandlerRemove:
