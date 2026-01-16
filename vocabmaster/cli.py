@@ -49,10 +49,10 @@ def validate_data_directory(path_str: str) -> Path:
                 raise ValueError(f"Cannot use system directory: {path}")
 
     # On all systems, require path to be under home directory
-    home = Path.home()
-    allowed_prefixes = [str(home)]
-
-    if not any(str(path).startswith(prefix) for prefix in allowed_prefixes):
+    home = Path.home().resolve()
+    try:
+        path.relative_to(home)
+    except ValueError:
         raise ValueError(f"Directory must be under home directory. Got: {path}")
 
     return path

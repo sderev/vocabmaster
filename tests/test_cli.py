@@ -1268,6 +1268,15 @@ class TestHelperFunctions:
         assert config["data_dir"] == str(target_dir)
         assert target_dir.exists()
 
+    def test_config_dir_rejects_prefix_collision(self, fake_home):
+        runner = CliRunner()
+        target_dir = fake_home.with_name(f"{fake_home.name}-evil")
+
+        result = runner.invoke(cli.vocabmaster, ["config", "dir", str(target_dir)])
+
+        assert result.exit_code == 1
+        assert "Directory must be under home directory" in result.output
+
     def test_config_dir_show_only_prints_directory(self, fake_home):
         runner = CliRunner()
 
