@@ -30,6 +30,32 @@ def reset_openai_client_cache():
     _get_openai_client.cache_clear()
 
 
+def filter_streaming_tsv(text, state):
+    output = []
+    for char in text:
+        if char == "\t":
+            if state["column"] == 0:
+                state["pending_tab"] = True
+            elif state["column"] == 1:
+                if state["pending_tab"]:
+                    output.append("\t")
+                state["pending_tab"] = False
+            elif state["column"] == 2:
+                output.append("\t")
+            state["column"] += 1
+            continue
+
+        if char == "\n":
+            state["column"] = 0
+            state["pending_tab"] = False
+            output.append("\n")
+            continue
+
+        if state["column"] in (0, 2, 3):
+            output.append(char)
+    return "".join(output)
+
+
 def format_prompt(language_to_learn, mother_tongue, words_to_translate, mode="translation"):
     """
     Generate a prompt for translation or definition mode.
@@ -131,6 +157,7 @@ def chatgpt_request(
     if stream_enabled:
         collected_chunks = []
         collected_messages = []
+        streaming_state = {"column": 0, "pending_tab": False}
 
         with client.responses.with_streaming_response.create(
             input=prompt,
@@ -165,12 +192,14 @@ def chatgpt_request(
                     delta = event.get("delta", "")
                     if delta:
                         collected_messages.append(delta)
-                        print(delta, end="")
+                        filtered_content = filter_streaming_tsv(delta, streaming_state)
+                        print(filtered_content, end="")
                 elif event_type == "response.output_text.done" and not collected_messages:
                     text = event.get("text", "")
                     if text:
                         collected_messages.append(text)
-                        print(text, end="")
+                        filtered_content = filter_streaming_tsv(text, streaming_state)
+                        print(filtered_content, end="")
         print()
 
         # Save the time delay and text received
