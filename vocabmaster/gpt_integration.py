@@ -30,6 +30,44 @@ def reset_openai_client_cache():
     _get_openai_client.cache_clear()
 
 
+def _filter_streaming_line(line):
+    if not line:
+        return line
+
+    columns = line.split("\t")
+    if len(columns) == 3:
+        return "\t".join(columns)
+    if len(columns) >= 4:
+        return "\t".join([columns[0], columns[2], columns[3]])
+    return line
+
+
+def filter_streaming_tsv(text, state, final=False):
+    buffer = state.get("line_buffer", "") + text
+    lines = buffer.splitlines(keepends=True)
+    output = []
+    remainder = ""
+
+    if not final and lines and not lines[-1].endswith("\n"):
+        remainder = lines.pop()
+
+    for line in lines:
+        if line.endswith("\n"):
+            output.append(_filter_streaming_line(line[:-1]))
+            output.append("\n")
+        else:
+            output.append(_filter_streaming_line(line))
+
+    if final:
+        if remainder:
+            output.append(_filter_streaming_line(remainder))
+        state["line_buffer"] = ""
+    else:
+        state["line_buffer"] = remainder
+
+    return "".join(output)
+
+
 def format_prompt(language_to_learn, mother_tongue, words_to_translate, mode="translation"):
     """
     Generate a prompt for translation or definition mode.
@@ -131,6 +169,7 @@ def chatgpt_request(
     if stream_enabled:
         collected_chunks = []
         collected_messages = []
+        streaming_state = {"line_buffer": ""}
 
         with client.responses.with_streaming_response.create(
             input=prompt,
@@ -165,12 +204,17 @@ def chatgpt_request(
                     delta = event.get("delta", "")
                     if delta:
                         collected_messages.append(delta)
-                        print(delta, end="")
+                        filtered_content = filter_streaming_tsv(delta, streaming_state)
+                        print(filtered_content, end="")
                 elif event_type == "response.output_text.done" and not collected_messages:
                     text = event.get("text", "")
                     if text:
                         collected_messages.append(text)
-                        print(text, end="")
+                        filtered_content = filter_streaming_tsv(text, streaming_state)
+                        print(filtered_content, end="")
+        tail = filter_streaming_tsv("", streaming_state, final=True)
+        if tail:
+            print(tail, end="")
         print()
 
         # Save the time delay and text received

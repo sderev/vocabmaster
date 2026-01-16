@@ -98,3 +98,50 @@ def test_format_prompt_system_message_consistent():
     system_content = prompt_translation[0]["content"]
     assert "vocabulary lists" in system_content
     assert "Tab-Separated Values" in system_content or "TSV" in system_content
+
+
+def test_filter_streaming_tsv_preserves_legacy_translation():
+    state = {"line_buffer": ""}
+    output = gpt_integration.filter_streaming_tsv("bonjour\thello\t", state)
+    assert output == ""
+
+    output = gpt_integration.filter_streaming_tsv("example\n", state)
+    assert output == "bonjour\thello\texample\n"
+    assert state["line_buffer"] == ""
+
+
+def test_filter_streaming_tsv_skips_recognized_word():
+    state = {"line_buffer": ""}
+    output = gpt_integration.filter_streaming_tsv(
+        "bonjour\tbon jour\thello\texample\n",
+        state,
+    )
+    assert output == "bonjour\thello\texample\n"
+
+
+def test_filter_streaming_tsv_handles_chunked_input():
+    state = {"line_buffer": ""}
+    output = "".join(
+        [
+            gpt_integration.filter_streaming_tsv("bonjour\tbon", state),
+            gpt_integration.filter_streaming_tsv(" jour\thello\t", state),
+            gpt_integration.filter_streaming_tsv("example\n", state),
+        ]
+    )
+    assert output == "bonjour\thello\texample\n"
+    assert state["line_buffer"] == ""
+
+
+def test_filter_streaming_tsv_handles_empty_recognized_word():
+    state = {"line_buffer": ""}
+    output = gpt_integration.filter_streaming_tsv("salut\t\tciao\tesempio\n", state)
+    assert output == "salut\tciao\tesempio\n"
+
+
+def test_filter_streaming_tsv_flushes_final_line():
+    state = {"line_buffer": ""}
+    output = gpt_integration.filter_streaming_tsv("bonjour\thello\texample", state)
+    assert output == ""
+
+    output = gpt_integration.filter_streaming_tsv("", state, final=True)
+    assert output == "bonjour\thello\texample"
