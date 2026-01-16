@@ -967,6 +967,7 @@ dependencies = [
     { name = "httpx" },
     { name = "openai" },
     { name = "tiktoken" },
+    { name = "urllib3" },
 ]
 
 [package.dev-dependencies]
@@ -982,6 +983,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "openai", specifier = ">=1.66.0,<2.0" },
     { name = "tiktoken", specifier = "~=0.12" },
+    { name = "urllib3", specifier = ">=2.6.3" },
 ]
 
 [package.metadata.requires-dev]
