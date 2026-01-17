@@ -98,3 +98,35 @@ def test_format_prompt_system_message_consistent():
     system_content = prompt_translation[0]["content"]
     assert "vocabulary lists" in system_content
     assert "Tab-Separated Values" in system_content or "TSV" in system_content
+
+
+def test_filter_streaming_tsv_filters_recognized_word():
+    state = {"column": 0, "pending_tab": False}
+
+    output = gpt_integration.filter_streaming_tsv("bonjour\tbon jour\thello\texample\n", state)
+
+    assert output == "bonjour\thello\texample\n"
+    assert state == {"column": 0, "pending_tab": False}
+
+
+def test_filter_streaming_tsv_handles_chunked_input():
+    state = {"column": 0, "pending_tab": False}
+
+    output = "".join(
+        [
+            gpt_integration.filter_streaming_tsv("bonjour\tbon", state),
+            gpt_integration.filter_streaming_tsv(" jour\thello\t", state),
+            gpt_integration.filter_streaming_tsv("example\n", state),
+        ]
+    )
+
+    assert output == "bonjour\thello\texample\n"
+    assert state == {"column": 0, "pending_tab": False}
+
+
+def test_filter_streaming_tsv_handles_empty_recognized_word():
+    state = {"column": 0, "pending_tab": False}
+
+    output = gpt_integration.filter_streaming_tsv("salut\t\tciao\tesempio\n", state)
+
+    assert output == "salut\tciao\tesempio\n"

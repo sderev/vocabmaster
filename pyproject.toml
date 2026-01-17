@@ -29,8 +29,9 @@ classifiers = [
 
 dependencies = [
     "click ~= 8.3",
-    "openai >= 0.28, <1.0",
+    "openai >= 1.66.0, <2.0",
     "tiktoken ~= 0.12",
+    "urllib3 >= 2.6.3",
 ]
 
 [project.optional-dependencies]

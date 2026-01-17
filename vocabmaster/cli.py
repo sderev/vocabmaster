@@ -300,9 +300,13 @@ def translate(pair, count, deck_name):
     try:
         csv_handler.add_translations_and_examples_to_file(translations_filepath, pair)
         click.echo()
-    except openai.error.RateLimitError as error:
+    except openai.RateLimitError as error:
         click.echo(f"{ERROR_PREFIX} {error}", err=True)
         handle_rate_limit_error()
+        sys.exit(1)
+    except openai.AuthenticationError as error:
+        click.echo(f"{ERROR_PREFIX} {error}", err=True)
+        handle_authentication_error()
         sys.exit(1)
     except csv_handler.ValidationError as error:
         click.echo(f"{ERROR_PREFIX} {error}", err=True)
@@ -588,7 +592,7 @@ def config_key():
     """
     Check if the OpenAI API key is configured.
 
-    The key must be set via the OPENAI_API_KEY environment variable.
+    The key must be set via ~/.config/lmt/key.env or the OPENAI_API_KEY environment variable.
     """
     if openai_api_key_exists():
         click.secho("OpenAI API key found!", fg="green")
@@ -612,9 +616,10 @@ def openai_api_key_explain():
     click.echo(err=True)
     click.echo(
         "You can generate API keys in the OpenAI web interface. See"
-        " https://platform.openai.com/account/api-keys for details.",
+        " https://platform.openai.com/settings/organization/api-keys for details.",
         err=True,
     )
+    click.echo("You can also store the key in ~/.config/lmt/key.env.", err=True)
     click.echo(err=True)
     if platform.system() == "Windows":
         click.echo(
@@ -1303,17 +1308,17 @@ def select_default_language_pair(language_pairs):
 def compute_prompt_estimate(language_to_learn, mother_tongue, translations_path):
     """Evaluate the prompt tokens and cost for the next translation."""
 
-    translation_model = "gpt-4.1"
+    translation_model = gpt_integration.DEFAULT_MODEL
 
     if not translations_path.exists():
         return {"status": "missing_file", "model": translation_model}
 
     try:
         words_to_translate = csv_handler.get_words_to_translate(translations_path)
+    except csv_handler.AllWordsTranslatedError:
+        return {"status": "no_words", "model": translation_model}
     except Exception as error:
         message = str(error)
-        if "All the words in the vocabulary list" in message:
-            return {"status": "no_words", "model": translation_model}
         return {"status": "error", "model": translation_model, "error": message}
 
     if not words_to_translate:
@@ -1468,6 +1473,24 @@ def handle_rate_limit_error():
         "- If you are using the paid plan, you can increase your usage"
         " rate limit"
         " here:\nhttps://platform.openai.com/account/billing/limits"
+    )
+    click.echo()
+
+
+def handle_authentication_error():
+    """
+    Provides guidance on how to handle an authentication error.
+    """
+    click.echo()
+    click.echo(
+        click.style(
+            "Your API key is invalid, expired, or revoked. Please check your OpenAI API key.",
+            fg="red",
+        )
+    )
+    click.echo(
+        "You can generate a new API key in your OpenAI dashboard here:\n"
+        "https://platform.openai.com/settings/organization/api-keys"
     )
     click.echo()
 

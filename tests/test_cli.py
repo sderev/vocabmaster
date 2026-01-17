@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import httpx
 import pytest
 from click.testing import CliRunner
 
@@ -285,7 +286,9 @@ class TestTranslateCommand:
         monkeypatch.setattr(cli, "openai_api_key_exists", lambda: True)
 
         def fail_add(*_args, **_kwargs):
-            raise cli.openai.error.RateLimitError("Too many requests", None)
+            request = httpx.Request("POST", "https://api.openai.com/v1/responses")
+            response = httpx.Response(429, request=request)
+            raise cli.openai.RateLimitError("Too many requests", response=response, body=None)
 
         monkeypatch.setattr(cli.csv_handler, "add_translations_and_examples_to_file", fail_add)
 
@@ -295,6 +298,44 @@ class TestTranslateCommand:
             called["handler"] = True
 
         monkeypatch.setattr(cli, "handle_rate_limit_error", record_handler)
+        monkeypatch.setattr(cli, "generate_anki_deck", lambda *args, **kwargs: None)
+
+        result = invoke_cli(["translate"])
+
+        assert result.exit_code == 1
+        assert called["handler"] is True
+        assert "Error:" in result.output
+
+    def test_translate_handles_authentication_error(self, isolated_app_dir, monkeypatch):
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        monkeypatch.setattr(
+            cli,
+            "setup_files",
+            lambda directory, *_: (directory / "vocab.csv", directory / "anki.csv"),
+        )
+        monkeypatch.setattr(cli.csv_handler, "ensure_csv_has_fieldnames", lambda path: None)
+        monkeypatch.setattr(cli.csv_handler, "vocabulary_list_is_empty", lambda path: False)
+        monkeypatch.setattr(cli, "openai_api_key_exists", lambda: True)
+
+        def fail_add(*_args, **_kwargs):
+            request = httpx.Request("POST", "https://api.openai.com/v1/responses")
+            response = httpx.Response(401, request=request)
+            raise cli.openai.AuthenticationError(
+                "Invalid authentication credentials",
+                response=response,
+                body=None,
+            )
+
+        monkeypatch.setattr(cli.csv_handler, "add_translations_and_examples_to_file", fail_add)
+
+        called = {"handler": False}
+
+        def record_handler():
+            called["handler"] = True
+
+        monkeypatch.setattr(cli, "handle_authentication_error", record_handler)
         monkeypatch.setattr(cli, "generate_anki_deck", lambda *args, **kwargs: None)
 
         result = invoke_cli(["translate"])
@@ -583,7 +624,7 @@ class TestTokensCommand:
         monkeypatch.setattr(cli.gpt_integration, "num_tokens_from_messages", lambda *_, **__: 100)
 
         def fake_estimate(prompt, model):
-            assert model == "gpt-4.1"
+            assert model == "gpt-5.2"
             return "0.004"
 
         monkeypatch.setattr(cli.gpt_integration, "estimate_prompt_cost", fake_estimate)
@@ -592,7 +633,7 @@ class TestTokensCommand:
 
         assert result.exit_code == 0
         assert "Number of tokens in the prompt:" in result.output
-        assert "Cost estimate for gpt-4.1 model:" in result.output
+        assert "Cost estimate for gpt-5.2 model:" in result.output
         assert "$0.004" in result.output
 
     def test_tokens_pair_option(self, isolated_app_dir, monkeypatch):
@@ -1240,6 +1281,7 @@ class TestHelperFunctions:
         cli.openai_api_key_explain()
 
         captured = capsys.readouterr()
+        assert "~/.config/lmt/key.env" in captured.err
         assert "setx OPENAI_API_KEY your_key" in captured.err
 
     def test_openai_api_key_explain_unix(self, monkeypatch, capsys):
@@ -1248,6 +1290,7 @@ class TestHelperFunctions:
         cli.openai_api_key_explain()
 
         captured = capsys.readouterr()
+        assert "~/.config/lmt/key.env" in captured.err
         assert "export OPENAI_API_KEY=YOUR_KEY" in captured.err
 
     def test_handle_rate_limit_error_guidance(self, capsys):
@@ -1870,7 +1913,7 @@ class TestPairsInspectCommand:
         assert "Translated: 1" in result.output
         assert "Pending: 1" in result.output
         assert "Number of tokens in the prompt:" in result.output
-        assert "Cost estimate for gpt-4.1 model:" in result.output
+        assert "Cost estimate for gpt-5.2 model:" in result.output
         assert "$0.123" in result.output
 
     def test_pairs_inspect_uses_default_when_no_argument(self, isolated_app_dir, monkeypatch):
@@ -1898,7 +1941,7 @@ class TestPairsInspectCommand:
         assert result.exit_code == 0
         assert "Language pair: english:french" in result.output
         assert "Default: Yes" in result.output
-        assert "Cost estimate for gpt-4.1 model:" in result.output
+        assert "Cost estimate for gpt-5.2 model:" in result.output
         assert "$0.456" in result.output
 
     def test_pairs_inspect_non_default_pair(self, isolated_app_dir, monkeypatch):
@@ -1927,7 +1970,7 @@ class TestPairsInspectCommand:
         assert result.exit_code == 0
         assert "Default: No" in result.output
         assert "Pending: 1" in result.output
-        assert "Cost estimate for gpt-4.1 model:" in result.output
+        assert "Cost estimate for gpt-5.2 model:" in result.output
         assert "$0.111" in result.output
 
     def test_pairs_inspect_handles_missing_files(self, isolated_app_dir):
