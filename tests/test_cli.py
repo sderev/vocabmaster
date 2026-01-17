@@ -624,7 +624,7 @@ class TestTokensCommand:
         monkeypatch.setattr(cli.gpt_integration, "num_tokens_from_messages", lambda *_, **__: 100)
 
         def fake_estimate(prompt, model):
-            assert model == "gpt-4.1"
+            assert model == "gpt-5.2"
             return "0.004"
 
         monkeypatch.setattr(cli.gpt_integration, "estimate_prompt_cost", fake_estimate)
@@ -633,7 +633,7 @@ class TestTokensCommand:
 
         assert result.exit_code == 0
         assert "Number of tokens in the prompt:" in result.output
-        assert "Cost estimate for gpt-4.1 model:" in result.output
+        assert "Cost estimate for gpt-5.2 model:" in result.output
         assert "$0.004" in result.output
 
     def test_tokens_pair_option(self, isolated_app_dir, monkeypatch):
@@ -1913,7 +1913,7 @@ class TestPairsInspectCommand:
         assert "Translated: 1" in result.output
         assert "Pending: 1" in result.output
         assert "Number of tokens in the prompt:" in result.output
-        assert "Cost estimate for gpt-4.1 model:" in result.output
+        assert "Cost estimate for gpt-5.2 model:" in result.output
         assert "$0.123" in result.output
 
     def test_pairs_inspect_uses_default_when_no_argument(self, isolated_app_dir, monkeypatch):
@@ -1941,7 +1941,7 @@ class TestPairsInspectCommand:
         assert result.exit_code == 0
         assert "Language pair: english:french" in result.output
         assert "Default: Yes" in result.output
-        assert "Cost estimate for gpt-4.1 model:" in result.output
+        assert "Cost estimate for gpt-5.2 model:" in result.output
         assert "$0.456" in result.output
 
     def test_pairs_inspect_non_default_pair(self, isolated_app_dir, monkeypatch):
@@ -1970,7 +1970,7 @@ class TestPairsInspectCommand:
         assert result.exit_code == 0
         assert "Default: No" in result.output
         assert "Pending: 1" in result.output
-        assert "Cost estimate for gpt-4.1 model:" in result.output
+        assert "Cost estimate for gpt-5.2 model:" in result.output
         assert "$0.111" in result.output
 
     def test_pairs_inspect_handles_missing_files(self, isolated_app_dir):
