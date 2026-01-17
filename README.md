@@ -56,7 +56,7 @@ uv tool install vocabmaster
 
 ### OpenAI API key
 
-Vocabmaster requires an OpenAI API key to function. You can obtain a key by signing up for an account at [OpenAI's website](https://platform.openai.com/account/api-keys).
+Vocabmaster requires an OpenAI API key to function. You can obtain a key by signing up for an account at [OpenAI's website](https://platform.openai.com/settings/organization/api-keys).
 
 Once you have your API key, set it as an environment variable:
 

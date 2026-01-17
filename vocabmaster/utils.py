@@ -6,7 +6,6 @@ from datetime import datetime
 from pathlib import Path
 
 import click
-import openai
 
 from vocabmaster import config_handler
 
@@ -528,11 +527,75 @@ def get_pair_mode(language_to_learn, mother_tongue):
     )
 
 
+def get_openai_api_key_path() -> Path:
+    """
+    Return the OpenAI API key file path.
+    """
+    return Path("~/.config/lmt/key.env").expanduser()
+
+
+def ensure_openai_api_key_path() -> Path:
+    """
+    Ensure the OpenAI API key file exists with secure permissions.
+    """
+    key_path = get_openai_api_key_path()
+    try:
+        key_path.parent.mkdir(parents=True, exist_ok=True)
+        if not key_path.exists():
+            key_path.touch(exist_ok=True)
+        try:
+            key_path.chmod(0o600)
+        except OSError:
+            pass
+    except OSError:
+        return key_path
+    return key_path
+
+
+def read_openai_api_key():
+    """
+    Read the OpenAI API key from ~/.config/lmt/key.env if present.
+    """
+    key_path = get_openai_api_key_path()
+    if not key_path.exists():
+        return None
+    try:
+        content = key_path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    fallback_key = None
+    for line in content.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if "=" in stripped:
+            key_name, value = stripped.split("=", 1)
+            key_name = key_name.strip()
+            if key_name.startswith("export "):
+                key_name = key_name[len("export ") :].strip()
+            if key_name == "OPENAI_API_KEY":
+                return value.strip().strip("'\"")
+            continue
+        if fallback_key is None:
+            fallback_key = stripped
+    return fallback_key
+
+
+def get_openai_api_key():
+    """
+    Return the OpenAI API key from the key file or environment.
+    """
+    key = read_openai_api_key()
+    if key:
+        return key
+    return os.environ.get("OPENAI_API_KEY")
+
+
 def openai_api_key_exists():
     """
     Check if an OpenAI API key is set on the system.
     """
-    return bool(os.environ.get("OPENAI_API_KEY") or openai.api_key)
+    return bool(get_openai_api_key())
 
 
 BLUE = "\x1b[94m"

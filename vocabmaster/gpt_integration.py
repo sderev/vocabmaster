@@ -1,9 +1,33 @@
+import functools
 import json
 import os
 import time
 
-import openai
+import httpx
 import tiktoken
+from openai import OpenAI
+
+from vocabmaster.utils import get_openai_api_key
+
+DEFAULT_MODEL = "gpt-4.1"
+
+
+@functools.lru_cache(maxsize=1)
+def _get_openai_client():
+    api_key = get_openai_api_key()
+    if not api_key:
+        raise ValueError("OpenAI API key not found. Set OPENAI_API_KEY or ~/.config/lmt/key.env.")
+    client = OpenAI(api_key=api_key)
+
+    # Remove from environment to limit exposure window and prevent subprocess
+    # inheritance. Note: doesn't prevent initial /proc/PID/environ visibility
+    # at process start - this is defense-in-depth, not complete protection.
+    os.environ.pop("OPENAI_API_KEY", None)
+    return client
+
+
+def reset_openai_client_cache():
+    _get_openai_client.cache_clear()
 
 
 def format_prompt(language_to_learn, mother_tongue, words_to_translate, mode="translation"):
@@ -90,60 +114,80 @@ def format_prompt(language_to_learn, mother_tongue, words_to_translate, mode="tr
 
 def chatgpt_request(
     prompt,
-    model="gpt-4.1",
+    model=DEFAULT_MODEL,
     # max_tokens=3600,
     n=1,
     temperature=0.7,
     stop=None,
-    stream=False,
+    stream=True,
+    client=None,
 ):
     start_time = time.monotonic_ns()
 
-    # Handle API key: prefer already-set SDK key, otherwise read from environment
-    if not openai.api_key:
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY environment variable is not set")
+    if client is None:
+        client = _get_openai_client()
+    stream_enabled = bool(stream)
 
-        openai.api_key = api_key
-
-        # Remove from environment to limit exposure window and prevent subprocess
-        # inheritance. Note: doesn't prevent initial /proc/PID/environ visibility
-        # at process start - this is defense-in-depth, not complete protection.
-        os.environ.pop("OPENAI_API_KEY", None)
-
-    # Make the API request
-    response = openai.ChatCompletion.create(
-        messages=prompt,
-        model=model,
-        # max_tokens=max_tokens,
-        n=n,
-        temperature=temperature,
-        stop=stop,
-        stream=stream,
-    )
-
-    if stream:
-        # Create variables to collect the stream of chunks
+    if stream_enabled:
         collected_chunks = []
         collected_messages = []
 
-        # Iterate through the stream of events
-        for chunk in response:
-            collected_chunks.append(chunk)  # save the event response
-            chunk_message = chunk["choices"][0]["delta"]  # extract the message
-            collected_messages.append(chunk_message)  # save the message
-            print(chunk_message.get("content", ""), end="")  # stream the message
+        with client.responses.with_streaming_response.create(
+            input=prompt,
+            model=model,
+            # max_output_tokens=max_tokens,
+            temperature=temperature,
+            stream=True,
+        ) as response:
+            try:
+                response.http_response.raise_for_status()
+            except httpx.HTTPStatusError as error:
+                if not error.response.is_closed:
+                    error.response.read()
+                raise client._make_status_error_from_response(error.response) from None
+            for line in response.iter_lines():
+                if not line:
+                    continue
+                if isinstance(line, bytes):
+                    line = line.decode("utf-8", errors="replace")
+                if not line.startswith("data:"):
+                    continue
+                payload = line[len("data:") :].strip()
+                if payload == "[DONE]":
+                    break
+                try:
+                    event = json.loads(payload)
+                except json.JSONDecodeError:
+                    continue
+                collected_chunks.append(event)
+                event_type = event.get("type")
+                if event_type == "response.output_text.delta":
+                    delta = event.get("delta", "")
+                    if delta:
+                        collected_messages.append(delta)
+                        print(delta, end="")
+                elif event_type == "response.output_text.done" and not collected_messages:
+                    text = event.get("text", "")
+                    if text:
+                        collected_messages.append(text)
+                        print(text, end="")
         print()
-        response = collected_chunks
 
         # Save the time delay and text received
         response_time = (time.monotonic_ns() - start_time) / 1e9
-        generated_text = "".join([m.get("content", "") for m in collected_messages])
+        generated_text = "".join(collected_messages)
+        response = collected_chunks
 
     else:
         # Extract and save the generated response
-        generated_text = response["choices"][0]["message"]["content"]
+        response = client.responses.create(
+            input=prompt,
+            model=model,
+            # max_output_tokens=max_tokens,
+            temperature=temperature,
+            stream=False,
+        )
+        generated_text = response.output_text
 
         # Save the time delay
         response_time = (time.monotonic_ns() - start_time) / 1e9
@@ -155,7 +199,7 @@ def chatgpt_request(
     )
 
 
-def num_tokens_from_string(string, model="gpt-4.1"):
+def num_tokens_from_string(string, model=DEFAULT_MODEL):
     """Returns the number of tokens in a text string."""
     try:
         encoding = tiktoken.encoding_for_model(model)
@@ -165,7 +209,7 @@ def num_tokens_from_string(string, model="gpt-4.1"):
     return num_tokens
 
 
-def num_tokens_from_messages(messages, model="gpt-4.1"):
+def num_tokens_from_messages(messages, model=DEFAULT_MODEL):
     """Returns the number of tokens used by a list of messages."""
     try:
         encoding = tiktoken.encoding_for_model(model)
