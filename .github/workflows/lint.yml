@@ -37,7 +37,7 @@ jobs:
         run: |
           set -euo pipefail
           status=0
-          uv run --extra dev scriv print || status=$?
+          uv run --group dev scriv print || status=$?
           if [ "$status" -ne 0 ]; then
             if [ "$status" -eq 2 ]; then
               echo "::notice::No changelog fragments to collect"

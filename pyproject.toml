@@ -33,14 +33,14 @@ dependencies = [
     "tiktoken ~= 0.12",
 ]
 
-[project.optional-dependencies]
+[project.scripts]
+vocabmaster = "vocabmaster.cli:vocabmaster"
+
+[dependency-groups]
 dev = [
     "pytest ~= 8.4",
     "scriv[toml]>=1.5.0",
 ]
-
-[project.scripts]
-vocabmaster = "vocabmaster.cli:vocabmaster"
 
 [project.urls]
 Homepage = "https://github.com/sderev/vocabmaster"
