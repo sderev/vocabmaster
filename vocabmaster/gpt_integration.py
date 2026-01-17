@@ -9,7 +9,7 @@ from openai import OpenAI
 
 from vocabmaster.utils import get_openai_api_key
 
-DEFAULT_MODEL = "gpt-4.1"
+DEFAULT_MODEL = "gpt-5.2"
 
 
 @functools.lru_cache(maxsize=1)
@@ -290,6 +290,8 @@ def estimate_prompt_cost(message, model):
         "o3-mini-2025-01-31": 1.10,
         "o4-mini": 1.10,
         "o4-mini-2025-04-16": 1.10,
+        "gpt-5.2": 1.75,
+        "gpt-5.1": 1.25,
         "gpt-5": 1.25,
         "gpt-5-mini": 0.25,
         "gpt-5-nano": 0.05,
