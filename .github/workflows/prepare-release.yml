@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           status=0
-          uv run --extra dev scriv collect --version "$VERSION" || status=$?
+          uv run --group dev scriv collect --version "$VERSION" || status=$?
           if [ "$status" -eq 0 ]; then
             echo "Changelog fragments collected"
           elif [ "$status" -eq 2 ]; then

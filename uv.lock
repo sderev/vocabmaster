@@ -1167,7 +1167,7 @@ dependencies = [
     { name = "tiktoken" },
 ]
 
-[package.optional-dependencies]
+[package.dev-dependencies]
 dev = [
     { name = "pytest" },
     { name = "scriv", extra = ["toml"] },
@@ -1177,11 +1177,14 @@ dev = [
 requires-dist = [
     { name = "click", specifier = "~=8.3" },
     { name = "openai", specifier = ">=0.28,<1.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = "~=8.4" },
-    { name = "scriv", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.5.0" },
     { name = "tiktoken", specifier = "~=0.12" },
 ]
-provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = "~=8.4" },
+    { name = "scriv", extras = ["toml"], specifier = ">=1.5.0" },
+]
 
 [[package]]
 name = "yarl"
