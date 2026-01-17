@@ -56,29 +56,27 @@ uv tool install vocabmaster
 
 ### OpenAI API key
 
-Vocabmaster requires an OpenAI API key to function. You can obtain a key by signing up for an account at [OpenAI's website](https://platform.openai.com/account/api-keys).
+Vocabmaster requires an OpenAI API key to function. You can obtain a key by signing up for an account at [OpenAI's website](https://platform.openai.com/settings/organization/api-keys).
 
-Once you have your API key, set it as an environment variable:
+Once you have your API key, store it in `~/.config/lmt/key.env` (preferred) or set it as an environment variable:
 
 * On macOS and Linux:
 
   ```bash
-  export OPENAI_API_KEY="your-api-key-here"
+  mkdir -p ~/.config/lmt
+  cat << 'EOF' > ~/.config/lmt/key.env
+  OPENAI_API_KEY="your-api-key-here"
+  EOF
+  chmod 600 ~/.config/lmt/key.env
   ```
 
-  To avoid having to type it everyday, you can create a file with the key:
+  The key file accepts `OPENAI_API_KEY=...`, `export OPENAI_API_KEY=...`, or a single bare key on its own line.
+
+  To use an environment variable instead, add this to your shell configuration file (`.bashrc`, `.zshrc`, etc.):
 
   ```bash
-  echo "your-api-key" > ~/.openai-api-key.txt
+  export OPENAI_API_KEY="your-api-key-here"
   ```
-
-  **Note:** Remember to replace `"your-api-key"` with your actual API key.
-
-  And then, you can add this to your shell configuration file (`.bashrc`, `.zshrc`, etc.):
-
-    ```bash
-    export OPENAI_API_KEY="$(cat ~/.openai-api-key.txt)"
-    ```
 
 * On Windows:
 

@@ -29,7 +29,8 @@ classifiers = [
 
 dependencies = [
     "click ~= 8.3",
-    "openai >= 0.28, <1.0",
+    "httpx>=0.28.1",
+    "openai >= 1.66.0, <2.0",
     "tiktoken ~= 0.12",
 ]
 

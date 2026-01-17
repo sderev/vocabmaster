@@ -1,4 +1,3 @@
-import openai
 import pytest
 
 from vocabmaster import config_handler, utils
@@ -76,16 +75,55 @@ def test_get_pair_mode_translation_mode():
     assert utils.get_pair_mode("German", "french") == "translation"
 
 
-def test_openai_api_key_exists_checks_sdk_key(monkeypatch):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.setattr(openai, "api_key", "sk-test")
+def test_get_openai_api_key_path_does_not_create_file(fake_home):
+    key_path = utils.get_openai_api_key_path()
+
+    assert key_path == fake_home / ".config" / "lmt" / "key.env"
+    assert not key_path.exists()
+
+
+def test_ensure_openai_api_key_path_creates_file(fake_home):
+    key_path = utils.ensure_openai_api_key_path()
+
+    assert key_path == fake_home / ".config" / "lmt" / "key.env"
+    assert key_path.exists()
+    assert key_path.stat().st_mode & 0o777 == 0o600
+
+
+def test_get_openai_api_key_prefers_file(fake_home, monkeypatch):
+    key_path = utils.ensure_openai_api_key_path()
+    key_path.write_text("OPENAI_API_KEY=sk-file\n", encoding="utf-8")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-env")
+
+    assert utils.get_openai_api_key() == "sk-file"
+
+
+def test_read_openai_api_key_prefers_named_entry(fake_home):
+    key_path = utils.ensure_openai_api_key_path()
+    key_path.write_text("sk-raw\nOPENAI_API_KEY=sk-named\n", encoding="utf-8")
+
+    assert utils.read_openai_api_key() == "sk-named"
+
+
+def test_read_openai_api_key_accepts_export_prefix(fake_home):
+    key_path = utils.ensure_openai_api_key_path()
+    key_path.write_text("export OPENAI_API_KEY=sk-export\n", encoding="utf-8")
+
+    assert utils.read_openai_api_key() == "sk-export"
+
+
+def test_openai_api_key_exists_checks_env_key(fake_home, monkeypatch):
+    key_path = utils.ensure_openai_api_key_path()
+    key_path.write_text("", encoding="utf-8")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
     assert utils.openai_api_key_exists() is True
 
 
-def test_openai_api_key_exists_false_without_env_or_sdk_key(monkeypatch):
+def test_openai_api_key_exists_false_without_file_or_env(fake_home, monkeypatch):
+    key_path = utils.ensure_openai_api_key_path()
+    key_path.write_text("", encoding="utf-8")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.setattr(openai, "api_key", None)
 
     assert utils.openai_api_key_exists() is False
 
