@@ -40,6 +40,7 @@ vocabmaster = "vocabmaster.cli:vocabmaster"
 dev = [
     "pytest ~= 8.4",
     "scriv[toml]>=1.5.0",
+    "urllib3>=2.6.3",  # urllib3 is a transitive dependency of scriv (via requests). Pinned to fix CVE-2026-21441.
 ]
 
 [project.urls]
