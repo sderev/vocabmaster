@@ -6,6 +6,12 @@ from click.testing import CliRunner
 
 from vocabmaster import cli, config_handler, utils
 
+DEFAULT_PAIR_MISSING_MESSAGE = (
+    "No default language pair found. Run 'vocabmaster pairs add' to create a language pair, "
+    "then 'vocabmaster pairs set-default' to choose a default.\n"
+    "See `vocabmaster --help` for more information."
+)
+
 
 @pytest.fixture(autouse=True)
 def reset_click_defaults(monkeypatch):
@@ -480,7 +486,7 @@ class TestGenerateAnkiDeck:
 class TestAnkiCommand:
     def test_anki_requires_default_pair(self, isolated_app_dir, monkeypatch):
         def fail_pair(option):
-            raise ValueError("No default language pair found.")
+            raise ValueError(DEFAULT_PAIR_MISSING_MESSAGE)
 
         monkeypatch.setattr(cli.config_handler, "get_language_pair", fail_pair)
 
@@ -489,6 +495,8 @@ class TestAnkiCommand:
         assert result.exit_code == 1
         assert "No default language pair found." in result.output
         assert "vocabmaster pairs add" in result.output
+        assert "vocabmaster pairs set-default" in result.output
+        assert "vocabmaster --help" in result.output
 
     def test_anki_generates_deck_when_default_set(self, isolated_app_dir, monkeypatch):
         monkeypatch.setattr(
@@ -583,14 +591,17 @@ class TestConfigKeyCommand:
 class TestTokensCommand:
     def test_tokens_requires_default_pair(self, isolated_app_dir, monkeypatch):
         def fail_pair(option):
-            raise ValueError("No default language pair found")
+            raise ValueError(DEFAULT_PAIR_MISSING_MESSAGE)
 
         monkeypatch.setattr(cli.config_handler, "get_language_pair", fail_pair)
 
         result = invoke_cli(["tokens"])
 
         assert result.exit_code == 1
-        assert "No default language pair found" in result.output
+        assert "No default language pair found." in result.output
+        assert "vocabmaster pairs add" in result.output
+        assert "vocabmaster pairs set-default" in result.output
+        assert "vocabmaster --help" in result.output
 
     def test_tokens_requires_words(self, isolated_app_dir, monkeypatch):
         monkeypatch.setattr(
@@ -782,7 +793,7 @@ class TestRecoverListCommand:
         """recover list shows error with hint when no language pair configured."""
 
         def fail_pair(_pair):
-            raise ValueError("No default language pair found.")
+            raise ValueError(DEFAULT_PAIR_MISSING_MESSAGE)
 
         monkeypatch.setattr(cli.config_handler, "get_language_pair", fail_pair)
 
@@ -791,6 +802,8 @@ class TestRecoverListCommand:
         assert result.exit_code == 1
         assert "No default language pair found." in result.output
         assert "vocabmaster pairs add" in result.output
+        assert "vocabmaster pairs set-default" in result.output
+        assert "vocabmaster --help" in result.output
 
 
 class TestRecoverRestoreCommand:
@@ -1213,7 +1226,7 @@ class TestRecoverValidateCommand:
         """recover validate shows error for invalid language pair."""
 
         def fail_pair(_pair):
-            raise ValueError("No default language pair found.")
+            raise ValueError(DEFAULT_PAIR_MISSING_MESSAGE)
 
         monkeypatch.setattr(cli.config_handler, "get_language_pair", fail_pair)
 
@@ -1221,6 +1234,9 @@ class TestRecoverValidateCommand:
 
         assert result.exit_code == 1
         assert "No default language pair found." in result.output
+        assert "vocabmaster pairs add" in result.output
+        assert "vocabmaster pairs set-default" in result.output
+        assert "vocabmaster --help" in result.output
 
 
 class TestConfigHandlerRemove:

@@ -316,9 +316,9 @@ def get_language_pair(language_pair):
         default_pair = get_default_language_pair()
         if default_pair is None:
             raise ValueError(
-                "No default language pair found. Please set a default language pair"
-                " using 'vocabmaster config default'.\nSee `vocabmaster --help` for"
-                " more information."
+                "No default language pair found. Run 'vocabmaster pairs add' to create a"
+                " language pair, then 'vocabmaster pairs set-default' to choose a default.\n"
+                "See `vocabmaster --help` for more information."
             )
         language_to_learn = default_pair["language_to_learn"]
         mother_tongue = default_pair["mother_tongue"]

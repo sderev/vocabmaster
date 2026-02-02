@@ -984,7 +984,9 @@ def pairs_inspect_command(pair):
         default_pair = config_handler.get_default_language_pair()
         if default_pair is None:
             click.echo(
-                f"{ERROR_PREFIX} No default language pair found. Run 'vocabmaster pairs add' to create one.",
+                f"{ERROR_PREFIX} No default language pair found. Run 'vocabmaster pairs add' to create a"
+                " language pair, then 'vocabmaster pairs set-default' to choose a default.\n"
+                "See `vocabmaster --help` for more information.",
                 err=True,
             )
             sys.exit(1)
