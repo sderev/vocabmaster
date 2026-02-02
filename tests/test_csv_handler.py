@@ -1,6 +1,8 @@
 import csv
 from pathlib import Path
 
+import pytest
+
 from vocabmaster import config_handler, csv_handler
 
 
@@ -13,6 +15,35 @@ def test_convert_text_to_dict_preserves_single_quotes():
     assert result["saluer"]["recognized_word"] == "saluer"
     assert result["saluer"]["translation"] == "l'amour, l'ami"
     assert result["saluer"]["example"] == "Je dis 'bonjour'"
+
+
+def test_validate_no_duplicate_words_handles_headered_csv(tmp_path):
+    translations_file = tmp_path / "vocab_list.csv"
+    translations_file.write_text(
+        "\ufeffword,translation,example\nHello,,\nhello,,\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(csv_handler.ValidationError) as excinfo:
+        csv_handler.validate_no_duplicate_words(translations_file)
+
+    message = str(excinfo.value)
+    assert "Duplicate words detected in your vocabulary file" in message
+    assert "Hello" in message
+    assert "lines 2, 3" in message
+
+
+def test_validate_no_duplicate_words_handles_headerless_csv(tmp_path):
+    translations_file = tmp_path / "vocab_list.csv"
+    translations_file.write_text("Ciao,,\nciao,,\n", encoding="utf-8")
+
+    with pytest.raises(csv_handler.ValidationError) as excinfo:
+        csv_handler.validate_no_duplicate_words(translations_file)
+
+    message = str(excinfo.value)
+    assert "Duplicate words detected in your vocabulary file" in message
+    assert "Ciao" in message
+    assert "lines 1, 2" in message
 
 
 def test_detect_word_mismatches_finds_typo_corrections():

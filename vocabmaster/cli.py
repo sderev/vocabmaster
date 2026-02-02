@@ -260,8 +260,11 @@ def translate(pair, count, deck_name):
         setup_dir(), language_to_learn, mother_tongue
     )
 
-    # Add the fieldnames to the CSV file if it's missing
-    csv_handler.ensure_csv_has_fieldnames(translations_filepath)
+    try:
+        csv_handler.validate_no_duplicate_words(translations_filepath)
+    except csv_handler.ValidationError as error:
+        click.echo(f"{ERROR_PREFIX} {error}", err=True)
+        sys.exit(1)
 
     # Check if the vocabulary list is empty
     if csv_handler.vocabulary_list_is_empty(translations_filepath):

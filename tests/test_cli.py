@@ -203,6 +203,32 @@ class TestTranslateCommand:
         assert result.exit_code == 0
         assert "Your vocabulary list is empty" in result.output
 
+    def test_translate_rejects_duplicate_words(self, isolated_app_dir, monkeypatch):
+        monkeypatch.setattr(
+            cli.config_handler, "get_language_pair", lambda pair: ("english", "french")
+        )
+        translations = isolated_app_dir / "vocab.csv"
+        anki = isolated_app_dir / "anki.csv"
+        translations.touch()
+        anki.touch()
+        monkeypatch.setattr(cli, "setup_files", lambda *_: (translations, anki))
+
+        def fail_validate(_path):
+            raise cli.csv_handler.ValidationError(
+                "Duplicate words detected in your vocabulary file. Please remove duplicates and retry.\n"
+                "  - hello (lines 1, 2)"
+            )
+
+        monkeypatch.setattr(cli.csv_handler, "validate_no_duplicate_words", fail_validate)
+
+        result = invoke_cli(["translate"])
+
+        assert result.exit_code == 1
+        assert "Error:" in result.output
+        assert "Duplicate words detected in your vocabulary file" in result.output
+        assert "hello" in result.output
+        assert "lines 1, 2" in result.output
+
     def test_translate_count_option_success(self, isolated_app_dir, monkeypatch):
         monkeypatch.setattr(
             cli.config_handler, "get_language_pair", lambda pair: ("english", "french")

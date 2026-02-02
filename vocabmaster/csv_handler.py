@@ -23,6 +23,85 @@ class ValidationError(RuntimeError):
     """Raised when vocabulary entries fail validation before write."""
 
 
+def _strip_bom(value: str) -> str:
+    if value.startswith("\ufeff"):
+        return value.lstrip("\ufeff")
+    return value
+
+
+def _normalize_word(value: str, strip_bom: bool = False) -> str:
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        value = str(value)
+    if strip_bom:
+        value = _strip_bom(value)
+    return value.strip().casefold()
+
+
+def _row_has_header(row: list[str]) -> bool:
+    if len(row) < len(CSV_FIELDNAMES):
+        return False
+    normalized = []
+    for index, cell in enumerate(row[: len(CSV_FIELDNAMES)]):
+        normalized.append(_normalize_word(cell, strip_bom=index == 0))
+    return normalized == CSV_FIELDNAMES
+
+
+def validate_no_duplicate_words(translations_path):
+    """
+    Validate the vocabulary file contains no duplicate words.
+
+    Duplicates are detected by comparing words using strip() + casefold().
+    """
+    translations_path = Path(translations_path)
+    if not translations_path.exists():
+        return
+
+    seen = {}
+    duplicates = {}
+
+    with open(translations_path, encoding="UTF-8", newline="") as translations_file:
+        reader = csv.reader(translations_file)
+        for line_number, row in enumerate(reader, start=1):
+            if line_number == 1 and _row_has_header(row):
+                continue
+            if not row:
+                continue
+
+            raw_word = row[0]
+            normalized_word = _normalize_word(raw_word, strip_bom=True)
+            if not normalized_word:
+                continue
+
+            if normalized_word in seen:
+                if normalized_word not in duplicates:
+                    duplicates[normalized_word] = {
+                        "word": seen[normalized_word]["word"],
+                        "lines": [seen[normalized_word]["line"], line_number],
+                    }
+                else:
+                    duplicates[normalized_word]["lines"].append(line_number)
+            else:
+                seen[normalized_word] = {
+                    "word": _strip_bom(raw_word),
+                    "line": line_number,
+                }
+
+    if not duplicates:
+        return
+
+    message_lines = [
+        "Duplicate words detected in your vocabulary file. Please remove duplicates and retry."
+    ]
+    ordered = sorted(duplicates.values(), key=lambda entry: entry["lines"][0])
+    for entry in ordered:
+        line_numbers = ", ".join(str(line) for line in entry["lines"])
+        message_lines.append(f"  - {entry['word']} (lines {line_numbers})")
+
+    raise ValidationError("\n".join(message_lines))
+
+
 def atomic_write_csv(filepath, write_function):
     """
     Write CSV atomically using temp-then-rename pattern.
