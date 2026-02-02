@@ -170,6 +170,39 @@ def test_update_word_key_in_csv_entries():
     assert updated_entries["hello"]["example"] == "Hello there"
 
 
+def test_word_exists_ignores_header_row(tmp_path):
+    translations_file = tmp_path / "vocab.csv"
+    translations_file.write_text(
+        "word,translation,example\nhello,bonjour,Salut\n",
+        encoding="utf-8",
+    )
+
+    assert csv_handler.word_exists("word", translations_file) is False
+    assert csv_handler.word_exists("hello", translations_file) is True
+
+
+def test_word_exists_ignores_header_row_with_extra_columns(tmp_path):
+    translations_file = tmp_path / "vocab.csv"
+    translations_file.write_text(
+        "word,translation,example,\nhello,bonjour,Salut,\n",
+        encoding="utf-8",
+    )
+
+    assert csv_handler.word_exists("word", translations_file) is False
+    assert csv_handler.word_exists("hello", translations_file) is True
+
+
+def test_word_exists_reads_headerless_file(tmp_path):
+    translations_file = tmp_path / "vocab.csv"
+    translations_file.write_text(
+        "hello,bonjour,Salut\nworld,monde,Exemple\n",
+        encoding="utf-8",
+    )
+
+    assert csv_handler.word_exists("hello", translations_file) is True
+    assert csv_handler.word_exists("missing", translations_file) is False
+
+
 def test_word_correction_applies_translation_immediately():
     """Test that when a word is corrected, the translation is applied immediately."""
     current_entries = {
@@ -487,6 +520,20 @@ def test_vocabulary_list_is_empty_inserts_header_when_missing(tmp_path):
 
     assert csv_handler.vocabulary_list_is_empty(translations_file) is True
     assert translations_file.read_text().splitlines()[0] == "word,translation,example"
+
+
+def test_ensure_csv_has_fieldnames_skips_bom_header(tmp_path):
+    translations_file = tmp_path / "translations.csv"
+    translations_file.write_text(
+        "\ufeffWord,Translation,Example\nbonjour,,\n",
+        encoding="utf-8",
+    )
+
+    csv_handler.ensure_csv_has_fieldnames(translations_file)
+
+    lines = translations_file.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 2
+    assert lines[0].lstrip("\ufeff").casefold() == "word,translation,example"
 
 
 def test_vocabulary_list_is_empty_ignores_blank_rows(tmp_path):

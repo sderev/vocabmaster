@@ -1,4 +1,5 @@
 import csv
+import itertools
 import os
 import stat
 import tempfile
@@ -39,13 +40,16 @@ def _normalize_word(value: str, strip_bom: bool = False) -> str:
     return value.strip().casefold()
 
 
-def _row_has_header(row: list[str]) -> bool:
-    if len(row) < len(CSV_FIELDNAMES):
+def _row_has_header(row: list[str], fieldnames: list[str] | None = None) -> bool:
+    if fieldnames is None:
+        fieldnames = CSV_FIELDNAMES
+    if len(row) < len(fieldnames):
         return False
     normalized = []
-    for index, cell in enumerate(row[: len(CSV_FIELDNAMES)]):
+    for index, cell in enumerate(row[: len(fieldnames)]):
         normalized.append(_normalize_word(cell, strip_bom=index == 0))
-    return normalized == CSV_FIELDNAMES
+    normalized_fieldnames = [_normalize_word(name) for name in fieldnames]
+    return normalized == normalized_fieldnames
 
 
 def validate_no_duplicate_words(translations_path):
@@ -359,12 +363,18 @@ def word_exists(word, translations_path):
     Returns:
         bool: True if the word is found in the file, False otherwise.
     """
-    with open(translations_path, encoding="UTF-8") as file:
-        dict_reader = DictReader(file, fieldnames=CSV_FIELDNAMES)
-        for row in dict_reader:
-            if word == row["word"]:
+    with open(translations_path, encoding="UTF-8", newline="") as file:
+        reader = csv.reader(file)
+        first_row = next(reader, None)
+        if first_row is None:
+            return False
+        rows = reader if _row_has_header(first_row) else itertools.chain([first_row], reader)
+        for row in rows:
+            if not row:
+                continue
+            if word == row[0]:
                 return True
-        return False
+    return False
 
 
 def append_word(word, translations_filepath):
@@ -837,13 +847,11 @@ def ensure_csv_has_fieldnames(translations_path, fieldnames=None):
 
     translations_path = Path(translations_path)
 
-    with open(translations_path, "r", encoding="UTF-8") as file:
-        # Check if the fieldnames is already present in the first row of the content
-        for line in file:
-            if line.startswith(",".join(fieldnames)):
-                return
-            else:
-                break
+    with open(translations_path, "r", encoding="UTF-8", newline="") as file:
+        reader = csv.reader(file)
+        first_row = next(reader, None)
+        if first_row is not None and _row_has_header(first_row, fieldnames):
+            return
 
         file.seek(0, 0)  # Move the file pointer to the beginning of the file
         content = file.read()
