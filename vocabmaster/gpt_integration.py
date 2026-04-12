@@ -3,7 +3,6 @@ import json
 import os
 import time
 
-import httpx
 import tiktoken
 from openai import OpenAI
 
@@ -167,51 +166,31 @@ def chatgpt_request(
     stream_enabled = bool(stream)
 
     if stream_enabled:
-        collected_chunks = []
         collected_messages = []
         streaming_state = {"line_buffer": ""}
+        final_response = None
 
-        with client.responses.with_streaming_response.create(
+        with client.responses.stream(
             input=prompt,
             model=model,
             # max_output_tokens=max_tokens,
             temperature=temperature,
-            stream=True,
-        ) as response:
-            try:
-                response.http_response.raise_for_status()
-            except httpx.HTTPStatusError as error:
-                if not error.response.is_closed:
-                    error.response.read()
-                raise client._make_status_error_from_response(error.response) from None
-            for line in response.iter_lines():
-                if not line:
-                    continue
-                if isinstance(line, bytes):
-                    line = line.decode("utf-8", errors="replace")
-                if not line.startswith("data:"):
-                    continue
-                payload = line[len("data:") :].strip()
-                if payload == "[DONE]":
-                    break
-                try:
-                    event = json.loads(payload)
-                except json.JSONDecodeError:
-                    continue
-                collected_chunks.append(event)
-                event_type = event.get("type")
-                if event_type == "response.output_text.delta":
-                    delta = event.get("delta", "")
+        ) as stream_response:
+            for event in stream_response:
+                if getattr(event, "type", None) == "response.output_text.delta":
+                    delta = getattr(event, "delta", "")
                     if delta:
                         collected_messages.append(delta)
                         filtered_content = filter_streaming_tsv(delta, streaming_state)
                         print(filtered_content, end="")
-                elif event_type == "response.output_text.done" and not collected_messages:
-                    text = event.get("text", "")
-                    if text:
-                        collected_messages.append(text)
-                        filtered_content = filter_streaming_tsv(text, streaming_state)
-                        print(filtered_content, end="")
+            final_response = stream_response.get_final_response()
+
+        generated_text = "".join(collected_messages)
+        if not generated_text:
+            generated_text = final_response.output_text
+            if generated_text:
+                filtered_content = filter_streaming_tsv(generated_text, streaming_state)
+                print(filtered_content, end="")
         tail = filter_streaming_tsv("", streaming_state, final=True)
         if tail:
             print(tail, end="")
@@ -219,8 +198,7 @@ def chatgpt_request(
 
         # Save the time delay and text received
         response_time = (time.monotonic_ns() - start_time) / 1e9
-        generated_text = "".join(collected_messages)
-        response = collected_chunks
+        response = final_response
 
     else:
         # Extract and save the generated response
