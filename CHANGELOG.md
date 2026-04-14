@@ -6,6 +6,13 @@ For versions before 0.2.0, see [GitHub Releases](https://github.com/sderev/vocab
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.3.1'></a>
+## 0.3.1 - 2026-04-14
+
+Fixed
+-----
+* Widened the supported `openai` range to include 2.x and switched streaming requests to the public SDK interface.
+
 <a id='changelog-0.3.0'></a>
 ## 0.3.0 - 2026-02-19
 
