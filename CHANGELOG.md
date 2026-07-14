@@ -6,6 +6,13 @@ For versions before 0.2.0, see [GitHub Releases](https://github.com/sderev/vocab
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.3.2'></a>
+## 0.3.2 - 2026-07-14
+
+Security
+--------
+* Update `idna`, `urllib3`, `requests`, `Pygments`, and `pytest` to patched versions for current Dependabot security advisories.
+
 <a id='changelog-0.3.1'></a>
 ## 0.3.1 - 2026-04-14
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "VocabMaster"
-version = "0.3.1"
+version = "0.3.2"
 description = "Master new languages with this CLI tool, designed to help you record vocabulary and create Anki flashcards without the need to manually input translations or example sentences."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -31,7 +31,7 @@ dependencies = [
     "httpx>=0.28.1",
     "openai >= 1.66.0, <3.0",
     "tiktoken ~= 0.12",
-    "urllib3 >= 2.6.3",
+    "urllib3 >= 2.7.0",
 ]
 
 [project.scripts]
@@ -39,9 +39,9 @@ vocabmaster = "vocabmaster.cli:vocabmaster"
 
 [dependency-groups]
 dev = [
-    "pytest ~= 8.4",
+    "pytest ~= 9.0.3",
     "scriv[toml]>=1.5.0",
-    "urllib3>=2.6.3",  # urllib3 is a transitive dependency of scriv (via requests). Pinned to fix CVE-2026-21441.
+    "urllib3>=2.7.0",  # urllib3 is a transitive dependency of scriv (via requests).
 ]
 
 [project.urls]
