@@ -2,7 +2,7 @@
 
 CLI tool to record vocabulary and create Anki flashcards. Translations and example sentences are generated automatically.
 
-![vocabmaster_translate_japanese](https://github.com/sderev/vocabmaster/assets/24412384/d2196f6a-3094-40dd-9b2f-3caffd8ba3dd)
+![vocabmaster translate](assets/demos/03_translate.gif)
 
 <!-- TOC -->
 ## Table of Contents
@@ -17,11 +17,12 @@ CLI tool to record vocabulary and create Anki flashcards. Translations and examp
 1. [Usage](#usage)
     1. [Add a new language pair](#add-a-new-language-pair)
     1. [Add words to your vocabulary list](#add-words-to-your-vocabulary-list)
+    1. [Translate and generate an Anki deck](#translate-and-generate-an-anki-deck)
+    1. [Estimate token usage](#estimate-token-usage)
     1. [Manage language pairs](#manage-language-pairs)
-    1. [Generate an Anki deck from your vocabulary list](#generate-an-anki-deck-from-your-vocabulary-list)
+    1. [Check API key status](#check-api-key-status)
     1. [Choose where your files live](#choose-where-your-files-live)
     1. [Recover from backups](#recover-from-backups)
-    1. [For detailed help on each command, run](#for-detailed-help-on-each-command-run)
 1. [Importing into Anki](#importing-into-anki)
 1. [Licence](#licence)
 <!-- /TOC -->
@@ -58,7 +59,13 @@ uv tool install vocabmaster
 
 Vocabmaster requires an OpenAI API key to function. You can obtain a key by signing up for an account at [OpenAI's website](https://platform.openai.com/settings/organization/api-keys).
 
-Once you have your API key, store it in `~/.config/lmt/key.env` (preferred) or set it as an environment variable:
+Once you have your API key, store it in `~/.config/lmt/key.env` (preferred) or set it as an environment variable. The `lmt` path is a shared convention with [`lmterminal`](https://github.com/sderev/lmterminal).
+
+You can check whether VocabMaster finds your key with:
+
+```
+vocabmaster config key
+```
 
 * On macOS and Linux:
 
@@ -104,13 +111,15 @@ Remember to replace `/path/to/vocabmaster` with the actual path where the comple
 
 ## Usage
 
+Most commands accept a `--pair` option (e.g., `--pair spanish:english`) to target a specific language pair instead of the default.
+
 ### Add a new language pair
 
 ```
 vocabmaster pairs add
 ```
 
-![vocabmaster_setup](https://github.com/sderev/vocabmaster/assets/24412384/88742afa-fdc4-4808-b106-493b3c0afa8d)
+![vocabmaster pairs add](assets/demos/01_pairs_add.gif)
 
 #### Definition mode for same-language pairs
 
@@ -131,22 +140,55 @@ When using same-language pairs:
 ### Add words to your vocabulary list
 
 ```
-vocabmaster add la casa
+vocabmaster add 猫
 ```
 
-![vocabmaster_add](https://github.com/sderev/vocabmaster/assets/24412384/fb566562-f96c-418e-b2bb-cdb603d08aef)
+![vocabmaster add](assets/demos/02_add_word.gif)
+
+### Translate and generate an Anki deck
+
+`vocabmaster translate` fetches AI-generated translations and example sentences for pending words, then generates an Anki-ready CSV file:
+
+```
+vocabmaster translate
+```
+
+Check how many words are pending translation with `--count`:
+
+```
+vocabmaster translate --count
+```
+
+If your words are already translated and you only need to regenerate the Anki file (e.g., after editing the CSV by hand), use `anki` instead — it skips the API call:
+
+```
+vocabmaster anki
+vocabmaster anki --pair spanish:english
+```
+
+### Estimate token usage
+
+See the input-token count and estimated cost before running a translation:
+
+```
+vocabmaster tokens
+vocabmaster tokens --pair japanese:english
+```
 
 ### Manage language pairs
 
 ```
 vocabmaster pairs list
+vocabmaster pairs default
 vocabmaster pairs set-default
 vocabmaster pairs remove
 vocabmaster pairs rename
 vocabmaster pairs inspect --pair english:french
 ```
 
-`inspect` shows file locations, translation counts, and the estimated input-token cost (input tokens only) for a specific pair.
+`pair` is accepted as an alias for `pairs` (e.g., `vocabmaster pair list`).
+
+`default` shows the current default pair. `inspect` shows file locations, translation counts, and the estimated input-token cost (input tokens only) for a specific pair.
 
 #### Custom deck names
 
@@ -175,19 +217,13 @@ vocabmaster anki --pair english:french --deck-name "Temporary Name"
 
 The same `--deck-name` option works with the `translate` command.
 
-### Generate an Anki deck from your vocabulary list
+### Check API key status
 
 ```
-vocabmaster translate
+vocabmaster config key
 ```
 
-![vocabmaster_translate](https://github.com/sderev/vocabmaster/assets/24412384/63e5423a-6f1b-4452-aefd-dd15444cb8df)
-
-Generate a deck for a specific pair with:
-
-```
-vocabmaster anki --pair spanish:english
-```
+Reports whether an OpenAI API key is found in `~/.config/lmt/key.env` or the `OPENAI_API_KEY` environment variable.
 
 ### Choose where your files live
 
