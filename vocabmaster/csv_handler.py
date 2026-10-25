@@ -289,11 +289,15 @@ def detect_word_mismatches(original_words, gpt_response):
             # Check if any other entries could be corrections for this word
             possible_corrections = []
             for key, data in gpt_response.items():
-                if isinstance(data, dict) and data.get("recognized_word"):
-                    # In legacy 3-column format, key == recognized_word
-                    # If key != original_word, this could be a typo correction
-                    if key != original_word and key not in original_words_set:
-                        possible_corrections.append(key)
+                # In legacy 3-column format, key == recognized_word.
+                # If key != original_word, this could be a typo correction.
+                if (
+                    isinstance(data, dict)
+                    and data.get("recognized_word")
+                    and key != original_word
+                    and key not in original_words_set
+                ):
+                    possible_corrections.append(key)
 
             if possible_corrections:
                 # Offer these as potential corrections (legacy format compatibility)

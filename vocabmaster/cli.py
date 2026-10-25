@@ -167,11 +167,11 @@ def add(pair, word):
     """
     try:
         language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - Keep existing CLI error reporting.
         click.echo(f"{ERROR_PREFIX} {error}", err=True)
         sys.exit(1)
 
-    translations_filepath, anki_filepath = setup_files(
+    translations_filepath, _anki_filepath = setup_files(
         setup_dir(), language_to_learn, mother_tongue
     )
 
@@ -236,7 +236,7 @@ def translate(pair, count, deck_name):
     """
     try:
         language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - Keep existing CLI error reporting.
         click.echo(f"{ERROR_PREFIX} {error}", err=True)
         sys.exit(1)
 
@@ -283,7 +283,7 @@ def translate(pair, count, deck_name):
         except csv_handler.AllWordsTranslatedError as error:
             click.secho("Status: ", fg="green", nl=False)
             click.echo(error)
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001 - Keep existing CLI error reporting.
             click.secho("Status: ", fg="green", nl=False)
             click.echo(error)
         else:
@@ -322,7 +322,7 @@ def translate(pair, count, deck_name):
             f"If you only want to generate the Anki deck, you can run '{click.style('vocabmaster anki', bold=True)}'."
         )
         sys.exit(0)
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - Keep existing CLI error reporting.
         click.secho("Status: ", fg="red", nl=False, err=True)
         click.echo(error, err=True)
         sys.exit(0)
@@ -396,7 +396,7 @@ def anki(pair, deck_name):
     """
     try:
         language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - Keep existing CLI error reporting.
         click.echo(f"{ERROR_PREFIX} {error}", err=True)
         if pair is None:
             click.echo(
@@ -634,7 +634,6 @@ def openai_api_key_explain():
             "Hint: Set the key by running `export OPENAI_API_KEY=YOUR_KEY`.",
             err=True,
         )
-    return
 
 
 @vocabmaster.group("pairs", invoke_without_command=True)
@@ -1092,7 +1091,7 @@ def tokens(pair):
     """
     try:
         language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - Keep existing CLI error reporting.
         click.echo(f"{ERROR_PREFIX} {error}", err=True)
         if pair is None:
             click.echo(
@@ -1100,7 +1099,7 @@ def tokens(pair):
                 err=True,
             )
         sys.exit(1)
-    translations_filepath, anki_file = setup_files(setup_dir(), language_to_learn, mother_tongue)
+    translations_filepath, _anki_file = setup_files(setup_dir(), language_to_learn, mother_tongue)
 
     if csv_handler.vocabulary_list_is_empty(translations_filepath):
         click.echo(f"{ERROR_PREFIX} The list is empty!", err=True)
@@ -1322,7 +1321,7 @@ def compute_prompt_estimate(language_to_learn, mother_tongue, translations_path)
         words_to_translate = csv_handler.get_words_to_translate(translations_path)
     except csv_handler.AllWordsTranslatedError:
         return {"status": "no_words", "model": translation_model}
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - Return structured errors for any failure.
         message = str(error)
         return {"status": "error", "model": translation_model, "error": message}
 
@@ -1539,7 +1538,7 @@ def recover_list(pair):
     """
     try:
         language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - Keep existing CLI error reporting.
         click.echo(f"{ERROR_PREFIX} {error}", err=True)
         if pair is None:
             click.echo(
@@ -1608,7 +1607,7 @@ def recover_restore(pair, backup_id, latest):
     """
     try:
         language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - Keep existing CLI error reporting.
         click.echo(f"{ERROR_PREFIX} {error}", err=True)
         sys.exit(1)
 
@@ -1703,7 +1702,7 @@ def recover_validate(pair):
     """
     try:
         language_to_learn, mother_tongue = config_handler.get_language_pair(pair)
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - Keep existing CLI error reporting.
         click.echo(f"{ERROR_PREFIX} {error}", err=True)
         sys.exit(1)
 

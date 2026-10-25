@@ -30,7 +30,7 @@ def validate_language_name(name: str) -> str:
         ValueError: If the language name is invalid
     """
     if not isinstance(name, str):
-        raise ValueError("Language name must be a string")
+        raise ValueError("Language name must be a string")  # noqa: TRY004 - Keep ValueError API.
 
     if not name:
         raise ValueError("Language name cannot be empty")
@@ -63,7 +63,7 @@ def validate_deck_name(name: str) -> str:
         ValueError: If the deck name is invalid
     """
     if not isinstance(name, str):
-        raise ValueError("Deck name must be a string")
+        raise ValueError("Deck name must be a string")  # noqa: TRY004 - Keep ValueError API.
 
     # Strip whitespace early to allow tabs/newlines at edges (common copy-paste errors)
     # but still catch them if they're in the middle of the name
@@ -242,7 +242,7 @@ def backup_content(backup_dir, content):
         file.write(str(content))
 
     backup_files = sorted(
-        list(backup_dir.glob("gpt_request_*.bak")),
+        backup_dir.glob("gpt_request_*.bak"),
         key=lambda p: p.stat().st_mtime,
     )
     if len(backup_files) > 15:
@@ -267,7 +267,7 @@ def backup_file(backup_dir, filepath):
     shutil.copy(filepath, backup_voc_list)
 
     backup_files = sorted(
-        list(backup_dir.glob(f"{filepath.stem}_*.bak")),
+        backup_dir.glob(f"{filepath.stem}_*.bak"),
         key=lambda p: p.stat().st_mtime,
     )
     if len(backup_files) > 10:
@@ -279,7 +279,7 @@ def generate_iso_timestamp():
     """
     Generate an ISO 8601 formatted timestamp with colons replaced by underscores.
     """
-    now = datetime.now()
+    now = datetime.now()  # noqa: DTZ005 - Preserve local, naive backup filename timestamps.
     return now.isoformat().replace(":", "_")
 
 

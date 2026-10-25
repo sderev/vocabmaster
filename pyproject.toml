@@ -31,7 +31,7 @@ dependencies = [
     "httpx>=0.28.1",
     "openai >= 1.66.0, <3.0",
     "tiktoken ~= 0.12",
-    "urllib3 >= 2.7.0",
+    "urllib3 >= 2.8.0",
 ]
 
 [project.scripts]
@@ -41,7 +41,7 @@ vocabmaster = "vocabmaster.cli:vocabmaster"
 dev = [
     "pytest ~= 9.0.3",
     "scriv[toml]>=1.5.0",
-    "urllib3>=2.7.0",  # urllib3 is a transitive dependency of scriv (via requests).
+    "urllib3>=2.8.0",  # urllib3 is a transitive dependency of scriv (via requests).
 ]
 
 [project.urls]
@@ -56,7 +56,7 @@ packages = ["vocabmaster"]
 line-length = 100
 
 [tool.ruff.lint]
-extend-select = ["I001"]
+extend-select = ["DTZ005", "I001"]
 
 [tool.scriv]
 version = "literal: pyproject.toml: project.version"

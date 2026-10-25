@@ -414,7 +414,7 @@ class TestTranslateCommand:
         monkeypatch.setattr(cli, "openai_api_key_exists", lambda: True)
 
         def fail_add(*_args, **_kwargs):
-            raise Exception("Permission denied")
+            raise Exception("Permission denied")  # noqa: TRY002 - Exercise generic-exception fallback.
 
         monkeypatch.setattr(cli.csv_handler, "add_translations_and_examples_to_file", fail_add)
         monkeypatch.setattr(cli, "generate_anki_deck", lambda *args, **kwargs: None)
